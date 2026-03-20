@@ -40,7 +40,7 @@
         </div>
         <div class="topbar-meta">
           <el-tag round effect="light">Vue 3 + MapLibre</el-tag>
-          <el-tag round type="success" effect="light">API 已适配 /api/v1</el-tag>
+          <el-tag round type="success" effect="light">API 已适配 /api</el-tag>
         </div>
       </header>
 
@@ -193,3 +193,4 @@ const apiBaseLabel = computed(() => appConfig.apiBaseUrl || '未配置');
   }
 }
 </style>
+

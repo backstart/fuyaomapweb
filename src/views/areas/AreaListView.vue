@@ -2,7 +2,7 @@
   <PageContainer
     title="区域管理"
     eyebrow="Areas"
-    description="对应后端接口 `/api/v1/map/areas`，支持关键字、类型、状态和分页查询。"
+    description="对应后端接口 `/api/map/areas`，支持关键字、类型、状态和分页查询。"
   >
     <div class="list-page">
       <el-card shadow="never" class="list-filters">
@@ -177,3 +177,4 @@ onMounted(() => {
   margin-top: 18px;
 }
 </style>
+

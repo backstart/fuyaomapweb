@@ -42,20 +42,24 @@ function extractData<T>(payload: T | ApiResult<T>): T {
 
 function resolveApiBaseUrl(rawBaseUrl: string): string {
   // 兼容三种写法：
-  // 1. http://host:port  -> 自动补成 /api/v1
-  // 2. /api             -> 保持给 nginx 代理
-  // 3. /api/v1          -> 保持后端真实前缀
+  // 1. http://host:port      -> 自动补成 /api
+  // 2. /api                 -> 保持给 nginx 代理
+  // 3. 已带版本号的旧地址     -> 自动归一化成 /api
   const normalized = rawBaseUrl.trim().replace(/\/+$/, '');
 
   if (!normalized) {
     return '/api';
   }
 
-  if (normalized.endsWith('/api') || normalized.endsWith('/api/v1')) {
+  if (/\/api\/[^/]+$/i.test(normalized)) {
+    return normalized.replace(/\/api\/[^/]+$/i, '/api');
+  }
+
+  if (normalized.endsWith('/api')) {
     return normalized;
   }
 
-  return `${normalized}/api/v1`;
+  return `${normalized}/api`;
 }
 
 const http = axios.create({

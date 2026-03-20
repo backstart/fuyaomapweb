@@ -133,7 +133,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://YOUR_BACKEND_HOST/api/v1/;
+        proxy_pass http://YOUR_BACKEND_HOST;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -187,13 +187,13 @@ server {
 修改 [nginx/default.conf](/d:/Code/Dev/fuyaomapweb/nginx/default.conf) 中这行：
 
 ```nginx
-proxy_pass http://YOUR_BACKEND_HOST/api/v1/;
+proxy_pass http://YOUR_BACKEND_HOST;
 ```
 
 替换为真实后端地址，例如：
 
 ```nginx
-proxy_pass http://api.example.com:7165/api/v1/;
+proxy_pass http://api.example.com:7165;
 ```
 
 注意：
@@ -249,3 +249,4 @@ http://fuyaox.com:8002/tiles/city.pmtiles
 - 浏览器访问 `http://fuyaox.com:8002` 可打开页面
 - 浏览器访问 `http://fuyaox.com:8002/tiles/city.pmtiles` 可访问底图
 - 浏览器请求 `/api/*` 时不会再错误代理回前端自己
+

@@ -2,7 +2,7 @@
   <PageContainer
     title="店铺管理"
     eyebrow="Shops"
-    description="对应后端接口 `/api/v1/map/shops`，支持关键字、分类、状态和分页查询。"
+    description="对应后端接口 `/api/map/shops`，支持关键字、分类、状态和分页查询。"
   >
     <div class="list-page">
       <el-card shadow="never" class="list-filters">
@@ -178,3 +178,4 @@ onMounted(() => {
   margin-top: 18px;
 }
 </style>
+
