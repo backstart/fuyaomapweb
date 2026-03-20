@@ -1,5 +1,6 @@
 export type EntityType = 'shop' | 'area';
 
+// Unified search rows returned by `/search`, later expanded into map focus targets when needed.
 export interface MapSearchItem {
   id: number;
   name: string;
@@ -12,6 +13,7 @@ export interface MapSearchItem {
   updateTime: string;
 }
 
+// Search endpoint accepts shared keyword filters plus optional business filters and bbox.
 export interface MapSearchParams {
   q?: string;
   keyword?: string;
@@ -23,17 +25,20 @@ export interface MapSearchParams {
   bbox?: string;
 }
 
+// Toggle state for business layers rendered on the map.
 export interface LayerVisibility {
   shops: boolean;
   areas: boolean;
 }
 
+// Viewport is stored separately so list pages and the map page can share the last viewed extent.
 export interface MapViewportState {
   bbox?: string;
   center?: [number, number];
   zoom?: number;
 }
 
+// Point targets can be positioned by lng/lat and are used for shop popup/flyTo behavior.
 export interface ShopFocusTarget {
   entityType: 'shop';
   id: number;
@@ -46,6 +51,7 @@ export interface ShopFocusTarget {
   latitude: number;
 }
 
+// Area targets keep raw geometry JSON so the map can parse bounds only when focus is needed.
 export interface AreaFocusTarget {
   entityType: 'area';
   id: number;
@@ -57,4 +63,5 @@ export interface AreaFocusTarget {
   geometryGeoJson: string;
 }
 
+// Discriminated union used throughout the map flow to branch between flyTo and fitBounds.
 export type MapFocusTarget = ShopFocusTarget | AreaFocusTarget;

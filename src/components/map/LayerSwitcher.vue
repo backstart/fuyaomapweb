@@ -28,6 +28,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: LayerVisibility];
 }>();
 
+// Emits a fresh object so parent watchers can react predictably to layer visibility changes.
 function emitChange(key: keyof LayerVisibility, value: string | number | boolean): void {
   emit('update:modelValue', {
     ...props.modelValue,
@@ -35,6 +36,7 @@ function emitChange(key: keyof LayerVisibility, value: string | number | boolean
   });
 }
 
+// Element Plus switch payloads are normalized to boolean before updating the shared state.
 function onShopsChange(value: string | number | boolean): void {
   emitChange('shops', value);
 }
@@ -48,6 +50,9 @@ function onAreasChange(value: string | number | boolean): void {
 .switcher-card {
   width: 240px;
   padding: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
 .switcher-title h3 {

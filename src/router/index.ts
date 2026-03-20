@@ -3,8 +3,9 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import MapView from '@/views/map/MapView.vue';
 import ShopListView from '@/views/shops/ShopListView.vue';
 import AreaListView from '@/views/areas/AreaListView.vue';
-import NotFoundView from '@/views/not-found/NotFoundView.vue';
+import NotFoundView from '@/views/error/NotFoundView.vue';
 
+// 路由保持简单：一个主布局承载三类业务页，未引入额外权限或嵌套路由复杂度。
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -54,6 +55,7 @@ const router = createRouter({
 });
 
 router.afterEach((to) => {
+  // 统一维护页面标题，避免每个页面自己手动改 document.title。
   const title = typeof to.meta.title === 'string' ? to.meta.title : 'Fuyao Map Web';
   document.title = `${title} | Fuyao Map Web`;
 });

@@ -1,6 +1,9 @@
 import axios, { type AxiosRequestConfig } from 'axios';
+import { appConfig } from '@/config/appConfig';
 import type { ApiResult } from '@/types/api';
 
+// 后端成功时直接返回业务数据，失败时才会返回 Result<T>。
+// 这里统一收口两种形态，避免页面层自己判断。
 export class ApiError extends Error {
   public readonly code?: string | null;
   public readonly status?: number;
@@ -22,10 +25,12 @@ function isApiResult<T>(value: unknown): value is ApiResult<T> {
 }
 
 function extractData<T>(payload: T | ApiResult<T>): T {
+  // 成功响应大多数情况下已经是业务对象本身，直接透传。
   if (!isApiResult<T>(payload)) {
     return payload;
   }
 
+  // 错误响应走 Result<T> 时，在这里统一抛成可处理的异常。
   if (payload.success) {
     return payload.data as T;
   }
@@ -35,14 +40,33 @@ function extractData<T>(payload: T | ApiResult<T>): T {
   });
 }
 
+function resolveApiBaseUrl(rawBaseUrl: string): string {
+  // 兼容三种写法：
+  // 1. http://host:port  -> 自动补成 /api/v1
+  // 2. /api             -> 保持给 nginx 代理
+  // 3. /api/v1          -> 保持后端真实前缀
+  const normalized = rawBaseUrl.trim().replace(/\/+$/, '');
+
+  if (!normalized) {
+    return '/api';
+  }
+
+  if (normalized.endsWith('/api') || normalized.endsWith('/api/v1')) {
+    return normalized;
+  }
+
+  return `${normalized}/api/v1`;
+}
+
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: resolveApiBaseUrl(appConfig.apiBaseUrl),
   timeout: 20000
 });
 
 http.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 后端校验失败、找不到资源等情况会把 Result<T> 直接返回给前端。
     const payload = error.response?.data;
     if (isApiResult(payload)) {
       return Promise.reject(
@@ -70,6 +94,7 @@ export async function getRequest<T>(url: string, config?: AxiosRequestConfig): P
   return extractData(response.data);
 }
 
+// 下面几个薄封装的目标是让业务 API 文件只关心路径和类型。
 export async function postRequest<T, TBody>(url: string, body?: TBody, config?: AxiosRequestConfig): Promise<T> {
   const response = await http.post<T | ApiResult<T>>(url, body, config);
   return extractData(response.data);

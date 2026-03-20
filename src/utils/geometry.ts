@@ -1,5 +1,6 @@
 import type { Geometry, Position } from 'geojson';
 
+// Area detail/search payloads expose geometry as a JSON string, so parsing is centralized here.
 export function parseGeometryGeoJson(geometryGeoJson?: string | null): Geometry | null {
   if (!geometryGeoJson) {
     return null;
@@ -13,6 +14,7 @@ export function parseGeometryGeoJson(geometryGeoJson?: string | null): Geometry 
   }
 }
 
+// Recursively walks nested coordinate arrays so Point/LineString/Polygon/Multi* can share one path.
 function visitCoordinates(value: unknown, callback: (coordinate: Position) => void): void {
   if (!Array.isArray(value)) {
     return;
@@ -28,6 +30,7 @@ function visitCoordinates(value: unknown, callback: (coordinate: Position) => vo
   }
 }
 
+// GeometryCollection is the only GeoJSON variant that does not expose `coordinates` directly.
 function visitGeometry(geometry: Geometry, callback: (coordinate: Position) => void): void {
   if (geometry.type === 'GeometryCollection') {
     for (const item of geometry.geometries) {
@@ -39,6 +42,7 @@ function visitGeometry(geometry: Geometry, callback: (coordinate: Position) => v
   visitCoordinates(geometry.coordinates, callback);
 }
 
+// Returns bounds in the order expected by MapLibre: southwest first, northeast second.
 export function getGeometryBounds(geometry: Geometry): [[number, number], [number, number]] | null {
   let minLongitude = Number.POSITIVE_INFINITY;
   let minLatitude = Number.POSITIVE_INFINITY;
@@ -62,6 +66,7 @@ export function getGeometryBounds(geometry: Geometry): [[number, number], [numbe
   ];
 }
 
+// Center is computed from the bounds midpoint, which is sufficient for focus/popup use cases in V1.
 export function getGeometryCenter(geometry: Geometry): [number, number] | null {
   const bounds = getGeometryBounds(geometry);
   if (!bounds) {

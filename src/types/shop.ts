@@ -1,5 +1,6 @@
 import type { FeatureCollection, Point } from 'geojson';
 
+// Full shop DTO returned by detail endpoints.
 export interface MapShop {
   id: number;
   name: string;
@@ -15,6 +16,7 @@ export interface MapShop {
   updateBy?: string | null;
 }
 
+// List item payload is narrower than detail and is rendered directly in the shop table.
 export interface MapShopListItem {
   id: number;
   name: string;
@@ -26,6 +28,7 @@ export interface MapShopListItem {
   updateTime: string;
 }
 
+// Properties carried by the GeoJSON shop layer. Coordinates live in the Point geometry itself.
 export interface ShopGeoJsonProperties {
   name: string;
   category?: string | null;
@@ -36,6 +39,7 @@ export interface ShopGeoJsonProperties {
 
 export type ShopFeatureCollection = FeatureCollection<Point, ShopGeoJsonProperties>;
 
+// Query params follow the backend controller contract, including optional bbox filtering.
 export interface QueryMapShopParams {
   keyword?: string;
   category?: string;

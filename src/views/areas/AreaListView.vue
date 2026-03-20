@@ -98,6 +98,7 @@ const areaStore = useAreaStore();
 
 async function search(): Promise<void> {
   try {
+    // 重新查询时总是回到第一页，避免筛选条件变化后页码越界。
     areaStore.updateFilters({ page: 1 });
     await areaStore.fetchList({ page: 1 });
   } catch (error) {
@@ -132,6 +133,7 @@ async function reset(): Promise<void> {
 }
 
 function openOnMap(row: MapAreaListItem): void {
+  // 地图页通过 query 参数读取要定位的实体，列表页只负责把约定写进去。
   void router.push({
     name: 'map',
     query: {
@@ -142,6 +144,7 @@ function openOnMap(row: MapAreaListItem): void {
 }
 
 onMounted(() => {
+  // 进入列表页即自动加载一次，保持页面行为确定。
   void search();
 });
 </script>

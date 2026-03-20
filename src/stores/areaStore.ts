@@ -12,6 +12,7 @@ function createEmptyFeatureCollection(): AreaFeatureCollection {
 }
 
 export const useAreaStore = defineStore('areas', () => {
+  // 区域和店铺保持同样的 store 形态，便于后续抽象通用列表/地图逻辑。
   const list = ref<MapAreaListItem[]>([]);
   const geoJson = ref<AreaFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
@@ -53,6 +54,7 @@ export const useAreaStore = defineStore('areas', () => {
   async function fetchGeoJson(overrides: QueryMapAreaParams = {}): Promise<void> {
     loadingGeoJson.value = true;
     try {
+      // 区域 GeoJSON 返回的几何通常比点位更重，因此单独维护 loading。
       geoJson.value = await getMapAreasGeoJson({
         keyword: filters.keyword,
         type: filters.type,
@@ -79,6 +81,7 @@ export const useAreaStore = defineStore('areas', () => {
   }
 
   function getAreaDetail(id: number): Promise<MapArea> {
+    // 定位区域时需要 geometryGeoJson，因此必须拿详情接口而不是列表项。
     return getMapAreaById(id);
   }
 

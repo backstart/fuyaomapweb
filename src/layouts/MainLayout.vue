@@ -55,12 +55,15 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Connection, Location, Shop } from '@element-plus/icons-vue';
+import { appConfig } from '@/config/appConfig';
 
 const route = useRoute();
 
+// Route segments already map cleanly to menu indexes, so no separate menu config is needed for V1.
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
-const apiBaseLabel = computed(() => import.meta.env.VITE_API_BASE_URL || '未配置');
+// Exposed in the sidebar so operators can immediately confirm which API target the build is using.
+const apiBaseLabel = computed(() => appConfig.apiBaseUrl || '未配置');
 </script>
 
 <style scoped>

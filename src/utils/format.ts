@@ -1,3 +1,4 @@
+// Date strings come from the API as ISO timestamps. Invalid values fall back to raw text.
 export function formatDateTime(value?: string | null): string {
   if (!value) {
     return '-';

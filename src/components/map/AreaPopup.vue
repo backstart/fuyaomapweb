@@ -30,6 +30,7 @@
 import type { AreaFocusTarget } from '@/types/map';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 
+// Raw geometry is intentionally omitted from the popup UI; only business metadata is surfaced.
 defineProps<{
   area: AreaFocusTarget;
 }>();
@@ -38,7 +39,7 @@ defineProps<{
 <style scoped>
 .popup-card {
   width: 320px;
-  padding: 16px;
+  padding: 18px 18px 16px;
   background: #fff;
 }
 
@@ -53,31 +54,32 @@ defineProps<{
 .popup-label {
   margin: 0 0 4px;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #7b8794;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
+  color: #1f2d3d;
 }
 
 .popup-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
 }
 
 dt {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: #8793a1;
 }
 
 dd {
   margin: 2px 0 0;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: #1f2d3d;
 }
 
 .popup-code {
@@ -85,6 +87,10 @@ dd {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f7f8fa;
+  border: 1px solid rgba(15, 23, 42, 0.06);
   font-family: "Consolas", "SFMono-Regular", monospace;
   font-size: 12px;
 }

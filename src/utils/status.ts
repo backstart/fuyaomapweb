@@ -1,5 +1,6 @@
 import type { TagProps } from 'element-plus';
 
+// Backend currently uses `1=enabled` and `0=disabled`; unknown values stay visible for debugging.
 export function getStatusLabel(status: number): string {
   switch (status) {
     case 1:
@@ -11,6 +12,7 @@ export function getStatusLabel(status: number): string {
   }
 }
 
+// Tag colors mirror the same backend status semantics used in tables and popups.
 export function getStatusTagType(status: number): TagProps['type'] {
   switch (status) {
     case 1:

@@ -3,12 +3,14 @@ import type { AreaFeatureCollection, AreaGeoJsonProperties } from '@/types/area'
 import type { AreaFocusTarget, LayerVisibility, ShopFocusTarget } from '@/types/map';
 import type { ShopFeatureCollection, ShopGeoJsonProperties } from '@/types/shop';
 
+// 所有业务图层 id 都集中定义，避免页面层手写魔法字符串。
 const SHOP_SOURCE_ID = 'business-shops';
 const SHOP_LAYER_ID = 'business-shops-circle';
 const AREA_SOURCE_ID = 'business-areas';
 const AREA_FILL_LAYER_ID = 'business-areas-fill';
 const AREA_LINE_LAYER_ID = 'business-areas-line';
 
+// 同一个 map 实例只注册一次事件，避免页面更新导致重复绑定。
 const registeredMaps = new WeakSet<MapLibreMap>();
 
 interface BusinessLayerHandlers {
@@ -47,6 +49,7 @@ function toNumericId(value: unknown): number {
 }
 
 function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
+  // 店铺只接受 Point，其他几何直接忽略。
   if (feature.geometry.type !== 'Point') {
     return null;
   }
@@ -68,6 +71,7 @@ function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
 }
 
 function toAreaTarget(feature: MapGeoJSONFeature): AreaFocusTarget | null {
+  // 区域详情在 store 内统一保存为 geometryGeoJson 字符串，便于后续复用详情结构。
   const properties = feature.properties as Partial<AreaGeoJsonProperties>;
 
   return {
@@ -83,6 +87,7 @@ function toAreaTarget(feature: MapGeoJSONFeature): AreaFocusTarget | null {
 }
 
 export function ensureBusinessLayers(map: MapLibreMap): void {
+  // source 先于 layer 创建，且需要兼容重复进入地图页的情况。
   if (!map.getSource(AREA_SOURCE_ID)) {
     map.addSource(AREA_SOURCE_ID, {
       type: 'geojson',
@@ -97,19 +102,15 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
     });
   }
 
+  // 当前配色偏企业后台浅色风格，后续可替换为配置化样式。
   if (!map.getLayer(AREA_FILL_LAYER_ID)) {
     map.addLayer({
       id: AREA_FILL_LAYER_ID,
       type: 'fill',
       source: AREA_SOURCE_ID,
       paint: {
-        'fill-color': [
-          'case',
-          ['has', 'styleJson'],
-          '#4f8ddf',
-          '#5b8def'
-        ],
-        'fill-opacity': 0.18
+        'fill-color': '#5a8ee6',
+        'fill-opacity': 0.12
       }
     });
   }
@@ -119,9 +120,20 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: AREA_LINE_LAYER_ID,
       type: 'line',
       source: AREA_SOURCE_ID,
+      layout: {
+        'line-join': 'round'
+      },
       paint: {
-        'line-color': '#2d63c8',
-        'line-width': 2
+        'line-color': '#4478d6',
+        'line-opacity': 0.9,
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          8, 1.2,
+          13, 1.8,
+          17, 2.6
+        ]
       }
     });
   }
@@ -132,9 +144,23 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       type: 'circle',
       source: SHOP_SOURCE_ID,
       paint: {
-        'circle-radius': 6.5,
-        'circle-color': '#f97316',
-        'circle-stroke-width': 2,
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          8, 4.6,
+          12, 6.2,
+          16, 8.8
+        ],
+        'circle-color': '#3e7fe0',
+        'circle-opacity': 0.95,
+        'circle-stroke-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          8, 1.3,
+          16, 2
+        ],
         'circle-stroke-color': '#ffffff'
       }
     });
@@ -146,6 +172,7 @@ export function updateBusinessSources(
   shops: ShopFeatureCollection,
   areas: AreaFeatureCollection
 ): void {
+  // MapLibre 支持对同一 source 直接 setData，适合 bbox 更新和筛选刷新。
   getGeoJsonSource(map, SHOP_SOURCE_ID).setData(shops);
   getGeoJsonSource(map, AREA_SOURCE_ID).setData(areas);
 }
@@ -163,6 +190,7 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
 
   registeredMaps.add(map);
 
+  // 事件只暴露业务对象，不把底层 feature 结构泄露给页面。
   map.on('click', SHOP_LAYER_ID, (event) => {
     const feature = event.features?.[0];
     if (!feature) {
@@ -187,6 +215,7 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
     }
   });
 
+  // 统一处理 hover 光标，避免每个页面重复写一遍。
   for (const layerId of [SHOP_LAYER_ID, AREA_FILL_LAYER_ID]) {
     map.on('mouseenter', layerId, () => {
       map.getCanvas().style.cursor = 'pointer';

@@ -1,4 +1,5 @@
 <template>
+  <!-- Shared page shell keeps page headers consistent across map/list screens. -->
   <section class="page-container">
     <header class="page-header">
       <div>
@@ -17,6 +18,7 @@
 </template>
 
 <script setup lang="ts">
+// Optional eyebrow/actions let simple pages stay minimal while richer pages reuse the same frame.
 defineProps<{
   title: string;
   description?: string;

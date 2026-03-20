@@ -10,6 +10,7 @@ import router from '@/router';
 
 const app = createApp(App);
 
+// Global plugins are registered here once so route views stay focused on business concerns.
 app.use(createPinia());
 app.use(router);
 app.use(ElementPlus, {

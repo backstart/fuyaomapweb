@@ -125,6 +125,7 @@ const mapStore = useMapStore();
 const shopStore = useShopStore();
 const areaStore = useAreaStore();
 
+// 页面层只维护“当前想聚焦到哪里”，真正定位交给 BaseMap。
 const searchKeyword = ref('');
 const searchLoading = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
@@ -138,6 +139,7 @@ const searchSummary = computed(() => {
 });
 
 async function refreshGeoJson(bbox?: string): Promise<void> {
+  // 地图视口变化后，用 bbox 限定 GeoJSON 返回范围，避免一次加载所有数据。
   shopStore.updateFilters({ bbox });
   areaStore.updateFilters({ bbox });
 
@@ -153,6 +155,7 @@ async function refreshGeoJson(bbox?: string): Promise<void> {
 }
 
 function handleMapReady(mapInstance: MapLibreMap): void {
+  // 把实例缓存到 mapStore，便于后续扩展外部控制地图。
   mapStore.setMap(mapInstance);
 
   if (mapStore.viewport.bbox) {
@@ -164,6 +167,8 @@ function handleMapReady(mapInstance: MapLibreMap): void {
 }
 
 function handleViewportChange(payload: { bbox: string; center: [number, number]; zoom: number }): void {
+  // 当前实现采用 moveend 后立即刷新 GeoJSON。
+  // 如果后续数据量更大，可以在这里加节流或缓存。
   mapStore.setViewport(payload);
   void refreshGeoJson(payload.bbox);
 }
@@ -187,6 +192,7 @@ async function handleSearch(): Promise<void> {
 
   searchLoading.value = true;
   try {
+    // 搜索默认带上当前 bbox，优先返回当前视图范围内更相关的结果。
     const result = await searchMap({
       q: keyword,
       page: 1,
@@ -212,6 +218,7 @@ function clearSearch(): void {
 }
 
 async function resolveShopFocusTarget(id: number): Promise<ShopFocusTarget> {
+  // 从搜索结果和列表页进入地图时，统一补齐详情结构。
   const detail = await shopStore.getShopDetail(id);
   return {
     entityType: 'shop',
@@ -242,6 +249,7 @@ async function resolveAreaFocusTarget(id: number): Promise<AreaFocusTarget> {
 
 async function locateSearchResult(item: MapSearchItem): Promise<void> {
   try {
+    // 搜索结果只区分 itemType，页面层负责把它转成地图可消费的 focus target。
     const target = item.itemType === 'shop'
       ? await resolveShopFocusTarget(item.id)
       : await resolveAreaFocusTarget(item.id);
@@ -254,6 +262,7 @@ async function locateSearchResult(item: MapSearchItem): Promise<void> {
 }
 
 async function syncRouteFocus(): Promise<void> {
+  // /map?entity=shop&id=1 这种约定，让列表页跳转地图时无需共享复杂状态。
   const entity = route.query.entity;
   const id = Number(route.query.id);
 
@@ -282,6 +291,7 @@ watch(
 );
 
 onMounted(() => {
+  // 每次进入地图页先清空旧搜索结果，避免从上次会话残留。
   mapStore.setSearchResults([]);
 });
 
@@ -318,6 +328,9 @@ onBeforeUnmount(() => {
 .inspector-card {
   width: min(420px, calc(100vw - 32px));
   padding: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
 }
 
 .card-head {
@@ -351,11 +364,18 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #ffffff;
   cursor: pointer;
   text-align: left;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.result-item:hover {
+  border-color: rgba(59, 130, 246, 0.28);
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.08);
+  transform: translateY(-1px);
 }
 
 .result-item strong {

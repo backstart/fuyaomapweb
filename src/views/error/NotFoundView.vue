@@ -1,4 +1,5 @@
 <template>
+  <!-- Standalone 404 keeps the fallback simple and does not reuse the main business layout. -->
   <div class="not-found shell-card">
     <p class="not-found-kicker">404</p>
     <h1>页面不存在</h1>

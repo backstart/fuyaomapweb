@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry } from 'geojson';
 
+// Full area DTO returned by detail endpoints.
 export interface MapArea {
   id: number;
   name: string;
@@ -14,6 +15,7 @@ export interface MapArea {
   updateBy?: string | null;
 }
 
+// List payload used by the area table. Geometry stays out to keep list requests compact.
 export interface MapAreaListItem {
   id: number;
   name: string;
@@ -23,6 +25,7 @@ export interface MapAreaListItem {
   updateTime: string;
 }
 
+// GeoJSON area features keep styling hints in properties, while geometry remains standard GeoJSON.
 export interface AreaGeoJsonProperties {
   name: string;
   type?: string | null;
@@ -33,6 +36,7 @@ export interface AreaGeoJsonProperties {
 
 export type AreaFeatureCollection = FeatureCollection<Geometry, AreaGeoJsonProperties>;
 
+// Matches backend list and geojson query fields, including spatial bbox constraints.
 export interface QueryMapAreaParams {
   keyword?: string;
   type?: string;
