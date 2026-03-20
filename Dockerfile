@@ -20,5 +20,4 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 # 暴露容器内端口 8002
 EXPOSE 8002
-
 CMD ["nginx", "-g", "daemon off;"]
