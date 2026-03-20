@@ -2,27 +2,31 @@
 
 `fuyaomapweb` 是地图服务平台 Web 端 V1，基于 Vue 3 + Vite + TypeScript，继续使用现有 `fuyaomap` 后端 API，以及 `MapLibre + PMTiles` 地图方案。
 
-当前部署目标：
+本项目当前必须严格适配的真实云效部署场景如下：
 
-- 外网访问地址：`http://fuyaox.com:8002`
-- 前端页面由 Nginx 提供
-- 浏览器通过 `/api` 调用后端
-- 浏览器通过 `/tiles/city.pmtiles` 读取底图
-- `city.pmtiles` 放在服务器本地目录，不进入仓库、不进入 `dist`、不进入 Docker 镜像
-- 前端继续支持运行时配置
+```bash
+docker run -d \
+  --name fuyao-map-web \
+  --restart unless-stopped \
+  -p 8002:8002 \
+  -v /www/docker/fuyaomap/tiles:/data/tiles \
+  -v /www/docker/fuyaomapweb/runtime:/usr/share/nginx/html/runtime \
+  ${IMG}
+```
 
-## 技术栈
+并且健康检查使用：
 
-- Vue 3
-- Vite
-- TypeScript
-- Vue Router
-- Pinia
-- Axios
-- Element Plus
-- MapLibre GL JS
-- pmtiles
-- nginx:alpine
+```bash
+curl -fsS http://127.0.0.1:8002/
+```
+
+这意味着：
+
+- 容器内必须监听 `8002`
+- 不能再假设容器内监听 `80`
+- 底图挂载到容器内 `/data/tiles`
+- 运行时配置挂载到容器内 `/usr/share/nginx/html/runtime`
+- 浏览器外网访问地址是 `http://fuyaox.com:8002`
 
 ## 运行时配置
 
@@ -31,13 +35,13 @@
 - [public/app-config.js](/d:/Code/Dev/fuyaomapweb/public/app-config.js)
 - [src/config/appConfig.ts](/d:/Code/Dev/fuyaomapweb/src/config/appConfig.ts)
 
-页面启动时先加载 `/app-config.js`，然后前端统一按以下优先级读取配置：
+页面启动时固定请求 `/app-config.js`，Nginx 会把它映射到挂载目录中的：
 
-1. `window.__APP_CONFIG__`
-2. `import.meta.env`
-3. 项目默认值
+```text
+/usr/share/nginx/html/runtime/app-config.js
+```
 
-当前默认内容：
+当前运行时配置内容：
 
 ```js
 window.__APP_CONFIG__ = {
@@ -48,93 +52,69 @@ window.__APP_CONFIG__ = {
 
 说明：
 
-- API 地址优先使用 `/api`
-- PMTiles 地址优先使用 `/tiles/city.pmtiles`
-- 如果以后地址变化，只改 `app-config.js` 或 Nginx，不需要重新 build 前端
+- API 地址统一走 `/api`
+- PMTiles 地址统一走 `/tiles/city.pmtiles`
+- 构建产物里不再依赖固定后端域名
+- 生产上只需要改运行时配置或 Nginx，不需要重新 build 前端
 
-## 服务器目录约定
+## 路径映射
 
-生产环境使用以下目录：
+宿主机真实路径：
 
-- 前端 `dist`：`/www/docker/fuyaomapweb/dist`
-- 前端 Nginx 配置：`/www/docker/fuyaomapweb/nginx/default.conf`
-- 前端运行时配置：`/www/docker/fuyaomapweb/runtime/app-config.js`
-- 地图底图目录：`/www/docker/fuyaomap/tiles`
-- 最终底图文件：`/www/docker/fuyaomap/tiles/city.pmtiles`
+- 底图目录：`/www/docker/fuyaomap/tiles`
+- 底图文件：`/www/docker/fuyaomap/tiles/city.pmtiles`
+- runtime 目录：`/www/docker/fuyaomapweb/runtime`
 
-## 如何打包前端
+容器内真实路径：
 
-```bash
-cd D:\Code\Dev\fuyaomapweb
-npm install
-npm run build
+- PMTiles：`/data/tiles/city.pmtiles`
+- runtime 目录：`/usr/share/nginx/html/runtime`
+- runtime 配置文件：`/usr/share/nginx/html/runtime/app-config.js`
+
+## Dockerfile
+
+[Dockerfile](/d:/Code/Dev/fuyaomapweb/Dockerfile) 现在只保留一套 Nginx 配置来源，并且不再内联生成配置。最终内容如下：
+
+```dockerfile
+# 第一阶段：构建静态资源
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# 第二阶段：提供 Nginx 服务
+FROM nginx:1.27-alpine
+
+# 复制构建产物和唯一的 Nginx 配置来源
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+
+# 运行时配置和 PMTiles 都通过云效部署脚本挂载，不打进镜像。
+RUN rm -f /usr/share/nginx/html/app-config.js \
+    && mkdir -p /usr/share/nginx/html/runtime /data/tiles
+
+# 暴露容器内端口 8002
+EXPOSE 8002
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
-构建完成后，将 `dist` 上传到：
+关键点：
 
-```text
-/www/docker/fuyaomapweb/dist
-```
+- 容器内监听 `8002`
+- Dockerfile 不再 `RUN printf ... > default.conf`
+- 只通过 `COPY nginx/default.conf /etc/nginx/conf.d/default.conf`
+- 不把 `city.pmtiles` 打进镜像
+- 不把 runtime 配置打进镜像
 
-## 需要放到服务器上的文件
+## Nginx 配置
 
-### 1. 前端静态资源
-
-将本地构建产物上传到：
-
-```text
-/www/docker/fuyaomapweb/dist
-```
-
-### 2. Nginx 配置
-
-将项目中的：
-
-- [nginx/default.conf](/d:/Code/Dev/fuyaomapweb/nginx/default.conf)
-
-上传到：
-
-```text
-/www/docker/fuyaomapweb/nginx/default.conf
-```
-
-### 3. 运行时配置
-
-将项目中的：
-
-- [public/app-config.js](/d:/Code/Dev/fuyaomapweb/public/app-config.js)
-
-上传到：
-
-```text
-/www/docker/fuyaomapweb/runtime/app-config.js
-```
-
-### 4. 地图底图
-
-将 `city.pmtiles` 放到：
-
-```text
-/www/docker/fuyaomap/tiles/city.pmtiles
-```
-
-说明：
-
-- `city.pmtiles` 不放入前端仓库
-- `city.pmtiles` 不放入 `dist`
-- `city.pmtiles` 不打进 Docker 镜像
-
-## Nginx 配置说明
-
-生产配置文件：
-
-- [nginx/default.conf](/d:/Code/Dev/fuyaomapweb/nginx/default.conf)
-
-完整内容如下：
+[nginx/default.conf](/d:/Code/Dev/fuyaomapweb/nginx/default.conf) 最终内容如下：
 
 ```nginx
 server {
-    listen 80;
+    listen 8002;
     server_name _;
 
     root /usr/share/nginx/html;
@@ -144,8 +124,8 @@ server {
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
     location = /app-config.js {
-        alias /data/fuyaomapweb/runtime/app-config.js;
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
+        alias /usr/share/nginx/html/runtime/app-config.js;
+        add_header Cache-Control "no-store";
     }
 
     location / {
@@ -164,7 +144,7 @@ server {
     }
 
     location /tiles/ {
-        alias /data/fuyaomap/tiles/;
+        alias /data/tiles/;
 
         types {
             application/octet-stream pmtiles;
@@ -177,105 +157,95 @@ server {
 }
 ```
 
-说明：
+关键点：
 
-- 容器内固定监听 `80`
-- 对外通过 Docker 端口映射 `8002:80`
-- `/api/` 要把 `YOUR_BACKEND_HOST` 替换成真实后端域名或地址
-- `/tiles/` 直接指向容器内 `/data/fuyaomap/tiles/`
-- `/app-config.js` 直接指向容器内 `/data/fuyaomapweb/runtime/app-config.js`
+- `listen 8002;`
+- `location /` 使用 `try_files` 兼容 Vue history 模式
+- `/tiles/` 严格指向 `/data/tiles/`
+- `/api/` 必须替换成真实后端地址，不能写成 `fuyaox.com:8002`
+- `/app-config.js` 严格映射到 `/usr/share/nginx/html/runtime/app-config.js`
 
-## Dockerfile
+## 当前云效部署如何适配本项目
 
-[Dockerfile](/d:/Code/Dev/fuyaomapweb/Dockerfile) 完整内容如下：
+当前云效脚本不需要推翻，仍然可以继续：
 
-```dockerfile
-# 第一阶段只负责构建静态页面和前端资源。
-FROM node:22-alpine AS build
+1. 构建镜像
+2. 推送镜像
+3. 服务器拉取镜像
+4. 删除旧容器
+5. 用固定 `docker run` 启动
 
-WORKDIR /app
+因为现在项目已经和这套真实运行方式对齐：
 
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY . .
-RUN npm run build
-
-# 第二阶段仅提供 dist 和 nginx 配置，不包含 PMTiles 文件。
-FROM nginx:1.27-alpine
-
-RUN mkdir -p /data/fuyaomap/tiles /data/fuyaomapweb/runtime
-
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
-
-EXPOSE 80
-```
-
-说明：
-
-- 镜像只包含 `dist` 和 Nginx 配置
-- 不复制 `city.pmtiles`
-- 不复制 `tiles` 目录
-- `city.pmtiles` 通过 volume 挂载进入容器
-
-## docker run 示例
-
-先构建镜像：
-
-```bash
-docker build -t fuyaomapweb:latest .
-```
-
-运行示例：
-
-```bash
-docker run -d \
-  --name fuyaomapweb \
-  -p 8002:80 \
-  -v /www/docker/fuyaomapweb/dist:/usr/share/nginx/html:ro \
-  -v /www/docker/fuyaomapweb/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
-  -v /www/docker/fuyaomapweb/runtime/app-config.js:/data/fuyaomapweb/runtime/app-config.js:ro \
-  -v /www/docker/fuyaomap/tiles:/data/fuyaomap/tiles:ro \
-  fuyaomapweb:latest
-```
-
-启动后访问：
-
-```text
-http://fuyaox.com:8002
-```
+- 镜像内部监听 `8002`
+- `/tiles/` 对齐到容器内 `/data/tiles/`
+- `/app-config.js` 对齐到容器内 `/usr/share/nginx/html/runtime`
+- `/api/` 留给 Nginx 转发真实后端
 
 ## 如何替换后端代理地址
 
-只需要修改服务器上的：
-
-```text
-/www/docker/fuyaomapweb/nginx/default.conf
-```
-
-把：
+修改 [nginx/default.conf](/d:/Code/Dev/fuyaomapweb/nginx/default.conf) 中这行：
 
 ```nginx
 proxy_pass http://YOUR_BACKEND_HOST/api/v1/;
 ```
 
-改成真实后端地址，例如：
+替换为真实后端地址，例如：
 
 ```nginx
 proxy_pass http://api.example.com:7165/api/v1/;
 ```
 
-然后重启容器即可，不需要重新 build 前端。
+注意：
+
+- 不能写成 `http://fuyaox.com:8002/`
+- 否则 `/api` 请求会再次打回前端自己，形成错误代理
+
+## 如何保证 `/tiles/city.pmtiles` 可访问
+
+满足下面两点即可：
+
+1. 宿主机存在：
+
+```text
+/www/docker/fuyaomap/tiles/city.pmtiles
+```
+
+2. 云效运行容器时保持这条挂载：
+
+```bash
+-v /www/docker/fuyaomap/tiles:/data/tiles
+```
+
+因为 Nginx 中已经固定配置：
+
+```nginx
+location /tiles/ {
+    alias /data/tiles/;
+}
+```
+
+所以浏览器访问：
+
+```text
+http://fuyaox.com:8002/tiles/city.pmtiles
+```
+
+就会命中容器内：
+
+```text
+/data/tiles/city.pmtiles
+```
 
 ## 验证
 
 建议至少确认以下几点：
 
 - `npm run build` 通过
-- `dist` 中不存在 `city.pmtiles`
-- Docker 镜像中不包含 `city.pmtiles`
-- 服务器本地存在 `/www/docker/fuyaomap/tiles/city.pmtiles`
-- 浏览器可访问 `http://fuyaox.com:8002/tiles/city.pmtiles`
-- 浏览器访问 `http://fuyaox.com:8002` 可打开前端页面
-- 浏览器请求 `/api/*` 时由前端服务器 Nginx 转发到真实后端
+- `dist` 中不包含 `city.pmtiles`
+- 镜像中不包含 `city.pmtiles`
+- 容器内服务监听 `8002`
+- `curl -fsS http://127.0.0.1:8002/` 返回成功
+- 浏览器访问 `http://fuyaox.com:8002` 可打开页面
+- 浏览器访问 `http://fuyaox.com:8002/tiles/city.pmtiles` 可访问底图
+- 浏览器请求 `/api/*` 时不会再错误代理回前端自己
