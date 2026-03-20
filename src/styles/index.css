@@ -1,0 +1,113 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI Variable", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --app-bg:
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.12), transparent 32%),
+    radial-gradient(circle at right top, rgba(14, 165, 233, 0.14), transparent 24%),
+    linear-gradient(180deg, #f4f7fb 0%, #edf2f8 48%, #e8eef5 100%);
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-strong: #ffffff;
+  --panel-border: rgba(148, 163, 184, 0.28);
+  --text-primary: #122033;
+  --text-secondary: #5f7088;
+  --brand: #1664d8;
+  --brand-soft: rgba(22, 100, 216, 0.08);
+  --success: #0f766e;
+  --warning: #b45309;
+  --danger: #c2410c;
+  --shadow-lg: 0 22px 60px rgba(15, 23, 42, 0.12);
+  --shadow-md: 0 10px 24px rgba(15, 23, 42, 0.08);
+  --radius-xl: 22px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  background: #edf2f8;
+  color: var(--text-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.shell-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(18px);
+}
+
+.soft-grid {
+  position: relative;
+}
+
+.soft-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.65), transparent);
+}
+
+.maplibregl-popup-content {
+  padding: 0;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.maplibregl-popup-close-button {
+  font-size: 18px;
+  color: #4b5563;
+}
+
+.el-card {
+  --el-card-border-radius: 20px;
+}
+
+.el-table {
+  --el-table-border-color: rgba(148, 163, 184, 0.22);
+  --el-table-header-bg-color: #f6f8fb;
+}
+
+.el-menu {
+  border-right: none;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: 12px;
+}
