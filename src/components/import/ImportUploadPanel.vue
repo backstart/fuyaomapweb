@@ -5,9 +5,9 @@
         <div class="panel-header">
           <div>
             <h3>上传 OSM 文件</h3>
-            <p>上传 `.osm.pbf` 到后端导入目录，再创建导入任务。</p>
+            <p>上传 `.osm.pbf` 到后端导入目录，再创建导入任务。更适合中小文件。</p>
           </div>
-          <el-tag type="info" effect="light">推荐</el-tag>
+          <el-tag type="warning" effect="light">中小文件</el-tag>
         </div>
       </template>
 
@@ -25,6 +25,20 @@
             <el-button @click="triggerFileSelect">选择文件</el-button>
           </div>
         </el-form-item>
+
+        <el-alert
+          type="warning"
+          show-icon
+          :closable="false"
+          title="100MB 以上的大文件更推荐使用“服务器已有文件”方式"
+          description="Web 上传已放宽到 1GB，但大文件仍更适合先放到服务器目录，再通过文件路径创建导入任务。"
+        />
+
+        <div v-if="selectedFile" class="file-meta">
+          <span>当前文件：{{ selectedFileName }}</span>
+          <span>大小：{{ selectedFileSizeLabel }}</span>
+          <el-tag v-if="isLargeSelectedFile" type="warning" effect="light">建议改用服务器路径导入</el-tag>
+        </div>
 
         <el-form-item label="管理员标识">
           <el-input v-model="uploadForm.createBy" placeholder="例如 admin / ops" clearable />
@@ -53,9 +67,9 @@
         <div class="panel-header">
           <div>
             <h3>使用服务器已有文件</h3>
-            <p>适合运维已把 `.osm.pbf` 放到服务器本地目录的场景。</p>
+            <p>适合运维已把 `.osm.pbf` 放到服务器本地目录的场景，也是大文件导入的推荐方式。</p>
           </div>
-          <el-tag effect="light">Server Path</el-tag>
+          <el-tag type="success" effect="light">推荐</el-tag>
         </div>
       </template>
 
@@ -97,6 +111,9 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { ServerPathImportSubmitPayload, UploadImportSubmitPayload } from '@/types/import';
 
+const LARGE_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+
 withDefaults(defineProps<{
   uploadLoading?: boolean;
   pathLoading?: boolean;
@@ -132,6 +149,8 @@ const pathForm = ref({
 });
 
 const selectedFileName = computed(() => selectedFile.value?.name ?? '');
+const selectedFileSizeLabel = computed(() => formatFileSize(selectedFile.value?.size));
+const isLargeSelectedFile = computed(() => (selectedFile.value?.size ?? 0) >= LARGE_FILE_BYTES);
 
 function triggerFileSelect(): void {
   fileInputRef.value?.click();
@@ -145,6 +164,11 @@ function handleFileChange(event: Event): void {
 function submitUpload(): void {
   if (!selectedFile.value) {
     ElMessage.warning('请先选择 .osm.pbf 文件');
+    return;
+  }
+
+  if (selectedFile.value.size > MAX_UPLOAD_BYTES) {
+    ElMessage.error('当前 Web 上传上限为 1GB，请改用“服务器已有文件”方式导入。');
     return;
   }
 
@@ -183,6 +207,26 @@ function submitServerPath(): void {
     createBy: pathForm.value.createBy.trim(),
     autoStart: pathForm.value.autoStart
   });
+}
+
+function formatFileSize(fileSize?: number): string {
+  if (!fileSize || fileSize <= 0) {
+    return '-';
+  }
+
+  if (fileSize >= 1024 * 1024 * 1024) {
+    return `${(fileSize / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
+  if (fileSize >= 1024 * 1024) {
+    return `${(fileSize / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  if (fileSize >= 1024) {
+    return `${(fileSize / 1024).toFixed(2)} KB`;
+  }
+
+  return `${fileSize} B`;
 }
 </script>
 
@@ -232,6 +276,16 @@ function submitServerPath(): void {
   align-items: center;
   gap: 14px;
   margin-top: 4px;
+}
+
+.file-meta {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .panel-actions {

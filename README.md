@@ -119,6 +119,7 @@ server {
 
     root /usr/share/nginx/html;
     index index.html;
+    client_max_body_size 1024m;
 
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
@@ -139,7 +140,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
+        proxy_request_buffering off;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
         proxy_connect_timeout 10s;
     }
 
@@ -160,8 +163,10 @@ server {
 关键点：
 
 - `listen 8002;`
+- `client_max_body_size 1024m;`
 - `location /` 使用 `try_files` 兼容 Vue history 模式
 - `/tiles/` 严格指向 `/data/tiles/`
+- `/api/` 对上传请求关闭 request buffering，并放宽超时
 - `/api/` 必须替换成真实后端地址，不能写成 `fuyaox.com:8002`
 - `/app-config.js` 严格映射到 `/usr/share/nginx/html/runtime/app-config.js`
 
@@ -266,4 +271,12 @@ http://fuyaox.com:8002/tiles/city.pmtiles
 - `GET /api/map/imports`
 - `GET /api/map/imports/{id}`
 - `GET /api/map/imports/{id}/logs`
+
+大文件上传说明：
+
+- 前端 Nginx 已设置 `client_max_body_size 1024m`
+- 浏览器上传链路适合中小文件，当前按 1GB 上限放开
+- 100MB 以上的大文件更推荐使用“服务器已有文件”方式
+- 推荐先把 OSM 文件放到服务器目录，例如 `/data/fuyaomap/imports/`
+- 再在 `/imports` 页面填写服务器文件路径创建导入任务
 

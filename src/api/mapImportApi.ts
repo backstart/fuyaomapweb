@@ -16,7 +16,9 @@ export function uploadMapImportFile(file: File): Promise<MapImportUploadedFile> 
   return postRequest<MapImportUploadedFile, FormData>('/map/imports/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    // 大型 OSM 文件上传耗时明显长于普通 JSON 请求，这里单独放宽超时。
+    timeout: 30 * 60 * 1000
   });
 }
 

@@ -108,6 +108,7 @@ import PageContainer from '@/components/common/PageContainer.vue';
 import ImportUploadPanel from '@/components/import/ImportUploadPanel.vue';
 import ImportTaskTable from '@/components/import/ImportTaskTable.vue';
 import ImportTaskLogs from '@/components/import/ImportTaskLogs.vue';
+import { ApiError } from '@/api/http';
 import {
   cancelMapImportTask,
   createMapImportTask,
@@ -472,6 +473,11 @@ function formatFileSize(fileSize?: number | null): string {
 }
 
 function showError(error: unknown, fallback: string): void {
+  if (error instanceof ApiError && error.status === 413) {
+    ElMessage.error('文件过大，建议改用“服务器已有文件”方式导入，或联系管理员提高上传限制。');
+    return;
+  }
+
   const message = error instanceof Error ? error.message : fallback;
   ElMessage.error(message);
 }
