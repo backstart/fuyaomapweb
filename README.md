@@ -250,3 +250,20 @@ http://fuyaox.com:8002/tiles/city.pmtiles
 - 浏览器访问 `http://fuyaox.com:8002/tiles/city.pmtiles` 可访问底图
 - 浏览器请求 `/api/*` 时不会再错误代理回前端自己
 
+## 导入管理页
+
+当前前端已新增导入管理页面：
+
+- 路由：`/imports`
+- 能力：上传 `.osm.pbf`、指定服务器已有文件路径、创建并启动导入任务、轮询进度、查看任务详情、查看导入日志
+
+该页面直接调用后端：
+
+- `POST /api/map/imports/upload`
+- `POST /api/map/imports`
+- `POST /api/map/imports/{id}/start`
+- `POST /api/map/imports/{id}/cancel`
+- `GET /api/map/imports`
+- `GET /api/map/imports/{id}`
+- `GET /api/map/imports/{id}/logs`
+

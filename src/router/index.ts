@@ -3,6 +3,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import MapView from '@/views/map/MapView.vue';
 import ShopListView from '@/views/shops/ShopListView.vue';
 import AreaListView from '@/views/areas/AreaListView.vue';
+import ImportManageView from '@/views/imports/ImportManageView.vue';
 import NotFoundView from '@/views/error/NotFoundView.vue';
 
 // 路由保持简单：一个主布局承载三类业务页，未引入额外权限或嵌套路由复杂度。
@@ -36,6 +37,14 @@ const router = createRouter({
           component: AreaListView,
           meta: {
             title: '区域管理'
+          }
+        },
+        {
+          path: 'imports',
+          name: 'imports',
+          component: ImportManageView,
+          meta: {
+            title: '导入管理'
           }
         }
       ]

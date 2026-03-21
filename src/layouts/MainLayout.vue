@@ -24,6 +24,10 @@
           <el-icon><Connection /></el-icon>
           <span>区域管理</span>
         </el-menu-item>
+        <el-menu-item index="/imports">
+          <el-icon><UploadFilled /></el-icon>
+          <span>导入管理</span>
+        </el-menu-item>
       </el-menu>
 
       <div class="sidebar-footer">
@@ -54,7 +58,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { Connection, Location, Shop } from '@element-plus/icons-vue';
+import { Connection, Location, Shop, UploadFilled } from '@element-plus/icons-vue';
 import { appConfig } from '@/config/appConfig';
 
 const route = useRoute();
