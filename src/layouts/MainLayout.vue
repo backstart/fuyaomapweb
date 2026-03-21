@@ -43,8 +43,13 @@
           <h2>{{ pageTitle }}</h2>
         </div>
         <div class="topbar-meta">
+          <div class="user-chip">
+            <span>{{ authStore.displayName }}</span>
+            <small>{{ authStore.userInfo?.isAdmin ? '管理员' : '用户' }}</small>
+          </div>
           <el-tag round effect="light">Vue 3 + MapLibre</el-tag>
           <el-tag round type="success" effect="light">API 已适配 /api</el-tag>
+          <el-button round @click="handleLogout">退出登录</el-button>
         </div>
       </header>
 
@@ -57,17 +62,25 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Connection, Location, Shop, UploadFilled } from '@element-plus/icons-vue';
 import { appConfig } from '@/config/appConfig';
+import { useAuthStore } from '@/stores/authStore';
 
 const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
 // Route segments already map cleanly to menu indexes, so no separate menu config is needed for V1.
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
 // Exposed in the sidebar so operators can immediately confirm which API target the build is using.
 const apiBaseLabel = computed(() => appConfig.apiBaseUrl || '未配置');
+
+async function handleLogout(): Promise<void> {
+  await authStore.signOut();
+  await router.replace('/login');
+}
 </script>
 
 <style scoped>
@@ -162,7 +175,28 @@ const apiBaseLabel = computed(() => appConfig.apiBaseUrl || '未配置');
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
+}
+
+.user-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.user-chip span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.user-chip small {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .layout-content {

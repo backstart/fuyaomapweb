@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import { appConfig } from '@/config/appConfig';
 import type { ApiResult } from '@/types/api';
+import { clearPersistedAuthSession, getStoredAccessToken } from '@/utils/authSession';
 
 // 后端成功时直接返回业务数据，失败时才会返回 Result<T>。
 // 这里统一收口两种形态，避免页面层自己判断。
@@ -67,6 +68,18 @@ const http = axios.create({
   timeout: 20000
 });
 
+http.interceptors.request.use((config) => {
+  const accessToken = getStoredAccessToken();
+  if (accessToken) {
+    config.headers = config.headers ?? {};
+    if (!('Authorization' in config.headers)) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+  }
+
+  return config;
+});
+
 http.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -82,6 +95,15 @@ http.interceptors.response.use(
     }
 
     if (error.response) {
+      if (error.response.status === 401) {
+        clearPersistedAuthSession();
+
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          window.location.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+        }
+      }
+
       return Promise.reject(
         new ApiError(`请求失败（HTTP ${error.response.status}）`, {
           status: error.response.status

@@ -2,6 +2,15 @@
 
 `fuyaomapweb` 是地图服务平台 Web 端 V1，基于 Vue 3 + Vite + TypeScript，继续使用现有 `fuyaomap` 后端 API，以及 `MapLibre + PMTiles` 地图方案。
 
+当前版本已补充最小可用登录能力：
+
+- 登录页：`/login`
+- 认证方式：JWT Bearer
+- 登录成功后进入现有地图管理系统
+- 未登录访问业务页会自动跳转到登录页
+- 登录页标题固定为：`地图服务`
+- 登录页背景内置类流体动态效果，并提供 WebGL 不可用时的渐变降级背景
+
 本项目当前必须严格适配的真实云效部署场景如下：
 
 ```bash
@@ -57,6 +66,71 @@ window.__APP_CONFIG__ = {
 - 构建产物里不再依赖固定后端域名
 - 生产上只需要改运行时配置或 Nginx，不需要重新 build 前端
 
+认证相关接口同样走运行时配置中的 `API_BASE_URL`，默认即 `/api`。
+
+## 登录页与认证
+
+新增核心文件：
+
+- [src/views/auth/LoginView.vue](/d:/Code/Dev/fuyaomapweb/src/views/auth/LoginView.vue)
+- [src/components/auth/FluidBackground.vue](/d:/Code/Dev/fuyaomapweb/src/components/auth/FluidBackground.vue)
+- [src/api/authApi.ts](/d:/Code/Dev/fuyaomapweb/src/api/authApi.ts)
+- [src/stores/authStore.ts](/d:/Code/Dev/fuyaomapweb/src/stores/authStore.ts)
+
+登录页能力：
+
+- 标题固定为 `地图服务`
+- 用户名、密码、记住我
+- 默认跳转 `/map`
+- 若 URL 中带 `redirect`，登录成功后优先跳转到该路径
+
+默认管理员联调用于本地初始化：
+
+- 用户名：`admin`
+- 密码：`admin123456`
+
+说明：
+
+- 该默认账号来自后端初始化脚本，仅适用于首次部署和开发联调
+- 上线后应立即修改默认密码
+
+### 路由守卫
+
+前端路由守卫规则：
+
+- 未登录访问 `/map`、`/shops`、`/areas`、`/imports` 等业务页时，跳转到 `/login`
+- 已登录再访问 `/login` 时，自动跳转到 `redirect` 或 `/map`
+- 登录态通过 `Pinia + localStorage/sessionStorage` 持久化
+
+### JWT 使用方式
+
+前端登录后会保存：
+
+- `token`
+- `expiresIn`
+- `userInfo`
+
+后续 API 请求通过统一 axios 实例自动附加：
+
+```text
+Authorization: Bearer {token}
+```
+
+当后端返回 `401` 时，前端会自动清理本地登录态并跳回 `/login`。
+
+### 流体背景实现
+
+登录页背景没有依赖外部在线脚本，直接集成在项目内部。
+
+实现方式：
+
+- 优先使用原生 `WebGL + Canvas`
+- 通过多组粒子、叠加混色、缓慢衰减和指针扰动，模拟近似流体扩散与拖尾感
+- 鼠标移动时会对背景产生轻微扰动
+- WebGL 不可用时自动降级为柔和渐变 + 模糊色团动画背景
+
+这不是对参考站点源码的复制，但在视觉体验上尽量接近 `Fluid Simulation` 风格，同时保持企业后台登录页可读性。
+
 ## 路径映射
 
 宿主机真实路径：
@@ -70,6 +144,19 @@ window.__APP_CONFIG__ = {
 - PMTiles：`/data/tiles/city.pmtiles`
 - runtime 目录：`/usr/share/nginx/html/runtime`
 - runtime 配置文件：`/usr/share/nginx/html/runtime/app-config.js`
+
+## 页面路由
+
+- `/login`
+  - 登录页
+- `/map`
+  - 地图主页
+- `/shops`
+  - 店铺管理
+- `/areas`
+  - 区域管理
+- `/imports`
+  - OSM 导入管理
 
 ## Dockerfile
 
@@ -279,4 +366,14 @@ http://fuyaox.com:8002/tiles/city.pmtiles
 - 100MB 以上的大文件更推荐使用“服务器已有文件”方式
 - 推荐先把 OSM 文件放到服务器目录，例如 `/data/fuyaomap/imports/`
 - 再在 `/imports` 页面填写服务器文件路径创建导入任务
+
+## 后端登录接口
+
+前端登录页依赖以下后端接口：
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+
+如果后端已启用 JWT 鉴权，登录成功后即可访问现有地图、店铺、区域、导入管理页面，无需修改现有业务页面逻辑。
 
