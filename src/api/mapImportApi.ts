@@ -29,11 +29,11 @@ export function createMapImportTask(payload: CreateMapImportTaskPayload): Promis
   });
 }
 
-export function startMapImportTask(id: number): Promise<MapImportTask> {
+export function startMapImportTask(id: string): Promise<MapImportTask> {
   return postRequest<MapImportTask, undefined>(`/map/imports/${id}/start`);
 }
 
-export function cancelMapImportTask(id: number): Promise<MapImportTask> {
+export function cancelMapImportTask(id: string): Promise<MapImportTask> {
   return postRequest<MapImportTask, undefined>(`/map/imports/${id}/cancel`);
 }
 
@@ -43,10 +43,10 @@ export function getMapImportTasks(params: QueryMapImportTasksParams): Promise<Pa
   });
 }
 
-export function getMapImportTask(id: number): Promise<MapImportTask> {
+export function getMapImportTask(id: string): Promise<MapImportTask> {
   return getRequest(`/map/imports/${id}`);
 }
 
-export function getMapImportTaskLogs(id: number): Promise<MapImportTaskLog[]> {
+export function getMapImportTaskLogs(id: string): Promise<MapImportTaskLog[]> {
   return getRequest(`/map/imports/${id}/logs`);
 }

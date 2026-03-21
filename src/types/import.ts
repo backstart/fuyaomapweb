@@ -2,7 +2,7 @@ export type MapImportTaskStatus = 'pending' | 'running' | 'success' | 'failed' |
 
 // 与后端导入任务 DTO 对齐，页面直接用它渲染列表、详情和轮询状态。
 export interface MapImportTask {
-  id: number;
+  id: string;
   importType: string;
   fileName?: string | null;
   filePath?: string | null;
@@ -23,8 +23,8 @@ export interface MapImportTask {
 }
 
 export interface MapImportTaskLog {
-  id: number;
-  taskId: number;
+  id: string;
+  taskId: string;
   level: 'info' | 'warn' | 'error' | string;
   message: string;
   createTime: string;

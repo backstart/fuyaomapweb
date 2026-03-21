@@ -91,10 +91,10 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'detail', id: number): void;
-  (event: 'logs', id: number): void;
-  (event: 'start', id: number): void;
-  (event: 'cancel', id: number): void;
+  (event: 'detail', id: string): void;
+  (event: 'logs', id: string): void;
+  (event: 'start', id: string): void;
+  (event: 'cancel', id: string): void;
   (event: 'page-change', page: number): void;
   (event: 'size-change', pageSize: number): void;
 }>();

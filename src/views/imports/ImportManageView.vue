@@ -151,7 +151,7 @@ const pagination = reactive<PaginationState>({
 const detailDialogVisible = ref(false);
 const logsDialogVisible = ref(false);
 const selectedTask = ref<MapImportTask | null>(null);
-const selectedLogsTaskId = ref<number | null>(null);
+const selectedLogsTaskId = ref<string | null>(null);
 let pollTimer: number | null = null;
 
 async function fetchTasks(options?: { silent?: boolean; page?: number; pageSize?: number }): Promise<void> {
@@ -269,7 +269,7 @@ async function createTask(payload: CreateMapImportTaskPayload, autoStart: boolea
   return startMapImportTask(task.id);
 }
 
-async function startTask(id: number): Promise<void> {
+async function startTask(id: string): Promise<void> {
   try {
     await startMapImportTask(id);
     ElMessage.success(`任务 ${id} 已启动`);
@@ -282,7 +282,7 @@ async function startTask(id: number): Promise<void> {
   }
 }
 
-async function cancelTask(id: number): Promise<void> {
+async function cancelTask(id: string): Promise<void> {
   try {
     await cancelMapImportTask(id);
     ElMessage.success(`任务 ${id} 已取消`);
@@ -295,12 +295,12 @@ async function cancelTask(id: number): Promise<void> {
   }
 }
 
-async function openTaskDetail(id: number): Promise<void> {
+async function openTaskDetail(id: string): Promise<void> {
   detailDialogVisible.value = true;
   await refreshTaskDetail(id);
 }
 
-async function refreshTaskDetail(id: number, silent = false): Promise<void> {
+async function refreshTaskDetail(id: string, silent = false): Promise<void> {
   if (!silent) {
     detailLoading.value = true;
   }
@@ -318,13 +318,13 @@ async function refreshTaskDetail(id: number, silent = false): Promise<void> {
   }
 }
 
-async function openTaskLogs(id: number): Promise<void> {
+async function openTaskLogs(id: string): Promise<void> {
   logsDialogVisible.value = true;
   selectedLogsTaskId.value = id;
   await refreshTaskLogs(id);
 }
 
-async function refreshTaskLogs(id: number, silent = false): Promise<void> {
+async function refreshTaskLogs(id: string, silent = false): Promise<void> {
   if (!silent) {
     logsLoading.value = true;
   }
