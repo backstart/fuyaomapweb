@@ -23,17 +23,25 @@ function pickConfigValue(...values: Array<string | undefined>): string {
 }
 
 // 统一收口运行时配置：
-// 1. 优先 window.__APP_CONFIG__，适合生产环境直接改 app-config.js
-// 2. 再回退到 Vite env，适合本地开发
+// 1. 开发环境优先 Vite env，便于本地直接连后端/底图
+// 2. 生产环境优先 window.__APP_CONFIG__，便于部署后只改 app-config.js
 // 3. 最后使用项目默认值
 export const appConfig = {
   get apiBaseUrl(): string {
     const runtimeConfig = readRuntimeConfig();
+    if (import.meta.env.DEV) {
+      return pickConfigValue(import.meta.env.VITE_API_BASE_URL, runtimeConfig.API_BASE_URL, '/api');
+    }
+
     return pickConfigValue(runtimeConfig.API_BASE_URL, import.meta.env.VITE_API_BASE_URL, '/api');
   },
 
   get pmtilesUrl(): string {
     const runtimeConfig = readRuntimeConfig();
+    if (import.meta.env.DEV) {
+      return pickConfigValue(import.meta.env.VITE_PMTILES_URL, runtimeConfig.PMTILES_URL, '/tiles/city.pmtiles');
+    }
+
     return pickConfigValue(runtimeConfig.PMTILES_URL, import.meta.env.VITE_PMTILES_URL, '/tiles/city.pmtiles');
   }
 };
