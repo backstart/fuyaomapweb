@@ -1,76 +1,47 @@
 <template>
   <div class="login-view">
-    <div class="login-aura aura-left"></div>
-    <div class="login-aura aura-right"></div>
+    <ParticleMorphBackground />
 
     <div class="login-shell">
-      <section class="login-showcase">
-        <GlassFlowerScene />
-      </section>
+      <section class="login-panel">
+        <h1>地图服务</h1>
 
-      <section class="login-side">
-        <div class="login-panel">
-          <div class="panel-sheen"></div>
-          <p class="panel-kicker">安全登录</p>
-          <h1>地图服务</h1>
-          <p class="panel-subtitle">内网地图服务平台</p>
-          <p class="panel-description">店铺、区域、导入与管理一体化平台</p>
-
-          <div v-if="errorMessage" class="panel-error">
-            <span class="panel-error-dot"></span>
-            <span>{{ errorMessage }}</span>
-          </div>
-
-          <el-form class="login-form" @submit.prevent="handleSubmit">
-            <el-form-item label="用户名">
-              <el-input
-                v-model="form.username"
-                placeholder="请输入用户名"
-                autocomplete="username"
-                @keyup.enter="handleSubmit"
-              >
-                <template #prefix>
-                  <el-icon><UserFilled /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-
-            <el-form-item label="密码">
-              <el-input
-                v-model="form.password"
-                type="password"
-                placeholder="请输入密码"
-                autocomplete="current-password"
-                show-password
-                @keyup.enter="handleSubmit"
-              >
-                <template #prefix>
-                  <el-icon><Lock /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-
-            <div class="panel-options">
-              <el-checkbox v-model="form.rememberMe">记住我</el-checkbox>
-              <span class="panel-hint">开发环境默认管理员：admin / admin123456</span>
-            </div>
-
-            <el-button
-              class="login-button"
-              size="large"
-              native-type="submit"
-              :loading="authStore.loading"
+        <el-form class="login-form" @submit.prevent="handleSubmit">
+          <el-form-item label="用户名">
+            <el-input
+              v-model="form.username"
+              autocomplete="username"
+              @keyup.enter="handleSubmit"
             >
-              <span>进入系统</span>
-              <i class="button-shine"></i>
-            </el-button>
-          </el-form>
+              <template #prefix>
+                <el-icon><UserFilled /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
 
-          <div class="panel-footer">
-            <span>JWT 安全认证</span>
-            <span>登录后默认进入地图总览</span>
-          </div>
-        </div>
+          <el-form-item label="密码">
+            <el-input
+              v-model="form.password"
+              type="password"
+              autocomplete="current-password"
+              show-password
+              @keyup.enter="handleSubmit"
+            >
+              <template #prefix>
+                <el-icon><Lock /></el-icon>
+              </template>
+            </el-input>
+          </el-form-item>
+
+          <el-button
+            class="login-button"
+            size="large"
+            native-type="submit"
+            :loading="authStore.loading"
+          >
+            进入系统
+          </el-button>
+        </el-form>
       </section>
     </div>
   </div>
@@ -78,30 +49,27 @@
 
 <script setup lang="ts">
 import { Lock, UserFilled } from '@element-plus/icons-vue';
-import { reactive, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { reactive } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import GlassFlowerScene from '@/components/auth/GlassFlowerScene.vue';
+import ParticleMorphBackground from '@/components/auth/ParticleMorphBackground.vue';
 import { useAuthStore } from '@/stores/authStore';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 
-const errorMessage = ref('');
 const form = reactive({
-  username: 'admin',
-  password: 'admin123456',
-  rememberMe: true
+  username: '',
+  password: ''
 });
 
 async function handleSubmit(): Promise<void> {
-  errorMessage.value = '';
-
   try {
-    await authStore.signIn(form.username.trim(), form.password, form.rememberMe);
+    await authStore.signIn(form.username.trim(), form.password, true);
     await router.replace(resolveRedirect(route.query.redirect));
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '登录失败，请稍后重试';
+    ElMessage.error(error instanceof Error ? error.message : '登录失败，请稍后重试');
   }
 }
 
@@ -119,216 +87,67 @@ function resolveRedirect(rawRedirect: unknown): string {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 22% 32%, rgba(255, 233, 190, 0.08), transparent 18%),
-    radial-gradient(circle at 76% 22%, rgba(119, 191, 255, 0.14), transparent 24%),
-    linear-gradient(135deg, #020305 0%, #030509 42%, #07111a 100%);
-}
-
-.login-aura {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.aura-left {
-  left: -6%;
-  top: 8%;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, rgba(255, 223, 175, 0.22), rgba(255, 223, 175, 0.02) 70%, transparent);
-}
-
-.aura-right {
-  right: -4%;
-  top: 18%;
-  width: 360px;
-  height: 360px;
-  background: radial-gradient(circle, rgba(105, 179, 255, 0.18), rgba(105, 179, 255, 0.02) 72%, transparent);
+  background: #02060b;
 }
 
 .login-shell {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(0, 1.56fr) minmax(360px, 0.8fr);
-  align-items: center;
-  gap: clamp(28px, 4vw, 64px);
-  max-width: 1520px;
-  margin: 0 auto;
-  padding: clamp(18px, 3vw, 42px);
-}
-
-.login-showcase {
-  min-width: 0;
-}
-
-.login-side {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 56px);
 }
 
 .login-panel {
-  position: relative;
-  width: min(100%, 460px);
-  padding: 34px 32px 24px;
+  width: min(100%, 420px);
+  padding: 34px 32px 30px;
   border-radius: 28px;
-  overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(9, 14, 24, 0.8) 0%, rgba(7, 11, 20, 0.72) 100%);
-  border: 1px solid rgba(153, 190, 230, 0.16);
+    linear-gradient(180deg, rgba(8, 13, 24, 0.7) 0%, rgba(6, 10, 18, 0.6) 100%);
+  border: 1px solid rgba(158, 196, 232, 0.12);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 26px 72px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(24px) saturate(130%);
-}
-
-.panel-sheen {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 28%),
-    radial-gradient(circle at top right, rgba(146, 205, 255, 0.12), transparent 28%);
-  pointer-events: none;
-}
-
-.panel-kicker,
-.login-panel h1,
-.panel-subtitle,
-.panel-description,
-.panel-footer,
-.panel-options {
-  position: relative;
-  z-index: 1;
-}
-
-.panel-kicker {
-  margin: 0 0 14px;
-  color: rgba(160, 213, 255, 0.78);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 22px 54px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px) saturate(112%);
 }
 
 .login-panel h1 {
   margin: 0;
-  color: rgba(248, 251, 255, 0.98);
+  color: rgba(247, 251, 255, 0.98);
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.06;
-}
-
-.panel-subtitle {
-  margin: 12px 0 0;
-  color: rgba(255, 239, 202, 0.84);
-  font-size: 15px;
-}
-
-.panel-description {
-  margin: 8px 0 0;
-  color: rgba(218, 228, 241, 0.66);
-  font-size: 14px;
-}
-
-.panel-error {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 22px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(93, 18, 24, 0.34);
-  border: 1px solid rgba(255, 145, 145, 0.18);
-  color: rgba(255, 225, 225, 0.94);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.panel-error-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #ff9f9f;
-  box-shadow: 0 0 10px rgba(255, 159, 159, 0.42);
+  font-weight: 700;
 }
 
 .login-form {
-  position: relative;
-  z-index: 1;
-  margin-top: 26px;
-}
-
-.panel-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  margin: 6px 0 20px;
-  color: rgba(221, 232, 244, 0.74);
-  font-size: 13px;
-}
-
-.panel-hint {
-  text-align: right;
-  color: rgba(255, 233, 193, 0.72);
+  margin-top: 28px;
 }
 
 .login-button {
-  position: relative;
   width: 100%;
   height: 50px;
-  overflow: hidden;
+  margin-top: 8px;
   border: none;
   border-radius: 16px;
-  color: #08111b;
+  color: #07111a;
   font-weight: 700;
   letter-spacing: 0.04em;
-  background: linear-gradient(135deg, #d8f1ff 0%, #a4d2ff 40%, #85aef7 72%, #d5e8ff 100%);
+  background: linear-gradient(135deg, #d6f0ff 0%, #97d5ff 42%, #7eaef8 72%, #cce3ff 100%);
   box-shadow:
-    0 18px 34px rgba(85, 144, 255, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 16px 32px rgba(85, 144, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
   transition: transform 220ms ease, box-shadow 220ms ease;
-}
-
-.login-button span,
-.button-shine {
-  position: relative;
-  z-index: 1;
-}
-
-.button-shine {
-  position: absolute;
-  inset: 1px;
-  border-radius: 15px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.52), transparent);
-  transform: translateX(-120%);
-  opacity: 0.8;
-  transition: transform 480ms ease;
-}
-
-.login-button:hover .button-shine {
-  transform: translateX(120%);
 }
 
 .login-button:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 22px 42px rgba(85, 144, 255, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
-}
-
-.panel-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 18px;
-  color: rgba(196, 210, 226, 0.48);
-  font-size: 12px;
+    0 18px 34px rgba(85, 144, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 .login-panel :deep(.el-form-item) {
@@ -336,13 +155,13 @@ function resolveRedirect(rawRedirect: unknown): string {
 }
 
 .login-panel :deep(.el-form-item__label) {
-  color: rgba(228, 236, 247, 0.8);
+  color: rgba(229, 238, 248, 0.84);
   font-size: 13px;
 }
 
 .login-panel :deep(.el-input__wrapper) {
   min-height: 46px;
-  background: rgba(6, 12, 21, 0.54);
+  background: rgba(6, 12, 21, 0.58);
   box-shadow:
     inset 0 0 0 1px rgba(162, 188, 227, 0.14),
     inset 0 10px 20px rgba(255, 255, 255, 0.02);
@@ -351,8 +170,8 @@ function resolveRedirect(rawRedirect: unknown): string {
 .login-panel :deep(.el-input__wrapper.is-focus) {
   box-shadow:
     inset 0 0 0 1px rgba(163, 212, 255, 0.42),
-    0 0 0 3px rgba(87, 148, 255, 0.12),
-    0 0 20px rgba(140, 211, 255, 0.18);
+    0 0 0 3px rgba(87, 148, 255, 0.1),
+    0 0 20px rgba(140, 211, 255, 0.16);
 }
 
 .login-panel :deep(.el-input__inner) {
@@ -360,7 +179,7 @@ function resolveRedirect(rawRedirect: unknown): string {
 }
 
 .login-panel :deep(.el-input__inner::placeholder) {
-  color: rgba(164, 179, 199, 0.62);
+  color: transparent;
 }
 
 .login-panel :deep(.el-input__prefix-inner),
@@ -369,60 +188,19 @@ function resolveRedirect(rawRedirect: unknown): string {
   color: rgba(190, 213, 240, 0.62);
 }
 
-.login-panel :deep(.el-checkbox__label) {
-  color: rgba(224, 234, 245, 0.82);
-}
-
-.login-panel :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #79b8ff;
-  border-color: #79b8ff;
-}
-
-.login-panel :deep(.el-checkbox__inner) {
-  background: rgba(9, 16, 28, 0.72);
-  border-color: rgba(156, 184, 222, 0.34);
-}
-
-@media (max-width: 1180px) {
+@media (max-width: 960px) {
   .login-shell {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-
-  .login-showcase,
-  .login-side {
-    width: 100%;
+    justify-content: center;
+    padding: 22px 16px;
   }
 
   .login-panel {
-    width: min(100%, 560px);
-  }
-}
-
-@media (max-width: 720px) {
-  .login-shell {
-    padding: 18px 14px 28px;
-    gap: 20px;
-  }
-
-  .login-panel {
-    padding: 28px 20px 22px;
-    border-radius: 24px;
-  }
-
-  .panel-options,
-  .panel-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .panel-hint {
-    text-align: left;
+    width: min(100%, 440px);
+    padding: 28px 22px 24px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .button-shine,
   .login-button {
     transition: none;
   }
