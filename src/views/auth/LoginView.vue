@@ -11,10 +11,10 @@
       <section class="login-side">
         <div class="login-panel">
           <div class="panel-sheen"></div>
-          <p class="panel-kicker">Secure Spatial Access</p>
+          <p class="panel-kicker">安全登录</p>
           <h1>地图服务</h1>
           <p class="panel-subtitle">内网地图服务平台</p>
-          <p class="panel-description">店铺、区域、导入与管理一体化平台。</p>
+          <p class="panel-description">店铺、区域、导入与管理一体化平台</p>
 
           <div v-if="errorMessage" class="panel-error">
             <span class="panel-error-dot"></span>
@@ -154,7 +154,7 @@ function resolveRedirect(rawRedirect: unknown): string {
   z-index: 1;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(380px, 0.88fr);
+  grid-template-columns: minmax(0, 1.56fr) minmax(360px, 0.8fr);
   align-items: center;
   gap: clamp(28px, 4vw, 64px);
   max-width: 1520px;
@@ -174,15 +174,15 @@ function resolveRedirect(rawRedirect: unknown): string {
 .login-panel {
   position: relative;
   width: min(100%, 460px);
-  padding: 34px 32px 26px;
-  border-radius: 30px;
+  padding: 34px 32px 24px;
+  border-radius: 28px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(12, 18, 30, 0.84) 0%, rgba(8, 12, 21, 0.72) 100%);
-  border: 1px solid rgba(154, 190, 238, 0.2);
+    linear-gradient(180deg, rgba(9, 14, 24, 0.8) 0%, rgba(7, 11, 20, 0.72) 100%);
+  border: 1px solid rgba(153, 190, 230, 0.16);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 30px 80px rgba(0, 0, 0, 0.38);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 26px 72px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(24px) saturate(130%);
 }
 
@@ -190,8 +190,8 @@ function resolveRedirect(rawRedirect: unknown): string {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1), transparent 28%),
-    radial-gradient(circle at top right, rgba(146, 205, 255, 0.18), transparent 28%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 28%),
+    radial-gradient(circle at top right, rgba(146, 205, 255, 0.12), transparent 28%);
   pointer-events: none;
 }
 
@@ -209,9 +209,8 @@ function resolveRedirect(rawRedirect: unknown): string {
   margin: 0 0 14px;
   color: rgba(160, 213, 255, 0.78);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.08em;
 }
 
 .login-panel h1 {
@@ -222,14 +221,14 @@ function resolveRedirect(rawRedirect: unknown): string {
 }
 
 .panel-subtitle {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: rgba(255, 239, 202, 0.84);
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .panel-description {
-  margin: 10px 0 0;
-  color: rgba(218, 228, 241, 0.72);
+  margin: 8px 0 0;
+  color: rgba(218, 228, 241, 0.66);
   font-size: 14px;
 }
 
@@ -289,9 +288,9 @@ function resolveRedirect(rawRedirect: unknown): string {
   color: #08111b;
   font-weight: 700;
   letter-spacing: 0.04em;
-  background: linear-gradient(135deg, #d8f6ff 0%, #8bc8ff 34%, #7aa6ff 68%, #d0e7ff 100%);
+  background: linear-gradient(135deg, #d8f1ff 0%, #a4d2ff 40%, #85aef7 72%, #d5e8ff 100%);
   box-shadow:
-    0 18px 34px rgba(85, 144, 255, 0.22),
+    0 18px 34px rgba(85, 144, 255, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   transition: transform 220ms ease, box-shadow 220ms ease;
 }
@@ -328,7 +327,7 @@ function resolveRedirect(rawRedirect: unknown): string {
   justify-content: space-between;
   gap: 12px;
   margin-top: 18px;
-  color: rgba(196, 210, 226, 0.56);
+  color: rgba(196, 210, 226, 0.48);
   font-size: 12px;
 }
 

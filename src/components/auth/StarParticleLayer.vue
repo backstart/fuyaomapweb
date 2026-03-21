@@ -8,6 +8,12 @@
       :style="star.style"
     ></span>
     <span
+      v-for="dust in dusts"
+      :key="dust.id"
+      class="dust"
+      :style="dust.style"
+    ></span>
+    <span
       v-for="meteor in meteors"
       :key="meteor.id"
       class="meteor"
@@ -32,47 +38,59 @@ function createRandom(seed: number): () => number {
   }
 
   return () => {
-    value = (value * 16807) % 2147483647;
+    value = (value * 48271) % 2147483647;
     return (value - 1) / 2147483646;
   };
 }
 
 const random = createRandom(20260321);
 
-const stars: SceneParticle[] = Array.from({ length: 34 }, (_, index) => {
-  const size = 1.5 + random() * 3.8;
-  const variant = index % 7 === 0 ? 'star-large' : index % 5 === 0 ? 'star-soft' : '';
+const stars: SceneParticle[] = Array.from({ length: 18 }, (_, index) => {
+  const size = 1.2 + random() * 2.2;
 
   return {
     id: `star-${index}`,
-    variant,
+    variant: index % 6 === 0 ? 'star-cross' : '',
     style: {
-      left: `${4 + random() * 90}%`,
-      top: `${4 + random() * 74}%`,
+      left: `${6 + random() * 86}%`,
+      top: `${6 + random() * 70}%`,
       width: `${size}px`,
       height: `${size}px`,
-      opacity: `${0.2 + random() * 0.75}`,
-      animationDelay: `${random() * 14}s`,
-      animationDuration: `${8 + random() * 12}s`
+      opacity: `${0.24 + random() * 0.46}`,
+      animationDelay: `${random() * 8}s`,
+      animationDuration: `${6 + random() * 8}s`
     }
   };
 });
 
-const meteors: SceneParticle[] = Array.from({ length: 4 }, (_, index) => {
-  const width = 60 + random() * 85;
+const dusts: SceneParticle[] = Array.from({ length: 12 }, (_, index) => {
+  const size = 2 + random() * 4;
 
   return {
-    id: `meteor-${index}`,
+    id: `dust-${index}`,
     style: {
-      left: `${6 + random() * 78}%`,
-      top: `${8 + random() * 42}%`,
-      width: `${width}px`,
-      animationDelay: `${3 + index * 4 + random() * 3}s`,
-      animationDuration: `${10 + random() * 6}s`,
-      transform: `rotate(${200 + random() * 18}deg)`
+      left: `${10 + random() * 78}%`,
+      top: `${14 + random() * 62}%`,
+      width: `${size}px`,
+      height: `${size}px`,
+      opacity: `${0.08 + random() * 0.14}`,
+      animationDelay: `${index * 0.7}s`,
+      animationDuration: `${12 + random() * 10}s`
     }
   };
 });
+
+const meteors: SceneParticle[] = Array.from({ length: 2 }, (_, index) => ({
+  id: `meteor-${index}`,
+  style: {
+    left: `${14 + index * 34 + random() * 12}%`,
+    top: `${10 + index * 12 + random() * 8}%`,
+    width: `${72 + random() * 54}px`,
+    animationDelay: `${5 + index * 8 + random() * 3}s`,
+    animationDuration: `${16 + random() * 6}s`,
+    transform: `rotate(${206 + random() * 10}deg)`
+  }
+}));
 </script>
 
 <style scoped>
@@ -84,54 +102,54 @@ const meteors: SceneParticle[] = Array.from({ length: 4 }, (_, index) => {
 }
 
 .star,
+.dust,
 .meteor {
   position: absolute;
   display: block;
 }
 
 .star {
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(255, 249, 236, 1) 0%, rgba(222, 241, 255, 0.92) 36%, rgba(255, 255, 255, 0) 100%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 252, 246, 0.96) 0%, rgba(217, 239, 255, 0.76) 38%, rgba(255, 255, 255, 0) 100%);
   box-shadow:
-    0 0 8px rgba(255, 238, 185, 0.34),
-    0 0 18px rgba(131, 187, 255, 0.12);
-  animation: twinkle ease-in-out infinite, drift ease-in-out infinite;
+    0 0 6px rgba(255, 240, 191, 0.24),
+    0 0 12px rgba(163, 211, 255, 0.08);
+  animation: starTwinkle ease-in-out infinite;
 }
 
-.star::before,
-.star::after {
+.star-cross::before,
+.star-cross::after {
   content: '';
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 180%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.68), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.52), transparent);
   transform: translate(-50%, -50%);
-  opacity: 0.3;
+  opacity: 0.22;
 }
 
-.star::after {
+.star-cross::before {
+  width: 180%;
+  height: 1px;
+}
+
+.star-cross::after {
   width: 1px;
   height: 180%;
 }
 
-.star-large {
-  box-shadow:
-    0 0 12px rgba(255, 233, 178, 0.45),
-    0 0 26px rgba(126, 190, 255, 0.22);
-}
-
-.star-soft {
-  filter: blur(0.2px);
+.dust {
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220, 241, 255, 0.62), rgba(255, 255, 255, 0));
+  filter: blur(0.6px);
+  animation: dustFloat ease-in-out infinite;
 }
 
 .meteor {
   height: 1px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(244, 251, 255, 0.85), rgba(255, 230, 180, 0));
-  box-shadow: 0 0 12px rgba(240, 248, 255, 0.28);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(247, 251, 255, 0.76), rgba(255, 230, 188, 0));
+  box-shadow: 0 0 10px rgba(233, 244, 255, 0.18);
   opacity: 0;
   transform-origin: left center;
   animation: meteorTrail linear infinite;
@@ -142,63 +160,63 @@ const meteors: SceneParticle[] = Array.from({ length: 4 }, (_, index) => {
   position: absolute;
   right: 6%;
   top: 50%;
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   transform: translateY(-50%);
-  background: radial-gradient(circle, rgba(255, 245, 214, 1), rgba(212, 236, 255, 0.18));
-  box-shadow:
-    0 0 10px rgba(255, 245, 214, 0.62),
-    0 0 16px rgba(167, 207, 255, 0.35);
+  background: radial-gradient(circle, rgba(255, 247, 216, 1), rgba(212, 236, 255, 0.14));
 }
 
-@keyframes twinkle {
+@keyframes starTwinkle {
   0%,
   100% {
-    opacity: 0.34;
+    opacity: 0.3;
+    transform: scale(0.94);
   }
 
   50% {
-    opacity: 1;
+    opacity: 0.92;
+    transform: scale(1.08);
   }
 }
 
-@keyframes drift {
+@keyframes dustFloat {
   0%,
   100% {
     transform: translate3d(0, 0, 0);
   }
 
   50% {
-    transform: translate3d(0, -10px, 0);
+    transform: translate3d(0, -12px, 0);
   }
 }
 
 @keyframes meteorTrail {
   0%,
-  82% {
+  84% {
     opacity: 0;
-    transform: translate3d(0, 0, 0) scaleX(0.86);
+    transform: translate3d(0, 0, 0) scaleX(0.88);
   }
 
-  84% {
-    opacity: 0.92;
+  86% {
+    opacity: 0.72;
   }
 
   100% {
     opacity: 0;
-    transform: translate3d(-140px, 110px, 0) scaleX(1.14);
+    transform: translate3d(-130px, 104px, 0) scaleX(1.08);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .star,
+  .dust,
   .meteor {
     animation: none;
   }
 
   .meteor {
-    opacity: 0.24;
+    opacity: 0.18;
   }
 }
 </style>
