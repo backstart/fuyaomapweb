@@ -113,6 +113,8 @@ function resolveRedirect(rawRedirect: unknown): string {
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 22px 54px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(18px) saturate(112%);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .login-panel h1 {
@@ -176,6 +178,8 @@ function resolveRedirect(rawRedirect: unknown): string {
 
 .login-panel :deep(.el-input__inner) {
   color: rgba(246, 250, 255, 0.96);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .login-panel :deep(.el-input__inner::placeholder) {

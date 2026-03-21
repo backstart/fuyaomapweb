@@ -1,5 +1,5 @@
 <template>
-  <div class="particle-morph-background" aria-hidden="true">
+  <div class="particle-morph-background" aria-hidden="true" @contextmenu.prevent>
     <div ref="hostRef" class="background-stage" :class="{ active: mode === 'webgl' }"></div>
 
     <div v-if="mode === 'fallback'" class="background-fallback">
