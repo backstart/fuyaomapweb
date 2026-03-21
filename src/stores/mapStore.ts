@@ -8,7 +8,10 @@ export const useMapStore = defineStore('map', () => {
   const mapInstance = shallowRef<MapLibreMap | null>(null);
   const layerVisibility = ref<LayerVisibility>({
     shops: true,
-    areas: true
+    areas: true,
+    pois: true,
+    places: true,
+    boundaries: true
   });
   // 当前选中的要素既可能来自地图点击，也可能来自列表页或搜索结果。
   const selectedEntity = ref<MapFocusTarget | null>(null);

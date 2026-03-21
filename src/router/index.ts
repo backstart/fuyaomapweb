@@ -3,6 +3,9 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import MapView from '@/views/map/MapView.vue';
 import ShopListView from '@/views/shops/ShopListView.vue';
 import AreaListView from '@/views/areas/AreaListView.vue';
+import PoiListView from '@/views/pois/PoiListView.vue';
+import PlaceListView from '@/views/places/PlaceListView.vue';
+import BoundaryListView from '@/views/boundaries/BoundaryListView.vue';
 import ImportManageView from '@/views/imports/ImportManageView.vue';
 import LoginView from '@/views/auth/LoginView.vue';
 import NotFoundView from '@/views/error/NotFoundView.vue';
@@ -43,6 +46,30 @@ const router = createRouter({
           component: AreaListView,
           meta: {
             title: '区域管理'
+          }
+        },
+        {
+          path: 'pois',
+          name: 'pois',
+          component: PoiListView,
+          meta: {
+            title: 'POI 管理'
+          }
+        },
+        {
+          path: 'places',
+          name: 'places',
+          component: PlaceListView,
+          meta: {
+            title: '地名管理'
+          }
+        },
+        {
+          path: 'boundaries',
+          name: 'boundaries',
+          component: BoundaryListView,
+          meta: {
+            title: '边界管理'
           }
         },
         {

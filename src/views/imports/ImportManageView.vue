@@ -2,7 +2,7 @@
   <PageContainer
     title="导入管理"
     eyebrow="Imports"
-    description="从 Web 页面上传或指定服务器上的 OSM 原始数据文件，异步导入店铺与区域业务表。"
+    description="从 Web 页面上传或指定服务器上的 OSM 原始数据文件，异步导入正式服务层店铺、区域、POI、地名与边界数据。"
   >
     <template #actions>
       <el-button :loading="listLoading" @click="refreshNow">刷新任务</el-button>
@@ -92,6 +92,22 @@
             <span class="task-message">{{ selectedTask.message || '-' }}</span>
           </el-descriptions-item>
         </el-descriptions>
+
+        <div class="summary-card">
+          <h4>正式服务层抽取统计</h4>
+          <div class="summary-grid">
+            <div><span>店铺</span><strong>{{ detailSummary.shops }}</strong></div>
+            <div><span>区域</span><strong>{{ detailSummary.areas }}</strong></div>
+            <div><span>POI</span><strong>{{ detailSummary.pois }}</strong></div>
+            <div><span>地名</span><strong>{{ detailSummary.places }}</strong></div>
+            <div><span>边界</span><strong>{{ detailSummary.boundaries }}</strong></div>
+            <div><span>映射</span><strong>{{ detailSummary.importRecords }}</strong></div>
+            <div><span>原始要素</span><strong>{{ detailSummary.rawFeatures }}</strong></div>
+            <div><span>无名称跳过</span><strong>{{ detailSummary.unnamedSkipped }}</strong></div>
+            <div><span>几何无效</span><strong>{{ detailSummary.invalidGeometry }}</strong></div>
+            <div><span>失败</span><strong>{{ detailSummary.failed }}</strong></div>
+          </div>
+        </div>
       </template>
     </el-dialog>
 
@@ -102,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import PageContainer from '@/components/common/PageContainer.vue';
 import ImportUploadPanel from '@/components/import/ImportUploadPanel.vue';
@@ -121,15 +137,18 @@ import {
 import type { PaginationState } from '@/types/api';
 import type {
   CreateMapImportTaskPayload,
+  MapImportExtractionSummary,
   MapImportTask,
   MapImportTaskLog,
   ServerPathImportSubmitPayload,
   UploadImportSubmitPayload
 } from '@/types/import';
 import { formatDateTime } from '@/utils/format';
+import { parseImportSummary } from '@/utils/importSummary';
 
 const tasks = ref<MapImportTask[]>([]);
 const taskLogs = ref<MapImportTaskLog[]>([]);
+const detailTaskLogs = ref<MapImportTaskLog[]>([]);
 
 const listLoading = ref(false);
 const uploadLoading = ref(false);
@@ -153,6 +172,8 @@ const logsDialogVisible = ref(false);
 const selectedTask = ref<MapImportTask | null>(null);
 const selectedLogsTaskId = ref<string | null>(null);
 let pollTimer: number | null = null;
+
+const detailSummary = computed<MapImportExtractionSummary>(() => parseImportSummary(detailTaskLogs.value));
 
 async function fetchTasks(options?: { silent?: boolean; page?: number; pageSize?: number }): Promise<void> {
   const silent = options?.silent ?? false;
@@ -207,6 +228,7 @@ async function refreshNow(): Promise<void> {
     await fetchTasks();
     if (selectedTask.value) {
       await refreshTaskDetail(selectedTask.value.id, true);
+      await refreshDetailTaskLogs(selectedTask.value.id, true);
     }
     if (selectedLogsTaskId.value) {
       await refreshTaskLogs(selectedLogsTaskId.value, true);
@@ -297,7 +319,15 @@ async function cancelTask(id: string): Promise<void> {
 
 async function openTaskDetail(id: string): Promise<void> {
   detailDialogVisible.value = true;
-  await refreshTaskDetail(id);
+  detailLoading.value = true;
+  try {
+    await Promise.all([
+      refreshTaskDetail(id, true),
+      refreshDetailTaskLogs(id, true)
+    ]);
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 async function refreshTaskDetail(id: string, silent = false): Promise<void> {
@@ -322,6 +352,24 @@ async function openTaskLogs(id: string): Promise<void> {
   logsDialogVisible.value = true;
   selectedLogsTaskId.value = id;
   await refreshTaskLogs(id);
+}
+
+async function refreshDetailTaskLogs(id: string, silent = false): Promise<void> {
+  if (!silent) {
+    detailLoading.value = true;
+  }
+
+  try {
+    detailTaskLogs.value = await getMapImportTaskLogs(id);
+  } catch (error) {
+    if (!silent) {
+      showError(error, '导入日志加载失败');
+    }
+  } finally {
+    if (!silent) {
+      detailLoading.value = false;
+    }
+  }
 }
 
 async function refreshTaskLogs(id: string, silent = false): Promise<void> {
@@ -384,6 +432,7 @@ async function pollTaskState(): Promise<void> {
     await fetchTasks({ silent: true });
     if (selectedTask.value) {
       await refreshTaskDetail(selectedTask.value.id, true);
+      await refreshDetailTaskLogs(selectedTask.value.id, true);
     }
     if (selectedLogsTaskId.value) {
       await refreshTaskLogs(selectedLogsTaskId.value, true);
@@ -438,15 +487,15 @@ function getProgressStatus(status: string): '' | 'success' | 'warning' | 'except
 
 function formatImportTargets(importShops: boolean, importAreas: boolean): string {
   if (importShops && importAreas) {
-    return '店铺 + 区域';
+    return '基础开关：店铺 + 区域；正式抽取：店铺 / 区域 / POI / 地名 / 边界';
   }
 
   if (importShops) {
-    return '仅店铺';
+    return '基础开关：仅店铺；正式抽取结果以任务统计为准';
   }
 
   if (importAreas) {
-    return '仅区域';
+    return '基础开关：仅区域；正式抽取结果以任务统计为准';
   }
 
   return '-';
@@ -505,5 +554,50 @@ onBeforeUnmount(() => {
 .task-message {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.summary-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+}
+
+.summary-card h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-grid div {
+  padding: 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.summary-grid span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.summary-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+@media (max-width: 960px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

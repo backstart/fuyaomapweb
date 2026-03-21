@@ -3,7 +3,7 @@
     <div ref="mapContainer" class="map-container"></div>
     <div v-if="!hasBaseMap" class="shell-card map-notice">
       <strong>未配置底图</strong>
-      <p>当前使用空白底图，仅渲染店铺与区域业务图层。请在 `app-config.js` 或 `.env` 中填写 PMTiles 地址。</p>
+      <p>当前使用空白底图，仅渲染正式服务层业务图层。请在 `app-config.js` 或 `.env` 中填写 PMTiles 地址。</p>
     </div>
   </div>
 </template>
@@ -17,12 +17,23 @@ import {
   ensureBusinessLayers,
   registerBusinessLayerEvents,
   setBusinessLayerVisibility,
+  updateFocusedEntity,
   updateBusinessSources
 } from '@/composables/useMapLayers';
-import AreaPopup from '@/components/map/AreaPopup.vue';
-import ShopPopup from '@/components/map/ShopPopup.vue';
 import type { AreaFeatureCollection } from '@/types/area';
-import type { AreaFocusTarget, LayerVisibility, MapFocusTarget, ShopFocusTarget } from '@/types/map';
+import type { BoundaryFeatureCollection } from '@/types/boundary';
+import EntityPopup from '@/components/map/EntityPopup.vue';
+import type {
+  AreaFocusTarget,
+  BoundaryFocusTarget,
+  LayerVisibility,
+  MapFocusTarget,
+  PlaceFocusTarget,
+  PoiFocusTarget,
+  ShopFocusTarget
+} from '@/types/map';
+import type { PlaceFeatureCollection } from '@/types/place';
+import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
@@ -30,6 +41,9 @@ import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/ut
 const props = defineProps<{
   shopData: ShopFeatureCollection;
   areaData: AreaFeatureCollection;
+  poiData: PoiFeatureCollection;
+  placeData: PlaceFeatureCollection;
+  boundaryData: BoundaryFeatureCollection;
   layerVisibility: LayerVisibility;
   focusTarget?: MapFocusTarget | null;
 }>();
@@ -39,6 +53,9 @@ const emit = defineEmits<{
   'viewport-change': [payload: { bbox: string; center: [number, number]; zoom: number }];
   'shop-click': [target: ShopFocusTarget];
   'area-click': [target: AreaFocusTarget];
+  'poi-click': [target: PoiFocusTarget];
+  'place-click': [target: PlaceFocusTarget];
+  'boundary-click': [target: BoundaryFocusTarget];
 }>();
 
 const { map, initMap, destroyMap } = useMapLibre();
@@ -74,9 +91,7 @@ function openPopup(target: MapFocusTarget, lngLat: LngLatLike): void {
   clearPopup();
 
   const container = document.createElement('div');
-  popupApp = target.entityType === 'shop'
-    ? createApp(ShopPopup, { shop: target })
-    : createApp(AreaPopup, { area: target });
+  popupApp = createApp(EntityPopup, { entity: target });
   popupApp.mount(container);
 
   popup = new maplibregl.Popup({
@@ -102,7 +117,9 @@ function focusOnTarget(target: MapFocusTarget): void {
     return;
   }
 
-  if (target.entityType === 'shop') {
+  updateFocusedEntity(map.value, target);
+
+  if (target.entityType === 'shop' || target.entityType === 'poi') {
     const center: [number, number] = [target.longitude, target.latitude];
     map.value.flyTo({
       center,
@@ -113,7 +130,18 @@ function focusOnTarget(target: MapFocusTarget): void {
     return;
   }
 
-  const geometry = parseGeometryGeoJson(target.geometryGeoJson);
+  const geometry = 'geometryGeoJson' in target ? parseGeometryGeoJson(target.geometryGeoJson) : null;
+  if (!geometry && target.entityType === 'place' && typeof target.centerLongitude === 'number' && typeof target.centerLatitude === 'number') {
+    const center: [number, number] = [target.centerLongitude, target.centerLatitude];
+    map.value.flyTo({
+      center,
+      zoom: Math.max(map.value.getZoom(), 13.5),
+      essential: true
+    });
+    openPopup(target, center);
+    return;
+  }
+
   if (!geometry) {
     return;
   }
@@ -143,8 +171,9 @@ onMounted(async () => {
   instance.once('load', () => {
     // 地图 load 后再创建 source/layer，避免 style 尚未准备好时报错。
     ensureBusinessLayers(instance);
-    updateBusinessSources(instance, props.shopData, props.areaData);
+    updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
     setBusinessLayerVisibility(instance, props.layerVisibility);
+    updateFocusedEntity(instance, props.focusTarget);
     registerBusinessLayerEvents(instance, {
       onShopClick: (target) => {
         emit('shop-click', target);
@@ -152,6 +181,18 @@ onMounted(async () => {
       },
       onAreaClick: (target, event) => {
         emit('area-click', target);
+        openPopup(target, event.lngLat);
+      },
+      onPoiClick: (target) => {
+        emit('poi-click', target);
+        openPopup(target, [target.longitude, target.latitude]);
+      },
+      onPlaceClick: (target, event) => {
+        emit('place-click', target);
+        openPopup(target, event.lngLat);
+      },
+      onBoundaryClick: (target, event) => {
+        emit('boundary-click', target);
         openPopup(target, event.lngLat);
       }
     });
@@ -162,14 +203,14 @@ onMounted(async () => {
 });
 
 watch(
-  () => [props.shopData, props.areaData] as const,
-  ([shops, areas]) => {
+  () => [props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData] as const,
+  ([shops, areas, pois, places, boundaries]) => {
     // 地图数据更新频率会比较高，这里只在 source 已就绪后做 setData。
     if (!map.value || !map.value.isStyleLoaded() || !map.value.getSource('business-shops')) {
       return;
     }
 
-    updateBusinessSources(map.value, shops, areas);
+    updateBusinessSources(map.value, shops, areas, pois, places, boundaries);
   },
   { deep: true }
 );
@@ -190,6 +231,10 @@ watch(
   () => props.focusTarget,
   (target) => {
     // 外部页面只需要传 focusTarget，具体 flyTo/fitBounds 逻辑由 BaseMap 内部处理。
+    if (map.value) {
+      updateFocusedEntity(map.value, target);
+    }
+
     if (target) {
       focusOnTarget(target);
     }

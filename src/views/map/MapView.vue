@@ -1,19 +1,25 @@
 <template>
   <PageContainer
     title="地图总览"
-    eyebrow="Map V1"
-    description="MapLibre 地图页已接入店铺、区域、搜索和图层控制，数据直接来自 fuyaomap 后端。"
+    eyebrow="Map Overview"
+    description="MapLibre 地图页已接入店铺、区域、POI、地名、边界五类正式服务层数据。"
   >
     <div class="map-page">
       <BaseMap
         :shop-data="shopStore.geoJson"
         :area-data="areaStore.geoJson"
+        :poi-data="poiStore.geoJson"
+        :place-data="placeStore.geoJson"
+        :boundary-data="boundaryStore.geoJson"
         :layer-visibility="mapStore.layerVisibility"
         :focus-target="focusTarget"
         @ready="handleMapReady"
         @viewport-change="handleViewportChange"
-        @shop-click="handleShopClick"
-        @area-click="handleAreaClick"
+        @shop-click="handleEntityClick"
+        @area-click="handleEntityClick"
+        @poi-click="handleEntityClick"
+        @place-click="handleEntityClick"
+        @boundary-click="handleEntityClick"
       />
 
       <div class="map-overlay map-overlay-left">
@@ -33,7 +39,7 @@
             <el-button text @click="clearSearchResults">清空结果</el-button>
           </div>
 
-          <el-scrollbar max-height="280px">
+          <el-scrollbar max-height="320px">
             <div v-if="mapStore.searchResults.length" class="result-list">
               <button
                 v-for="item in mapStore.searchResults"
@@ -44,7 +50,7 @@
               >
                 <div>
                   <strong>{{ item.name }}</strong>
-                  <p>{{ item.itemType === 'shop' ? '店铺' : '区域' }} · {{ item.classification || '未分类' }}</p>
+                  <p>{{ getSearchItemSubtitle(item) }}</p>
                 </div>
                 <el-tag :type="getStatusTagType(item.status)" effect="light">
                   {{ getStatusLabel(item.status) }}
@@ -53,7 +59,7 @@
             </div>
             <el-empty
               v-else
-              description="输入关键字后可检索店铺与区域，并联动地图定位。"
+              description="支持跨店铺、区域、POI、地名与边界统一搜索。"
               :image-size="80"
             />
           </el-scrollbar>
@@ -81,16 +87,13 @@
               </el-tag>
             </div>
             <p class="inspector-meta">
-              {{ mapStore.selectedEntity.entityType === 'shop' ? '店铺' : '区域' }}
-              <span v-if="mapStore.selectedEntity.entityType === 'shop'">
-                · {{ mapStore.selectedEntity.category || '未分类' }}
-              </span>
-              <span v-else>
-                · {{ mapStore.selectedEntity.type || '未分类' }}
-              </span>
+              {{ getFocusTargetSubtitle(mapStore.selectedEntity) }}
+            </p>
+            <p class="inspector-detail">
+              {{ getInspectorDetail(mapStore.selectedEntity) }}
             </p>
             <p class="inspector-remark">
-              {{ mapStore.selectedEntity.remark || '暂无备注信息。' }}
+              {{ getInspectorRemark(mapStore.selectedEntity) }}
             </p>
           </div>
           <el-empty
@@ -115,47 +118,56 @@ import PageContainer from '@/components/common/PageContainer.vue';
 import MapSearchBar from '@/components/search/MapSearchBar.vue';
 import { searchMap } from '@/api/mapSearchApi';
 import { useAreaStore } from '@/stores/areaStore';
+import { useBoundaryStore } from '@/stores/boundaryStore';
 import { useMapStore } from '@/stores/mapStore';
+import { usePlaceStore } from '@/stores/placeStore';
+import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
-import type { AreaFocusTarget, MapFocusTarget, MapSearchItem, ShopFocusTarget } from '@/types/map';
+import type { EntityType, MapFocusTarget, MapSearchItem } from '@/types/map';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
+import { getEntityTypeLabel, getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
 
 const route = useRoute();
 const mapStore = useMapStore();
 const shopStore = useShopStore();
 const areaStore = useAreaStore();
+const poiStore = usePoiStore();
+const placeStore = usePlaceStore();
+const boundaryStore = useBoundaryStore();
 
-// 页面层只维护“当前想聚焦到哪里”，真正定位交给 BaseMap。
 const searchKeyword = ref('');
 const searchLoading = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
 
 const searchSummary = computed(() => {
   if (!mapStore.searchResults.length) {
-    return '支持跨店铺与区域统一搜索';
+    return '支持五类正式服务层实体的统一搜索';
   }
 
-  return `共 ${mapStore.searchResults.length} 条结果，点击可直接定位`;
+  return `共 ${mapStore.searchResults.length} 条结果，点击可直接定位并高亮`;
 });
 
 async function refreshGeoJson(bbox?: string): Promise<void> {
-  // 地图视口变化后，用 bbox 限定 GeoJSON 返回范围，避免一次加载所有数据。
   shopStore.updateFilters({ bbox });
   areaStore.updateFilters({ bbox });
+  poiStore.updateFilters({ bbox });
+  placeStore.updateFilters({ bbox });
+  boundaryStore.updateFilters({ bbox });
 
   try {
     await Promise.all([
       shopStore.fetchGeoJson({ bbox }),
-      areaStore.fetchGeoJson({ bbox })
+      areaStore.fetchGeoJson({ bbox }),
+      poiStore.fetchGeoJson({ bbox }),
+      placeStore.fetchGeoJson({ bbox }),
+      boundaryStore.fetchGeoJson({ bbox })
     ]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '地图数据加载失败';
-    ElMessage.error(message);
+    ElMessage.error(error instanceof Error ? error.message : '地图数据加载失败');
   }
 }
 
 function handleMapReady(mapInstance: MapLibreMap): void {
-  // 把实例缓存到 mapStore，便于后续扩展外部控制地图。
   mapStore.setMap(mapInstance);
 
   if (mapStore.viewport.bbox) {
@@ -167,18 +179,11 @@ function handleMapReady(mapInstance: MapLibreMap): void {
 }
 
 function handleViewportChange(payload: { bbox: string; center: [number, number]; zoom: number }): void {
-  // 当前实现采用 moveend 后立即刷新 GeoJSON。
-  // 如果后续数据量更大，可以在这里加节流或缓存。
   mapStore.setViewport(payload);
   void refreshGeoJson(payload.bbox);
 }
 
-function handleShopClick(target: ShopFocusTarget): void {
-  focusTarget.value = target;
-  mapStore.setSelectedEntity(target);
-}
-
-function handleAreaClick(target: AreaFocusTarget): void {
+function handleEntityClick(target: MapFocusTarget): void {
   focusTarget.value = target;
   mapStore.setSelectedEntity(target);
 }
@@ -192,7 +197,6 @@ async function handleSearch(): Promise<void> {
 
   searchLoading.value = true;
   try {
-    // 搜索默认带上当前 bbox，优先返回当前视图范围内更相关的结果。
     const result = await searchMap({
       q: keyword,
       page: 1,
@@ -201,8 +205,7 @@ async function handleSearch(): Promise<void> {
     });
     mapStore.setSearchResults(result.items);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '搜索失败';
-    ElMessage.error(message);
+    ElMessage.error(error instanceof Error ? error.message : '搜索失败');
   } finally {
     searchLoading.value = false;
   }
@@ -217,68 +220,145 @@ function clearSearch(): void {
   clearSearchResults();
 }
 
-async function resolveShopFocusTarget(id: number): Promise<ShopFocusTarget> {
-  // 从搜索结果和列表页进入地图时，统一补齐详情结构。
-  const detail = await shopStore.getShopDetail(id);
-  return {
-    entityType: 'shop',
-    id: detail.id,
-    name: detail.name,
-    category: detail.category,
-    remark: detail.remark,
-    icon: detail.icon,
-    status: detail.status,
-    longitude: detail.longitude,
-    latitude: detail.latitude
-  };
-}
-
-async function resolveAreaFocusTarget(id: number): Promise<AreaFocusTarget> {
-  const detail = await areaStore.getAreaDetail(id);
-  return {
-    entityType: 'area',
-    id: detail.id,
-    name: detail.name,
-    type: detail.type,
-    remark: detail.remark,
-    styleJson: detail.styleJson,
-    status: detail.status,
-    geometryGeoJson: detail.geometryGeoJson
-  };
+async function resolveFocusTarget(entityType: EntityType, id: number): Promise<MapFocusTarget> {
+  switch (entityType) {
+    case 'shop': {
+      const detail = await shopStore.getShopDetail(id);
+      return {
+        entityType: 'shop',
+        id: detail.id,
+        name: detail.name,
+        category: detail.category,
+        remark: detail.remark,
+        icon: detail.icon,
+        status: detail.status,
+        longitude: detail.longitude,
+        latitude: detail.latitude
+      };
+    }
+    case 'area': {
+      const detail = await areaStore.getAreaDetail(id);
+      return {
+        entityType: 'area',
+        id: detail.id,
+        name: detail.name,
+        type: detail.type,
+        remark: detail.remark,
+        styleJson: detail.styleJson,
+        status: detail.status,
+        geometryGeoJson: detail.geometryGeoJson
+      };
+    }
+    case 'poi': {
+      const detail = await poiStore.getPoiDetail(id);
+      return {
+        entityType: 'poi',
+        id: detail.id,
+        name: detail.name,
+        category: detail.category,
+        subcategory: detail.subcategory,
+        remark: detail.remark,
+        icon: detail.icon,
+        address: detail.address,
+        phone: detail.phone,
+        status: detail.status,
+        longitude: detail.longitude,
+        latitude: detail.latitude
+      };
+    }
+    case 'place': {
+      const detail = await placeStore.getPlaceDetail(id);
+      return {
+        entityType: 'place',
+        id: detail.id,
+        name: detail.name,
+        placeType: detail.placeType,
+        adminLevel: detail.adminLevel,
+        remark: detail.remark,
+        status: detail.status,
+        geometryGeoJson: detail.geometryGeoJson,
+        centerLongitude: detail.centerLongitude,
+        centerLatitude: detail.centerLatitude
+      };
+    }
+    case 'boundary': {
+      const detail = await boundaryStore.getBoundaryDetail(id);
+      return {
+        entityType: 'boundary',
+        id: detail.id,
+        name: detail.name,
+        boundaryType: detail.boundaryType,
+        adminLevel: detail.adminLevel,
+        remark: detail.remark,
+        styleJson: detail.styleJson,
+        status: detail.status,
+        geometryGeoJson: detail.geometryGeoJson
+      };
+    }
+    default:
+      throw new Error(`未知实体类型：${entityType}`);
+  }
 }
 
 async function locateSearchResult(item: MapSearchItem): Promise<void> {
   try {
-    // 搜索结果只区分 itemType，页面层负责把它转成地图可消费的 focus target。
-    const target = item.itemType === 'shop'
-      ? await resolveShopFocusTarget(item.id)
-      : await resolveAreaFocusTarget(item.id);
+    const target = await resolveFocusTarget(item.itemType, item.id);
     focusTarget.value = target;
     mapStore.setSelectedEntity(target);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '定位失败';
-    ElMessage.error(message);
+    ElMessage.error(error instanceof Error ? error.message : '定位失败');
   }
 }
 
 async function syncRouteFocus(): Promise<void> {
-  // /map?entity=shop&id=1 这种约定，让列表页跳转地图时无需共享复杂状态。
   const entity = route.query.entity;
   const id = Number(route.query.id);
 
-  if ((entity !== 'shop' && entity !== 'area') || !Number.isFinite(id) || id <= 0) {
+  if (
+    !['shop', 'area', 'poi', 'place', 'boundary'].includes(String(entity)) ||
+    !Number.isFinite(id) ||
+    id <= 0
+  ) {
     return;
   }
 
   try {
-    const target = entity === 'shop'
-      ? await resolveShopFocusTarget(id)
-      : await resolveAreaFocusTarget(id);
+    const target = await resolveFocusTarget(entity as EntityType, id);
     focusTarget.value = target;
     mapStore.setSelectedEntity(target);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '无法加载定位对象';
-    ElMessage.error(message);
+    ElMessage.error(error instanceof Error ? error.message : '无法加载定位对象');
+  }
+}
+
+function getInspectorDetail(target: MapFocusTarget): string {
+  switch (target.entityType) {
+    case 'shop':
+    case 'poi':
+      return `坐标：${target.longitude.toFixed(6)}, ${target.latitude.toFixed(6)}`;
+    case 'area':
+      return `类型：${target.type || '未分类'}`;
+    case 'place':
+      return `行政级别：${target.adminLevel ?? '-'} · 中心点：${
+        typeof target.centerLongitude === 'number' && typeof target.centerLatitude === 'number'
+          ? `${target.centerLongitude.toFixed(6)}, ${target.centerLatitude.toFixed(6)}`
+          : '-'
+      }`;
+    case 'boundary':
+      return `行政级别：${target.adminLevel ?? '-'} · 样式：${target.styleJson || '-'}`;
+  }
+}
+
+function getInspectorRemark(target: MapFocusTarget): string {
+  switch (target.entityType) {
+    case 'shop':
+    case 'area':
+    case 'poi':
+    case 'place':
+    case 'boundary':
+      return target.remark || '暂无备注信息。';
+    default:
+      return '暂无备注信息。';
   }
 }
 
@@ -291,7 +371,6 @@ watch(
 );
 
 onMounted(() => {
-  // 每次进入地图页先清空旧搜索结果，避免从上次会话残留。
   mapStore.setSearchResults([]);
 });
 
@@ -405,7 +484,8 @@ onBeforeUnmount(() => {
 }
 
 .inspector-meta,
-.inspector-remark {
+.inspector-remark,
+.inspector-detail {
   margin: 0;
   color: var(--text-secondary);
 }

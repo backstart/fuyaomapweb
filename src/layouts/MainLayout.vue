@@ -24,6 +24,18 @@
           <el-icon><Connection /></el-icon>
           <span>区域管理</span>
         </el-menu-item>
+        <el-menu-item index="/pois">
+          <el-icon><Place /></el-icon>
+          <span>POI 管理</span>
+        </el-menu-item>
+        <el-menu-item index="/places">
+          <el-icon><Guide /></el-icon>
+          <span>地名管理</span>
+        </el-menu-item>
+        <el-menu-item index="/boundaries">
+          <el-icon><DataLine /></el-icon>
+          <span>边界管理</span>
+        </el-menu-item>
         <el-menu-item index="/imports">
           <el-icon><UploadFilled /></el-icon>
           <span>导入管理</span>
@@ -63,7 +75,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Connection, Location, Shop, UploadFilled } from '@element-plus/icons-vue';
+import { Connection, DataLine, Guide, Location, Place, Shop, UploadFilled } from '@element-plus/icons-vue';
 import { appConfig } from '@/config/appConfig';
 import { useAuthStore } from '@/stores/authStore';
 

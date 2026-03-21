@@ -5,7 +5,7 @@
         <div class="panel-header">
           <div>
             <h3>上传 OSM 文件</h3>
-            <p>上传 `.osm.pbf` 到后端导入目录，再创建导入任务。更适合中小文件。</p>
+            <p>上传 `.osm.pbf` 到后端导入目录，再创建导入任务。正式导入链路会写入店铺、区域、POI、地名与边界。</p>
           </div>
           <el-tag type="warning" effect="light">中小文件</el-tag>
         </div>
@@ -67,7 +67,7 @@
         <div class="panel-header">
           <div>
             <h3>使用服务器已有文件</h3>
-            <p>适合运维已把 `.osm.pbf` 放到服务器本地目录的场景，也是大文件导入的推荐方式。</p>
+            <p>适合运维已把 `.osm.pbf` 放到服务器本地目录的场景，也是五类正式服务层数据导入的推荐方式。</p>
           </div>
           <el-tag type="success" effect="light">推荐</el-tag>
         </div>

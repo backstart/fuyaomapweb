@@ -13,6 +13,18 @@
         <span>区域面</span>
         <el-switch :model-value="modelValue.areas" @change="onAreasChange" />
       </div>
+      <div class="switcher-item">
+        <span>POI 点位</span>
+        <el-switch :model-value="modelValue.pois" @change="onPoisChange" />
+      </div>
+      <div class="switcher-item">
+        <span>地名点/聚落</span>
+        <el-switch :model-value="modelValue.places" @change="onPlacesChange" />
+      </div>
+      <div class="switcher-item">
+        <span>边界面/边界线</span>
+        <el-switch :model-value="modelValue.boundaries" @change="onBoundariesChange" />
+      </div>
     </div>
   </div>
 </template>
@@ -43,6 +55,18 @@ function onShopsChange(value: string | number | boolean): void {
 
 function onAreasChange(value: string | number | boolean): void {
   emitChange('areas', value);
+}
+
+function onPoisChange(value: string | number | boolean): void {
+  emitChange('pois', value);
+}
+
+function onPlacesChange(value: string | number | boolean): void {
+  emitChange('places', value);
+}
+
+function onBoundariesChange(value: string | number | boolean): void {
+  emitChange('boundaries', value);
 }
 </script>
 

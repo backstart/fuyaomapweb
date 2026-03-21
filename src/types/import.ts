@@ -30,6 +30,19 @@ export interface MapImportTaskLog {
   createTime: string;
 }
 
+export interface MapImportExtractionSummary {
+  rawFeatures: number;
+  shops: number;
+  areas: number;
+  pois: number;
+  places: number;
+  boundaries: number;
+  importRecords: number;
+  unnamedSkipped: number;
+  invalidGeometry: number;
+  failed: number;
+}
+
 export interface MapImportUploadedFile {
   fileName: string;
   filePath: string;
