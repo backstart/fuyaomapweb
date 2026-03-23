@@ -134,12 +134,16 @@ async function reset(): Promise<void> {
 }
 
 function openOnMap(row: MapShopListItem): void {
-  // 地图页通过 query 参数读取要定位的实体，列表页只负责把约定写进去。
   void router.push({
     name: 'map',
     query: {
       entity: 'shop',
-      id: String(row.id)
+      id: String(row.id),
+      name: row.name,
+      category: row.category || undefined,
+      status: String(row.status),
+      lng: String(row.longitude),
+      lat: String(row.latitude)
     }
   });
 }

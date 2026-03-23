@@ -2,6 +2,10 @@
 
 `fuyaomapweb` 是地图服务平台 Web 端，基于 `Vue 3 + Vite + TypeScript + MapLibre`，当前已经按最终架构接入后端正式服务层与导入治理层。
 
+docker run --rm -v //d/mapdata:/data -e JAVA_TOOL_OPTIONS="-Xmx8g" ghcr.io/onthegomap/planetiler:0.8.4 --osm-path=/data/wuguishan.pbf --output=/data/city.pmtiles --download --force --maxzoom=15 --minzoom=5 --languages=zh,zh-Hans,en --fetch-wikidata=false --building-merge-z13=false
+
+docker run --rm -v //d/mapdata:/data -e JAVA_TOOL_OPTIONS="-Xmx8g" ghcr.io/onthegomap/planetiler:latest --osm-path=/data/city.osm.pbf --output=/data/city.pmtiles --download --maxzoom=15 --minzoom=0 --languages=zh,zh-Hans,en --fetch-wikidata=false --building-merge-z13=false
+
 项目路径：`D:\Code\Dev\fuyaomapweb`
 
 后端项目：`D:\Code\Dev\fuyaomap`

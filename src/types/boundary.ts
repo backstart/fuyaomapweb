@@ -1,7 +1,8 @@
 import type { FeatureCollection, Geometry } from 'geojson';
+import type { EntityId } from '@/types/entity';
 
 export interface MapBoundary {
-  id: number;
+  id: EntityId;
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;
@@ -16,7 +17,7 @@ export interface MapBoundary {
 }
 
 export interface MapBoundaryListItem {
-  id: number;
+  id: EntityId;
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;

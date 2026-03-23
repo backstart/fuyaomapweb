@@ -149,6 +149,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
 import { useBoundaryStore } from '@/stores/boundaryStore';
+import type { EntityId } from '@/types/entity';
 import type { MapBoundary, MapBoundaryListItem, SaveMapBoundaryPayload } from '@/types/boundary';
 import { formatDateTime } from '@/utils/format';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
@@ -158,7 +159,7 @@ const boundaryStore = useBoundaryStore();
 
 const dialogVisible = ref(false);
 const saving = ref(false);
-const editingId = ref<number | null>(null);
+const editingId = ref<EntityId | null>(null);
 const form = reactive<SaveMapBoundaryPayload>({
   name: '',
   boundaryType: '',
@@ -218,7 +219,11 @@ function openOnMap(row: MapBoundaryListItem): void {
     name: 'map',
     query: {
       entity: 'boundary',
-      id: String(row.id)
+      id: String(row.id),
+      name: row.name,
+      boundaryType: row.boundaryType || undefined,
+      adminLevel: row.adminLevel != null ? String(row.adminLevel) : undefined,
+      status: String(row.status)
     }
   });
 }
@@ -229,7 +234,7 @@ function openCreateDialog(): void {
   dialogVisible.value = true;
 }
 
-async function openEditDialog(id: number): Promise<void> {
+async function openEditDialog(id: EntityId): Promise<void> {
   try {
     const detail = await boundaryStore.getBoundaryDetail(id);
     editingId.value = id;
@@ -279,7 +284,7 @@ async function submitForm(): Promise<void> {
   }
 }
 
-async function removeItem(id: number): Promise<void> {
+async function removeItem(id: EntityId): Promise<void> {
   try {
     await ElMessageBox.confirm('删除后将无法恢复，是否继续？', '删除边界', {
       type: 'warning'

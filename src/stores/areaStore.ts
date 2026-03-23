@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { getMapAreaById, getMapAreas, getMapAreasGeoJson } from '@/api/mapAreaApi';
 import type { PaginationState } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
 
 function createEmptyFeatureCollection(): AreaFeatureCollection {
@@ -80,7 +81,7 @@ export const useAreaStore = defineStore('areas', () => {
     filters.bbox = undefined;
   }
 
-  function getAreaDetail(id: number): Promise<MapArea> {
+  function getAreaDetail(id: EntityId): Promise<MapArea> {
     // 定位区域时需要 geometryGeoJson，因此必须拿详情接口而不是列表项。
     return getMapAreaById(id);
   }

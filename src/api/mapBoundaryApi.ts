@@ -1,4 +1,5 @@
 import type { PagedResult } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type {
   BoundaryFeatureCollection,
   MapBoundary,
@@ -14,7 +15,7 @@ export function getMapBoundaries(params: QueryMapBoundaryParams): Promise<PagedR
   });
 }
 
-export function getMapBoundaryById(id: number): Promise<MapBoundary> {
+export function getMapBoundaryById(id: EntityId): Promise<MapBoundary> {
   return getRequest(`/map/boundaries/${id}`);
 }
 
@@ -28,10 +29,10 @@ export function createMapBoundary(payload: SaveMapBoundaryPayload): Promise<MapB
   return postRequest('/map/boundaries', payload);
 }
 
-export function updateMapBoundary(id: number, payload: SaveMapBoundaryPayload): Promise<MapBoundary> {
+export function updateMapBoundary(id: EntityId, payload: SaveMapBoundaryPayload): Promise<MapBoundary> {
   return putRequest(`/map/boundaries/${id}`, payload);
 }
 
-export function deleteMapBoundary(id: number): Promise<boolean> {
+export function deleteMapBoundary(id: EntityId): Promise<boolean> {
   return deleteRequest(`/map/boundaries/${id}`);
 }

@@ -9,6 +9,7 @@ import {
   updateMapBoundary
 } from '@/api/mapBoundaryApi';
 import type { PaginationState } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type {
   BoundaryFeatureCollection,
   MapBoundary,
@@ -94,7 +95,7 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     filters.bbox = undefined;
   }
 
-  function getBoundaryDetail(id: number): Promise<MapBoundary> {
+  function getBoundaryDetail(id: EntityId): Promise<MapBoundary> {
     return getMapBoundaryById(id);
   }
 
@@ -102,11 +103,11 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     return createMapBoundary(payload);
   }
 
-  function editBoundary(id: number, payload: SaveMapBoundaryPayload): Promise<MapBoundary> {
+  function editBoundary(id: EntityId, payload: SaveMapBoundaryPayload): Promise<MapBoundary> {
     return updateMapBoundary(id, payload);
   }
 
-  function removeBoundary(id: number): Promise<boolean> {
+  function removeBoundary(id: EntityId): Promise<boolean> {
     return deleteMapBoundary(id);
   }
 

@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { getMapShopById, getMapShops, getMapShopsGeoJson } from '@/api/mapShopApi';
 import type { PaginationState } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { MapShop, MapShopListItem, QueryMapShopParams, ShopFeatureCollection } from '@/types/shop';
 
 function createEmptyFeatureCollection(): ShopFeatureCollection {
@@ -83,7 +84,7 @@ export const useShopStore = defineStore('shops', () => {
     filters.bbox = undefined;
   }
 
-  function getShopDetail(id: number): Promise<MapShop> {
+  function getShopDetail(id: EntityId): Promise<MapShop> {
     // 地图定位和详情弹窗统一走详情接口，避免依赖表格数据是否完整。
     return getMapShopById(id);
   }

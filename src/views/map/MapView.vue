@@ -116,6 +116,7 @@ import { useMapStore } from '@/stores/mapStore';
 import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
+import type { EntityId } from '@/types/entity';
 import type { EntityType, MapFocusTarget, MapSearchItem } from '@/types/map';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 import { getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
@@ -209,7 +210,7 @@ function clearSearch(): void {
   clearSearchResults();
 }
 
-async function resolveFocusTarget(entityType: EntityType, id: number): Promise<MapFocusTarget> {
+async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise<MapFocusTarget> {
   switch (entityType) {
     case 'shop': {
       const detail = await shopStore.getShopDetail(id);
@@ -289,6 +290,87 @@ async function resolveFocusTarget(entityType: EntityType, id: number): Promise<M
   }
 }
 
+function readQueryString(raw: unknown): string | undefined {
+  if (typeof raw === 'string') {
+    return raw.trim() || undefined;
+  }
+
+  if (Array.isArray(raw)) {
+    return readQueryString(raw[0]);
+  }
+
+  return undefined;
+}
+
+function readQueryNumber(raw: unknown): number | undefined {
+  const value = readQueryString(raw);
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildFocusTargetFromQuery(entityType: EntityType, id: EntityId): MapFocusTarget | null {
+  const name = readQueryString(route.query.name) || '未命名对象';
+  const status = readQueryNumber(route.query.status) ?? 0;
+
+  if (entityType === 'shop' || entityType === 'poi') {
+    const longitude = readQueryNumber(route.query.lng);
+    const latitude = readQueryNumber(route.query.lat);
+
+    if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+      return null;
+    }
+
+    if (entityType === 'shop') {
+      return {
+        entityType: 'shop',
+        id,
+        name,
+        category: readQueryString(route.query.category),
+        status,
+        longitude,
+        latitude
+      };
+    }
+
+    return {
+      entityType: 'poi',
+      id,
+      name,
+      category: readQueryString(route.query.category),
+      subcategory: readQueryString(route.query.subcategory),
+      status,
+      longitude,
+      latitude
+    };
+  }
+
+  if (entityType === 'place') {
+    const centerLongitude = readQueryNumber(route.query.centerLng);
+    const centerLatitude = readQueryNumber(route.query.centerLat);
+
+    if (typeof centerLongitude !== 'number' || typeof centerLatitude !== 'number') {
+      return null;
+    }
+
+    return {
+      entityType: 'place',
+      id,
+      name,
+      placeType: readQueryString(route.query.placeType),
+      adminLevel: readQueryNumber(route.query.adminLevel),
+      status,
+      centerLongitude,
+      centerLatitude
+    };
+  }
+
+  return null;
+}
+
 async function locateSearchResult(item: MapSearchItem): Promise<void> {
   try {
     const target = await resolveFocusTarget(item.itemType, item.id);
@@ -300,18 +382,25 @@ async function locateSearchResult(item: MapSearchItem): Promise<void> {
 }
 
 async function syncRouteFocus(): Promise<void> {
-  const entity = route.query.entity;
-  const id = Number(route.query.id);
+  const entity = readQueryString(route.query.entity);
+  const id = readQueryString(route.query.id);
 
   if (
-    !['shop', 'area', 'poi', 'place', 'boundary'].includes(String(entity)) ||
-    !Number.isFinite(id) ||
-    id <= 0
+    !entity ||
+    !['shop', 'area', 'poi', 'place', 'boundary'].includes(entity) ||
+    !id
   ) {
     return;
   }
 
   try {
+    const queryTarget = buildFocusTargetFromQuery(entity as EntityType, id);
+    if (queryTarget) {
+      focusTarget.value = queryTarget;
+      mapStore.setSelectedEntity(queryTarget);
+      return;
+    }
+
     const target = await resolveFocusTarget(entity as EntityType, id);
     focusTarget.value = target;
     mapStore.setSelectedEntity(target);
@@ -352,7 +441,7 @@ function getInspectorRemark(target: MapFocusTarget): string {
 }
 
 watch(
-  () => [route.query.entity, route.query.id] as const,
+  () => route.fullPath,
   () => {
     void syncRouteFocus();
   },

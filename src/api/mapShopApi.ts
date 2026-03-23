@@ -1,4 +1,5 @@
 import type { PagedResult } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { MapShop, MapShopListItem, QueryMapShopParams, ShopFeatureCollection } from '@/types/shop';
 import { getRequest } from '@/api/http';
 
@@ -10,7 +11,7 @@ export function getMapShops(params: QueryMapShopParams): Promise<PagedResult<Map
 }
 
 // 详情接口用于地图定位、弹窗和后续编辑扩展。
-export function getMapShopById(id: number): Promise<MapShop> {
+export function getMapShopById(id: EntityId): Promise<MapShop> {
   return getRequest(`/map/shops/${id}`);
 }
 

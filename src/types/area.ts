@@ -1,8 +1,9 @@
 import type { FeatureCollection, Geometry } from 'geojson';
+import type { EntityId } from '@/types/entity';
 
 // Full area DTO returned by detail endpoints.
 export interface MapArea {
-  id: number;
+  id: EntityId;
   name: string;
   type?: string | null;
   remark?: string | null;
@@ -17,7 +18,7 @@ export interface MapArea {
 
 // List payload used by the area table. Geometry stays out to keep list requests compact.
 export interface MapAreaListItem {
-  id: number;
+  id: EntityId;
   name: string;
   type?: string | null;
   status: number;

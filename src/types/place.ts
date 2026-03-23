@@ -1,7 +1,8 @@
 import type { FeatureCollection, Geometry } from 'geojson';
+import type { EntityId } from '@/types/entity';
 
 export interface MapPlace {
-  id: number;
+  id: EntityId;
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
@@ -17,7 +18,7 @@ export interface MapPlace {
 }
 
 export interface MapPlaceListItem {
-  id: number;
+  id: EntityId;
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;

@@ -9,6 +9,7 @@ import {
   updateMapPlace
 } from '@/api/mapPlaceApi';
 import type { PaginationState } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, PlaceFeatureCollection, QueryMapPlaceParams, SaveMapPlacePayload } from '@/types/place';
 
 function createEmptyFeatureCollection(): PlaceFeatureCollection {
@@ -88,7 +89,7 @@ export const usePlaceStore = defineStore('places', () => {
     filters.bbox = undefined;
   }
 
-  function getPlaceDetail(id: number): Promise<MapPlace> {
+  function getPlaceDetail(id: EntityId): Promise<MapPlace> {
     return getMapPlaceById(id);
   }
 
@@ -96,11 +97,11 @@ export const usePlaceStore = defineStore('places', () => {
     return createMapPlace(payload);
   }
 
-  function editPlace(id: number, payload: SaveMapPlacePayload): Promise<MapPlace> {
+  function editPlace(id: EntityId, payload: SaveMapPlacePayload): Promise<MapPlace> {
     return updateMapPlace(id, payload);
   }
 
-  function removePlace(id: number): Promise<boolean> {
+  function removePlace(id: EntityId): Promise<boolean> {
     return deleteMapPlace(id);
   }
 

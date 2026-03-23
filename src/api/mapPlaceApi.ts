@@ -1,4 +1,5 @@
 import type { PagedResult } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, PlaceFeatureCollection, QueryMapPlaceParams, SaveMapPlacePayload } from '@/types/place';
 import { deleteRequest, getRequest, postRequest, putRequest } from '@/api/http';
 
@@ -8,7 +9,7 @@ export function getMapPlaces(params: QueryMapPlaceParams): Promise<PagedResult<M
   });
 }
 
-export function getMapPlaceById(id: number): Promise<MapPlace> {
+export function getMapPlaceById(id: EntityId): Promise<MapPlace> {
   return getRequest(`/map/places/${id}`);
 }
 
@@ -22,10 +23,10 @@ export function createMapPlace(payload: SaveMapPlacePayload): Promise<MapPlace> 
   return postRequest('/map/places', payload);
 }
 
-export function updateMapPlace(id: number, payload: SaveMapPlacePayload): Promise<MapPlace> {
+export function updateMapPlace(id: EntityId, payload: SaveMapPlacePayload): Promise<MapPlace> {
   return putRequest(`/map/places/${id}`, payload);
 }
 
-export function deleteMapPlace(id: number): Promise<boolean> {
+export function deleteMapPlace(id: EntityId): Promise<boolean> {
   return deleteRequest(`/map/places/${id}`);
 }

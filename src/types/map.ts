@@ -1,8 +1,10 @@
+import type { EntityId } from '@/types/entity';
+
 export type EntityType = 'shop' | 'area' | 'poi' | 'place' | 'boundary';
 
 // Unified search rows returned by `/search`, later expanded into map focus targets when needed.
 export interface MapSearchItem {
-  id: number;
+  id: EntityId;
   name: string;
   itemType: EntityType;
   classification?: string | null;
@@ -44,7 +46,7 @@ export interface MapViewportState {
 // Point targets can be positioned by lng/lat and are used for shop popup/flyTo behavior.
 export interface ShopFocusTarget {
   entityType: 'shop';
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   remark?: string | null;
@@ -56,7 +58,7 @@ export interface ShopFocusTarget {
 
 export interface PoiFocusTarget {
   entityType: 'poi';
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   subcategory?: string | null;
@@ -72,7 +74,7 @@ export interface PoiFocusTarget {
 // Area targets keep raw geometry JSON so the map can parse bounds only when focus is needed.
 export interface AreaFocusTarget {
   entityType: 'area';
-  id: number;
+  id: EntityId;
   name: string;
   type?: string | null;
   remark?: string | null;
@@ -83,7 +85,7 @@ export interface AreaFocusTarget {
 
 export interface PlaceFocusTarget {
   entityType: 'place';
-  id: number;
+  id: EntityId;
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
@@ -96,7 +98,7 @@ export interface PlaceFocusTarget {
 
 export interface BoundaryFocusTarget {
   entityType: 'boundary';
-  id: number;
+  id: EntityId;
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;

@@ -1,7 +1,8 @@
 import type { FeatureCollection, Point } from 'geojson';
+import type { EntityId } from '@/types/entity';
 
 export interface MapPoi {
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   subcategory?: string | null;
@@ -19,7 +20,7 @@ export interface MapPoi {
 }
 
 export interface MapPoiListItem {
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   subcategory?: string | null;

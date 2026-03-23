@@ -162,6 +162,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
 import { usePlaceStore } from '@/stores/placeStore';
+import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, SaveMapPlacePayload } from '@/types/place';
 import { formatDateTime } from '@/utils/format';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
@@ -171,7 +172,7 @@ const placeStore = usePlaceStore();
 
 const dialogVisible = ref(false);
 const saving = ref(false);
-const editingId = ref<number | null>(null);
+const editingId = ref<EntityId | null>(null);
 const form = reactive<SaveMapPlacePayload>({
   name: '',
   placeType: '',
@@ -241,7 +242,13 @@ function openOnMap(row: MapPlaceListItem): void {
     name: 'map',
     query: {
       entity: 'place',
-      id: String(row.id)
+      id: String(row.id),
+      name: row.name,
+      placeType: row.placeType || undefined,
+      adminLevel: row.adminLevel != null ? String(row.adminLevel) : undefined,
+      status: String(row.status),
+      centerLng: row.centerLongitude != null ? String(row.centerLongitude) : undefined,
+      centerLat: row.centerLatitude != null ? String(row.centerLatitude) : undefined
     }
   });
 }
@@ -252,7 +259,7 @@ function openCreateDialog(): void {
   dialogVisible.value = true;
 }
 
-async function openEditDialog(id: number): Promise<void> {
+async function openEditDialog(id: EntityId): Promise<void> {
   try {
     const detail = await placeStore.getPlaceDetail(id);
     editingId.value = id;
@@ -296,7 +303,7 @@ async function submitForm(): Promise<void> {
   }
 }
 
-async function removeItem(id: number): Promise<void> {
+async function removeItem(id: EntityId): Promise<void> {
   try {
     await ElMessageBox.confirm('删除后将无法恢复，是否继续？', '删除地名', {
       type: 'warning'

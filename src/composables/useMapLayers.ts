@@ -2,6 +2,7 @@ import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 import type { GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapLayerMouseEvent } from 'maplibre-gl';
 import type { AreaFeatureCollection, AreaGeoJsonProperties } from '@/types/area';
 import type { BoundaryFeatureCollection, BoundaryGeoJsonProperties } from '@/types/boundary';
+import type { EntityId } from '@/types/entity';
 import type {
   AreaFocusTarget,
   BoundaryFocusTarget,
@@ -63,16 +64,12 @@ function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
   return map.getSource(sourceId) as GeoJSONSource;
 }
 
-function toNumericId(value: unknown): number {
-  if (typeof value === 'number') {
+function toEntityId(value: unknown): EntityId {
+  if (typeof value === 'string' || typeof value === 'number') {
     return value;
   }
 
-  if (typeof value === 'string') {
-    return Number(value);
-  }
-
-  return 0;
+  return '';
 }
 
 function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
@@ -85,7 +82,7 @@ function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
 
   return {
     entityType: 'shop',
-    id: toNumericId(feature.id),
+    id: toEntityId(feature.id),
     name: properties.name ?? '未命名店铺',
     category: properties.category,
     remark: properties.remark,
@@ -106,7 +103,7 @@ function toPoiTarget(feature: MapGeoJSONFeature): PoiFocusTarget | null {
 
   return {
     entityType: 'poi',
-    id: toNumericId(feature.id),
+    id: toEntityId(feature.id),
     name: properties.name ?? '未命名 POI',
     category: properties.category,
     subcategory: properties.subcategory,
@@ -125,7 +122,7 @@ function toAreaTarget(feature: MapGeoJSONFeature): AreaFocusTarget {
 
   return {
     entityType: 'area',
-    id: toNumericId(feature.id),
+    id: toEntityId(feature.id),
     name: properties.name ?? '未命名区域',
     type: properties.type,
     remark: properties.remark,
@@ -140,7 +137,7 @@ function toPlaceTarget(feature: MapGeoJSONFeature): PlaceFocusTarget {
 
   return {
     entityType: 'place',
-    id: toNumericId(feature.id),
+    id: toEntityId(feature.id),
     name: properties.name ?? '未命名地名',
     placeType: properties.placeType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,
@@ -157,7 +154,7 @@ function toBoundaryTarget(feature: MapGeoJSONFeature): BoundaryFocusTarget {
 
   return {
     entityType: 'boundary',
-    id: toNumericId(feature.id),
+    id: toEntityId(feature.id),
     name: properties.name ?? '未命名边界',
     boundaryType: properties.boundaryType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,

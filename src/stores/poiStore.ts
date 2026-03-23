@@ -9,6 +9,7 @@ import {
   updateMapPoi
 } from '@/api/mapPoiApi';
 import type { PaginationState } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { MapPoi, MapPoiListItem, PoiFeatureCollection, QueryMapPoiParams, SaveMapPoiPayload } from '@/types/poi';
 
 function createEmptyFeatureCollection(): PoiFeatureCollection {
@@ -88,7 +89,7 @@ export const usePoiStore = defineStore('pois', () => {
     filters.bbox = undefined;
   }
 
-  function getPoiDetail(id: number): Promise<MapPoi> {
+  function getPoiDetail(id: EntityId): Promise<MapPoi> {
     return getMapPoiById(id);
   }
 
@@ -96,11 +97,11 @@ export const usePoiStore = defineStore('pois', () => {
     return createMapPoi(payload);
   }
 
-  function editPoi(id: number, payload: SaveMapPoiPayload): Promise<MapPoi> {
+  function editPoi(id: EntityId, payload: SaveMapPoiPayload): Promise<MapPoi> {
     return updateMapPoi(id, payload);
   }
 
-  function removePoi(id: number): Promise<boolean> {
+  function removePoi(id: EntityId): Promise<boolean> {
     return deleteMapPoi(id);
   }
 

@@ -166,6 +166,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
 import { usePoiStore } from '@/stores/poiStore';
+import type { EntityId } from '@/types/entity';
 import type { MapPoi, MapPoiListItem, SaveMapPoiPayload } from '@/types/poi';
 import { formatDateTime } from '@/utils/format';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
@@ -175,7 +176,7 @@ const poiStore = usePoiStore();
 
 const dialogVisible = ref(false);
 const saving = ref(false);
-const editingId = ref<number | null>(null);
+const editingId = ref<EntityId | null>(null);
 const form = reactive<SaveMapPoiPayload>({
   name: '',
   category: '',
@@ -241,7 +242,13 @@ function openOnMap(row: MapPoiListItem): void {
     name: 'map',
     query: {
       entity: 'poi',
-      id: String(row.id)
+      id: String(row.id),
+      name: row.name,
+      category: row.category || undefined,
+      subcategory: row.subcategory || undefined,
+      status: String(row.status),
+      lng: String(row.longitude),
+      lat: String(row.latitude)
     }
   });
 }
@@ -252,7 +259,7 @@ function openCreateDialog(): void {
   dialogVisible.value = true;
 }
 
-async function openEditDialog(id: number): Promise<void> {
+async function openEditDialog(id: EntityId): Promise<void> {
   try {
     const detail = await poiStore.getPoiDetail(id);
     editingId.value = id;
@@ -299,7 +306,7 @@ async function submitForm(): Promise<void> {
   }
 }
 
-async function removeItem(id: number): Promise<void> {
+async function removeItem(id: EntityId): Promise<void> {
   try {
     await ElMessageBox.confirm('删除后将无法恢复，是否继续？', '删除 POI', {
       type: 'warning'

@@ -1,8 +1,9 @@
 import type { FeatureCollection, Point } from 'geojson';
+import type { EntityId } from '@/types/entity';
 
 // Full shop DTO returned by detail endpoints.
 export interface MapShop {
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   remark?: string | null;
@@ -18,7 +19,7 @@ export interface MapShop {
 
 // List item payload is narrower than detail and is rendered directly in the shop table.
 export interface MapShopListItem {
-  id: number;
+  id: EntityId;
   name: string;
   category?: string | null;
   icon?: string | null;

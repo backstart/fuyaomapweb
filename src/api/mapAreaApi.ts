@@ -1,4 +1,5 @@
 import type { PagedResult } from '@/types/api';
+import type { EntityId } from '@/types/entity';
 import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
 import { getRequest } from '@/api/http';
 
@@ -10,7 +11,7 @@ export function getMapAreas(params: QueryMapAreaParams): Promise<PagedResult<Map
 }
 
 // 详情接口用于地图 fitBounds、弹窗和后续编辑扩展。
-export function getMapAreaById(id: number): Promise<MapArea> {
+export function getMapAreaById(id: EntityId): Promise<MapArea> {
   return getRequest(`/map/areas/${id}`);
 }
 
