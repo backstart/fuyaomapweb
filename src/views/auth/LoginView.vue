@@ -4,7 +4,7 @@
 
     <div class="login-shell">
       <section class="login-panel">
-        <h1>地图服务</h1>
+        <h1>地图平台</h1>
 
         <el-form class="login-form" @submit.prevent="handleSubmit">
           <el-form-item label="用户名">

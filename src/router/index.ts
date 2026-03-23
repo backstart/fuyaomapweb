@@ -87,7 +87,7 @@ const router = createRouter({
       name: 'login',
       component: LoginView,
       meta: {
-        title: '地图服务',
+        title: '地图平台',
         public: true,
         guestOnly: true
       }
@@ -135,8 +135,8 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   // 统一维护页面标题，避免每个页面自己手动改 document.title。
-  const title = typeof to.meta.title === 'string' ? to.meta.title : 'Fuyao Map Web';
-  document.title = to.name === 'login' ? title : `${title} | Fuyao Map Web`;
+  const title = typeof to.meta.title === 'string' ? to.meta.title : '地图平台';
+  document.title = to.name === 'login' ? title : `${title} | 地图平台`;
 });
 
 export default router;

@@ -1,9 +1,5 @@
 <template>
-  <PageContainer
-    title="地图总览"
-    eyebrow="Map Overview"
-    description="MapLibre 地图页已接入店铺、区域、POI、地名、边界五类正式服务层数据。"
-  >
+  <PageContainer title="地图总览">
     <div class="map-page">
       <BaseMap
         :shop-data="shopStore.geoJson"
@@ -32,14 +28,14 @@
 
         <div class="shell-card search-results-card">
           <div class="card-head">
-            <div>
+            <div class="card-title-row">
               <h3>搜索结果</h3>
-              <p>{{ searchSummary }}</p>
+              <span v-if="searchResultCountLabel" class="card-meta">{{ searchResultCountLabel }}</span>
             </div>
-            <el-button text @click="clearSearchResults">清空结果</el-button>
+            <el-button text @click="clearSearchResults">清空</el-button>
           </div>
 
-          <el-scrollbar max-height="320px">
+          <el-scrollbar max-height="300px">
             <div v-if="mapStore.searchResults.length" class="result-list">
               <button
                 v-for="item in mapStore.searchResults"
@@ -59,8 +55,8 @@
             </div>
             <el-empty
               v-else
-              description="支持跨店铺、区域、POI、地名与边界统一搜索。"
-              :image-size="80"
+              description="暂无搜索结果"
+              :image-size="72"
             />
           </el-scrollbar>
         </div>
@@ -74,10 +70,7 @@
 
         <div class="shell-card inspector-card">
           <div class="card-head">
-            <div>
-              <h3>当前选中</h3>
-              <p>点击地图要素或搜索结果查看详情</p>
-            </div>
+            <h3>当前选中</h3>
           </div>
           <div v-if="mapStore.selectedEntity" class="inspector-body">
             <div class="inspector-title-row">
@@ -125,7 +118,7 @@ import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
 import type { EntityType, MapFocusTarget, MapSearchItem } from '@/types/map';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
-import { getEntityTypeLabel, getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
+import { getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
 
 const route = useRoute();
 const mapStore = useMapStore();
@@ -139,13 +132,9 @@ const searchKeyword = ref('');
 const searchLoading = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
 
-const searchSummary = computed(() => {
-  if (!mapStore.searchResults.length) {
-    return '支持五类正式服务层实体的统一搜索';
-  }
-
-  return `共 ${mapStore.searchResults.length} 条结果，点击可直接定位并高亮`;
-});
+const searchResultCountLabel = computed(() =>
+  mapStore.searchResults.length ? `共 ${mapStore.searchResults.length} 条` : ''
+);
 
 async function refreshGeoJson(bbox?: string): Promise<void> {
   shopStore.updateFilters({ bbox });
@@ -382,42 +371,49 @@ onBeforeUnmount(() => {
 <style scoped>
 .map-page {
   position: relative;
-  min-height: 720px;
-  height: calc(100vh - 176px);
+  min-height: 680px;
+  height: calc(100vh - 126px);
 }
 
 .map-overlay {
   position: absolute;
   z-index: 2;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .map-overlay-left {
-  top: 18px;
-  left: 18px;
+  top: 14px;
+  left: 14px;
 }
 
 .map-overlay-right {
-  top: 18px;
-  right: 18px;
+  top: 14px;
+  right: 14px;
 }
 
 .search-results-card,
 .inspector-card {
-  width: min(420px, calc(100vw - 32px));
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  width: min(360px, calc(100vw - 28px));
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
 .card-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .card-head h3 {
@@ -425,15 +421,14 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
-.card-head p {
-  margin: 4px 0 0;
+.card-meta {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .result-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .result-item {
@@ -442,9 +437,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px;
+  padding: 11px 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: #ffffff;
   cursor: pointer;
   text-align: left;
@@ -469,7 +464,7 @@ onBeforeUnmount(() => {
 
 .inspector-body {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .inspector-title-row {
@@ -493,12 +488,12 @@ onBeforeUnmount(() => {
 @media (max-width: 1024px) {
   .map-page {
     height: auto;
-    min-height: 880px;
+    min-height: 860px;
   }
 
   .map-overlay {
     position: static;
-    margin-top: 14px;
+    margin-top: 12px;
   }
 }
 </style>

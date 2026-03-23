@@ -3,7 +3,7 @@
     <div ref="mapContainer" class="map-container"></div>
     <div v-if="!hasBaseMap" class="shell-card map-notice">
       <strong>未配置底图</strong>
-      <p>当前使用空白底图，仅渲染正式服务层业务图层。请在 `app-config.js` 或 `.env` 中填写 PMTiles 地址。</p>
+      <p>请检查底图地址配置。</p>
     </div>
   </div>
 </template>
@@ -269,13 +269,13 @@ onBeforeUnmount(() => {
   position: absolute;
   right: 16px;
   bottom: 16px;
-  width: 320px;
-  padding: 14px 16px;
+  width: 240px;
+  padding: 12px 14px;
   z-index: 3;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.94);
   border-radius: 16px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
 .map-notice strong {

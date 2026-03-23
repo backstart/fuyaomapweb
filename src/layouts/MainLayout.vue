@@ -2,9 +2,7 @@
   <div class="layout-root">
     <aside class="layout-sidebar shell-card">
       <div class="brand-block">
-        <p class="brand-kicker">Fuyao</p>
-        <h1>Map Platform</h1>
-        <span>Web V1</span>
+        <h1>地图平台</h1>
       </div>
 
       <el-menu
@@ -42,25 +40,16 @@
         </el-menu-item>
       </el-menu>
 
-      <div class="sidebar-footer">
-        <p>API</p>
-        <strong>{{ apiBaseLabel }}</strong>
-      </div>
     </aside>
 
     <main class="layout-main">
       <header class="layout-topbar shell-card">
-        <div>
-          <p class="topbar-kicker">地图服务平台</p>
-          <h2>{{ pageTitle }}</h2>
-        </div>
+        <h2>{{ pageTitle }}</h2>
         <div class="topbar-meta">
           <div class="user-chip">
             <span>{{ authStore.displayName }}</span>
             <small>{{ authStore.userInfo?.isAdmin ? '管理员' : '用户' }}</small>
           </div>
-          <el-tag round effect="light">Vue 3 + MapLibre</el-tag>
-          <el-tag round type="success" effect="light">API 已适配 /api</el-tag>
           <el-button round @click="handleLogout">退出登录</el-button>
         </div>
       </header>
@@ -76,7 +65,6 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Connection, DataLine, Guide, Location, Place, Shop, UploadFilled } from '@element-plus/icons-vue';
-import { appConfig } from '@/config/appConfig';
 import { useAuthStore } from '@/stores/authStore';
 
 const route = useRoute();
@@ -86,8 +74,6 @@ const authStore = useAuthStore();
 // Route segments already map cleanly to menu indexes, so no separate menu config is needed for V1.
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
-// Exposed in the sidebar so operators can immediately confirm which API target the build is using.
-const apiBaseLabel = computed(() => appConfig.apiBaseUrl || '未配置');
 
 async function handleLogout(): Promise<void> {
   await authStore.signOut();
@@ -99,38 +85,25 @@ async function handleLogout(): Promise<void> {
 .layout-root {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
 }
 
 .layout-sidebar {
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 14px;
 }
 
 .brand-block {
-  padding: 12px 10px 18px;
-}
-
-.brand-kicker {
-  margin: 0;
-  color: var(--brand);
-  font-size: 13px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 700;
+  padding: 10px 10px 16px;
 }
 
 .brand-block h1 {
-  margin: 6px 0 2px;
-  font-size: 26px;
-}
-
-.brand-block span {
-  color: var(--text-secondary);
-  font-size: 13px;
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
 }
 
 .sidebar-menu {
@@ -138,30 +111,11 @@ async function handleLogout(): Promise<void> {
   background: transparent;
 }
 
-.sidebar-footer {
-  padding: 14px 10px 6px;
-  border-top: 1px solid rgba(148, 163, 184, 0.22);
-}
-
-.sidebar-footer p {
-  margin: 0 0 4px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.sidebar-footer strong {
-  display: block;
-  font-size: 13px;
-  word-break: break-all;
-}
-
 .layout-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .layout-topbar {
@@ -169,18 +123,13 @@ async function handleLogout(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 20px 24px;
-}
-
-.topbar-kicker {
-  margin: 0 0 4px;
-  color: var(--text-secondary);
-  font-size: 13px;
+  padding: 16px 20px;
 }
 
 .layout-topbar h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
+  line-height: 1.15;
 }
 
 .topbar-meta {
@@ -195,8 +144,8 @@ async function handleLogout(): Promise<void> {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  padding: 6px 12px;
-  border-radius: 14px;
+  padding: 5px 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(148, 163, 184, 0.18);
 }

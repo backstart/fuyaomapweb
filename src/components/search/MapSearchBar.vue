@@ -2,15 +2,12 @@
   <!-- Search UI is intentionally dumb: actual API calls and result handling stay in the map view/store. -->
   <div class="shell-card search-card">
     <div class="search-header">
-      <div>
-        <h3>地图搜索</h3>
-        <p>按店铺或区域名称检索并联动定位</p>
-      </div>
+      <h3>地图搜索</h3>
       <el-button text @click="$emit('clear')">清空</el-button>
     </div>
     <el-input
       :model-value="modelValue"
-      placeholder="输入关键字，例如门店名、区域名"
+      placeholder="输入关键字"
       clearable
       @update:model-value="handleUpdate"
       @keyup.enter="$emit('submit')"
@@ -43,11 +40,11 @@ function handleUpdate(value: string | number): void {
 
 <style scoped>
 .search-card {
-  width: min(420px, calc(100vw - 32px));
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  width: min(360px, calc(100vw - 28px));
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
 .search-header {
@@ -61,11 +58,5 @@ function handleUpdate(value: string | number): void {
 .search-header h3 {
   margin: 0;
   font-size: 16px;
-}
-
-.search-header p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 </style>

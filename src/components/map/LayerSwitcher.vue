@@ -2,7 +2,6 @@
   <div class="shell-card switcher-card">
     <div class="switcher-title">
       <h3>图层控制</h3>
-      <p>切换业务图层显示状态</p>
     </div>
     <div class="switcher-list">
       <div class="switcher-item">
@@ -73,10 +72,10 @@ function onBoundariesChange(value: string | number | boolean): void {
 <style scoped>
 .switcher-card {
   width: 240px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
 .switcher-title h3 {
@@ -84,14 +83,8 @@ function onBoundariesChange(value: string | number | boolean): void {
   font-size: 16px;
 }
 
-.switcher-title p {
-  margin: 6px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
 .switcher-list {
-  margin-top: 14px;
+  margin-top: 12px;
   display: grid;
   gap: 12px;
 }
