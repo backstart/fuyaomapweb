@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type {
@@ -19,9 +20,13 @@ export function getMapBoundaryById(id: EntityId): Promise<MapBoundary> {
   return getRequest(`/map/boundaries/${id}`);
 }
 
-export function getMapBoundariesGeoJson(params: QueryMapBoundaryParams): Promise<BoundaryFeatureCollection> {
+export function getMapBoundariesGeoJson(
+  params: QueryMapBoundaryParams,
+  config?: AxiosRequestConfig
+): Promise<BoundaryFeatureCollection> {
   return getRequest('/map/boundaries/geojson', {
-    params
+    params,
+    ...config
   });
 }
 

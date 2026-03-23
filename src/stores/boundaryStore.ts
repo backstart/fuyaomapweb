@@ -17,6 +17,7 @@ import type {
   QueryMapBoundaryParams,
   SaveMapBoundaryPayload
 } from '@/types/boundary';
+import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): BoundaryFeatureCollection {
   return {
@@ -30,6 +31,7 @@ export const useBoundaryStore = defineStore('boundaries', () => {
   const geoJson = ref<BoundaryFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
   const loadingGeoJson = ref(false);
+  let mapGeoJsonAbortController: AbortController | null = null;
   const filters = reactive<QueryMapBoundaryParams>({
     keyword: '',
     boundaryType: '',
@@ -81,16 +83,58 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     }
   }
 
-  async function fetchGeoJsonForMap(overrides: QueryMapBoundaryParams = {}): Promise<void> {
+  async function fetchGeoJsonForMap(overrides: QueryMapBoundaryParams = {}): Promise<boolean> {
+    cancelMapGeoJsonRequest('replaced-by-new-bbox');
+    const controller = new AbortController();
+    mapGeoJsonAbortController = controller;
     loadingGeoJson.value = true;
     try {
-      geoJson.value = await getMapBoundariesGeoJson({
-        bbox: overrides.bbox,
-        keyword: overrides.keyword
-      });
+      const nextGeoJson = await getMapBoundariesGeoJson(
+        {
+          bbox: overrides.bbox,
+          keyword: overrides.keyword
+        },
+        {
+          signal: controller.signal
+        }
+      );
+
+      if (mapGeoJsonAbortController !== controller) {
+        return false;
+      }
+
+      geoJson.value = nextGeoJson;
+      return true;
+    } catch (error) {
+      if (isRequestCanceled(error) || controller.signal.aborted) {
+        return false;
+      }
+
+      throw error;
     } finally {
-      loadingGeoJson.value = false;
+      if (mapGeoJsonAbortController === controller) {
+        loadingGeoJson.value = false;
+        mapGeoJsonAbortController = null;
+      }
     }
+  }
+
+  function cancelMapGeoJsonRequest(reason?: string): void {
+    if (!mapGeoJsonAbortController) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug('[MapGeoJson][boundaries] cancel request', reason ?? 'manual');
+    }
+
+    mapGeoJsonAbortController.abort();
+    mapGeoJsonAbortController = null;
+    loadingGeoJson.value = false;
+  }
+
+  function clearGeoJson(): void {
+    geoJson.value = createEmptyFeatureCollection();
   }
 
   function updateFilters(patch: QueryMapBoundaryParams): void {
@@ -133,6 +177,8 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     fetchList,
     fetchGeoJson,
     fetchGeoJsonForMap,
+    cancelMapGeoJsonRequest,
+    clearGeoJson,
     updateFilters,
     resetFilters,
     getBoundaryDetail,

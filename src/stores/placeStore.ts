@@ -11,6 +11,7 @@ import {
 import type { PaginationState } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, PlaceFeatureCollection, QueryMapPlaceParams, SaveMapPlacePayload } from '@/types/place';
+import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): PlaceFeatureCollection {
   return {
@@ -24,6 +25,7 @@ export const usePlaceStore = defineStore('places', () => {
   const geoJson = ref<PlaceFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
   const loadingGeoJson = ref(false);
+  let mapGeoJsonAbortController: AbortController | null = null;
   const filters = reactive<QueryMapPlaceParams>({
     keyword: '',
     placeType: '',
@@ -75,16 +77,58 @@ export const usePlaceStore = defineStore('places', () => {
     }
   }
 
-  async function fetchGeoJsonForMap(overrides: QueryMapPlaceParams = {}): Promise<void> {
+  async function fetchGeoJsonForMap(overrides: QueryMapPlaceParams = {}): Promise<boolean> {
+    cancelMapGeoJsonRequest('replaced-by-new-bbox');
+    const controller = new AbortController();
+    mapGeoJsonAbortController = controller;
     loadingGeoJson.value = true;
     try {
-      geoJson.value = await getMapPlacesGeoJson({
-        bbox: overrides.bbox,
-        keyword: overrides.keyword
-      });
+      const nextGeoJson = await getMapPlacesGeoJson(
+        {
+          bbox: overrides.bbox,
+          keyword: overrides.keyword
+        },
+        {
+          signal: controller.signal
+        }
+      );
+
+      if (mapGeoJsonAbortController !== controller) {
+        return false;
+      }
+
+      geoJson.value = nextGeoJson;
+      return true;
+    } catch (error) {
+      if (isRequestCanceled(error) || controller.signal.aborted) {
+        return false;
+      }
+
+      throw error;
     } finally {
-      loadingGeoJson.value = false;
+      if (mapGeoJsonAbortController === controller) {
+        loadingGeoJson.value = false;
+        mapGeoJsonAbortController = null;
+      }
     }
+  }
+
+  function cancelMapGeoJsonRequest(reason?: string): void {
+    if (!mapGeoJsonAbortController) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug('[MapGeoJson][places] cancel request', reason ?? 'manual');
+    }
+
+    mapGeoJsonAbortController.abort();
+    mapGeoJsonAbortController = null;
+    loadingGeoJson.value = false;
+  }
+
+  function clearGeoJson(): void {
+    geoJson.value = createEmptyFeatureCollection();
   }
 
   function updateFilters(patch: QueryMapPlaceParams): void {
@@ -127,6 +171,8 @@ export const usePlaceStore = defineStore('places', () => {
     fetchList,
     fetchGeoJson,
     fetchGeoJsonForMap,
+    cancelMapGeoJsonRequest,
+    clearGeoJson,
     updateFilters,
     resetFilters,
     getPlaceDetail,

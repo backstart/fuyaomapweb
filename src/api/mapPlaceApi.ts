@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, PlaceFeatureCollection, QueryMapPlaceParams, SaveMapPlacePayload } from '@/types/place';
@@ -13,9 +14,13 @@ export function getMapPlaceById(id: EntityId): Promise<MapPlace> {
   return getRequest(`/map/places/${id}`);
 }
 
-export function getMapPlacesGeoJson(params: QueryMapPlaceParams): Promise<PlaceFeatureCollection> {
+export function getMapPlacesGeoJson(
+  params: QueryMapPlaceParams,
+  config?: AxiosRequestConfig
+): Promise<PlaceFeatureCollection> {
   return getRequest('/map/places/geojson', {
-    params
+    params,
+    ...config
   });
 }
 

@@ -11,6 +11,7 @@ import {
 import type { PaginationState } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapPoi, MapPoiListItem, PoiFeatureCollection, QueryMapPoiParams, SaveMapPoiPayload } from '@/types/poi';
+import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): PoiFeatureCollection {
   return {
@@ -24,6 +25,7 @@ export const usePoiStore = defineStore('pois', () => {
   const geoJson = ref<PoiFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
   const loadingGeoJson = ref(false);
+  let mapGeoJsonAbortController: AbortController | null = null;
   const filters = reactive<QueryMapPoiParams>({
     keyword: '',
     category: '',
@@ -75,16 +77,58 @@ export const usePoiStore = defineStore('pois', () => {
     }
   }
 
-  async function fetchGeoJsonForMap(overrides: QueryMapPoiParams = {}): Promise<void> {
+  async function fetchGeoJsonForMap(overrides: QueryMapPoiParams = {}): Promise<boolean> {
+    cancelMapGeoJsonRequest('replaced-by-new-bbox');
+    const controller = new AbortController();
+    mapGeoJsonAbortController = controller;
     loadingGeoJson.value = true;
     try {
-      geoJson.value = await getMapPoisGeoJson({
-        bbox: overrides.bbox,
-        keyword: overrides.keyword
-      });
+      const nextGeoJson = await getMapPoisGeoJson(
+        {
+          bbox: overrides.bbox,
+          keyword: overrides.keyword
+        },
+        {
+          signal: controller.signal
+        }
+      );
+
+      if (mapGeoJsonAbortController !== controller) {
+        return false;
+      }
+
+      geoJson.value = nextGeoJson;
+      return true;
+    } catch (error) {
+      if (isRequestCanceled(error) || controller.signal.aborted) {
+        return false;
+      }
+
+      throw error;
     } finally {
-      loadingGeoJson.value = false;
+      if (mapGeoJsonAbortController === controller) {
+        loadingGeoJson.value = false;
+        mapGeoJsonAbortController = null;
+      }
     }
+  }
+
+  function cancelMapGeoJsonRequest(reason?: string): void {
+    if (!mapGeoJsonAbortController) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug('[MapGeoJson][pois] cancel request', reason ?? 'manual');
+    }
+
+    mapGeoJsonAbortController.abort();
+    mapGeoJsonAbortController = null;
+    loadingGeoJson.value = false;
+  }
+
+  function clearGeoJson(): void {
+    geoJson.value = createEmptyFeatureCollection();
   }
 
   function updateFilters(patch: QueryMapPoiParams): void {
@@ -127,6 +171,8 @@ export const usePoiStore = defineStore('pois', () => {
     fetchList,
     fetchGeoJson,
     fetchGeoJsonForMap,
+    cancelMapGeoJsonRequest,
+    clearGeoJson,
     updateFilters,
     resetFilters,
     getPoiDetail,

@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
@@ -16,8 +17,12 @@ export function getMapAreaById(id: EntityId): Promise<MapArea> {
 }
 
 // 区域几何由后端直接输出为 FeatureCollection。
-export function getMapAreasGeoJson(params: QueryMapAreaParams): Promise<AreaFeatureCollection> {
+export function getMapAreasGeoJson(
+  params: QueryMapAreaParams,
+  config?: AxiosRequestConfig
+): Promise<AreaFeatureCollection> {
   return getRequest('/map/areas/geojson', {
-    params
+    params,
+    ...config
   });
 }

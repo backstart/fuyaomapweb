@@ -117,9 +117,24 @@ import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
 import type { EntityId } from '@/types/entity';
-import type { EntityType, MapFocusTarget, MapSearchItem } from '@/types/map';
+import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
+import { boundsToBboxString } from '@/utils/bbox';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 import { getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
+
+const MAP_REFRESH_DEBOUNCE_MS = 600;
+const BBOX_EPSILON = 0.0008;
+const CENTER_EPSILON = 0.0004;
+const ZOOM_EPSILON = 0.08;
+const LAYER_MIN_ZOOM: Record<LayerKey, number> = {
+  shops: 12,
+  areas: 9,
+  pois: 13,
+  places: 11,
+  boundaries: 8
+};
+
+type LayerKey = keyof LayerVisibility;
 
 const route = useRoute();
 const mapStore = useMapStore();
@@ -132,39 +147,292 @@ const boundaryStore = useBoundaryStore();
 const searchKeyword = ref('');
 const searchLoading = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
+const refreshTimer = ref<number | null>(null);
+const pendingViewport = ref<MapViewportState | null>(null);
+const pendingRefreshReason = ref('idle');
+const lastRequestedViewportByLayer = ref<Record<LayerKey, MapViewportState | null>>({
+  shops: null,
+  areas: null,
+  pois: null,
+  places: null,
+  boundaries: null
+});
 
 const searchResultCountLabel = computed(() =>
   mapStore.searchResults.length ? `共 ${mapStore.searchResults.length} 条` : ''
 );
 
-async function refreshGeoJson(bbox?: string): Promise<void> {
+function debugMapRefresh(message: string, detail?: unknown): void {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  if (detail === undefined) {
+    console.debug(`[MapRefresh] ${message}`);
+    return;
+  }
+
+  console.debug(`[MapRefresh] ${message}`, detail);
+}
+
+function parseBbox(bbox?: string): [number, number, number, number] | null {
+  if (!bbox) {
+    return null;
+  }
+
+  const values = bbox.split(',').map((item) => Number(item));
+  if (values.length !== 4 || values.some((item) => Number.isNaN(item))) {
+    return null;
+  }
+
+  return [values[0], values[1], values[2], values[3]];
+}
+
+function cloneViewport(viewport: MapViewportState): MapViewportState {
+  return {
+    bbox: viewport.bbox,
+    center: viewport.center ? [...viewport.center] as [number, number] : undefined,
+    zoom: viewport.zoom
+  };
+}
+
+function isSimilarViewport(next: MapViewportState, previous: MapViewportState | null): boolean {
+  if (!previous?.bbox || !next.bbox) {
+    return false;
+  }
+
+  const nextBbox = parseBbox(next.bbox);
+  const previousBbox = parseBbox(previous.bbox);
+
+  if (!nextBbox || !previousBbox) {
+    return false;
+  }
+
+  const bboxSimilar = nextBbox.every((value, index) => Math.abs(value - previousBbox[index]) <= BBOX_EPSILON);
+  const centerSimilar =
+    !!next.center &&
+    !!previous.center &&
+    Math.abs(next.center[0] - previous.center[0]) <= CENTER_EPSILON &&
+    Math.abs(next.center[1] - previous.center[1]) <= CENTER_EPSILON;
+  const zoomSimilar =
+    typeof next.zoom === 'number' &&
+    typeof previous.zoom === 'number' &&
+    Math.abs(next.zoom - previous.zoom) <= ZOOM_EPSILON;
+
+  return bboxSimilar && centerSimilar && zoomSimilar;
+}
+
+function getEnabledLayers(): LayerKey[] {
+  return (Object.entries(mapStore.layerVisibility) as Array<[LayerKey, boolean]>)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => key);
+}
+
+function getViewportZoom(viewport: MapViewportState): number {
+  return typeof viewport.zoom === 'number' ? viewport.zoom : 0;
+}
+
+function isLayerWithinZoomRange(layer: LayerKey, viewport: MapViewportState): boolean {
+  return getViewportZoom(viewport) >= LAYER_MIN_ZOOM[layer];
+}
+
+function getViewportSnapshot(mapInstance: MapLibreMap): MapViewportState {
+  const bounds = mapInstance.getBounds();
+  return {
+    bbox: boundsToBboxString(bounds),
+    center: [mapInstance.getCenter().lng, mapInstance.getCenter().lat],
+    zoom: mapInstance.getZoom()
+  };
+}
+
+async function refreshLayer(layer: LayerKey, viewport: MapViewportState): Promise<boolean> {
+  const bbox = viewport.bbox;
+
+  switch (layer) {
+    case 'shops':
+      return shopStore.fetchGeoJsonForMap({ bbox });
+    case 'areas':
+      return areaStore.fetchGeoJsonForMap({ bbox });
+    case 'pois':
+      return poiStore.fetchGeoJsonForMap({ bbox });
+    case 'places':
+      return placeStore.fetchGeoJsonForMap({ bbox });
+    case 'boundaries':
+      return boundaryStore.fetchGeoJsonForMap({ bbox });
+  }
+}
+
+function cancelLayerRequest(layer: LayerKey, reason: string): void {
+  switch (layer) {
+    case 'shops':
+      shopStore.cancelMapGeoJsonRequest(reason);
+      return;
+    case 'areas':
+      areaStore.cancelMapGeoJsonRequest(reason);
+      return;
+    case 'pois':
+      poiStore.cancelMapGeoJsonRequest(reason);
+      return;
+    case 'places':
+      placeStore.cancelMapGeoJsonRequest(reason);
+      return;
+    case 'boundaries':
+      boundaryStore.cancelMapGeoJsonRequest(reason);
+      return;
+  }
+}
+
+function clearLayerData(layer: LayerKey): void {
+  switch (layer) {
+    case 'shops':
+      shopStore.clearGeoJson();
+      return;
+    case 'areas':
+      areaStore.clearGeoJson();
+      return;
+    case 'pois':
+      poiStore.clearGeoJson();
+      return;
+    case 'places':
+      placeStore.clearGeoJson();
+      return;
+    case 'boundaries':
+      boundaryStore.clearGeoJson();
+      return;
+  }
+}
+
+function resetScheduledRefresh(): void {
+  if (refreshTimer.value !== null) {
+    window.clearTimeout(refreshTimer.value);
+    refreshTimer.value = null;
+  }
+}
+
+async function flushScheduledRefresh(force = false): Promise<void> {
+  resetScheduledRefresh();
+
+  const viewport = pendingViewport.value ?? mapStore.viewport;
+  pendingViewport.value = null;
+
+  if (!viewport?.bbox) {
+    debugMapRefresh('skip refresh because bbox is empty');
+    return;
+  }
+
+  const enabledLayers = getEnabledLayers();
+  const disabledLayers = (Object.keys(mapStore.layerVisibility) as LayerKey[]).filter((layer) => !mapStore.layerVisibility[layer]);
+  const zoomFilteredLayers = enabledLayers.filter((layer) => !isLayerWithinZoomRange(layer, viewport));
+  const requestableLayers = enabledLayers.filter((layer) => isLayerWithinZoomRange(layer, viewport));
+  if (!enabledLayers.length) {
+    debugMapRefresh('skip refresh because no business layer is enabled');
+    return;
+  }
+
+  if (disabledLayers.length) {
+    debugMapRefresh('skip disabled layers', disabledLayers);
+  }
+
+  if (zoomFilteredLayers.length) {
+    debugMapRefresh('skip layers because zoom is below threshold', {
+      zoom: viewport.zoom,
+      layers: zoomFilteredLayers.map((layer) => ({
+        layer,
+        minZoom: LAYER_MIN_ZOOM[layer]
+      }))
+    });
+
+    zoomFilteredLayers.forEach((layer) => {
+      cancelLayerRequest(layer, 'below-min-zoom');
+      clearLayerData(layer);
+      lastRequestedViewportByLayer.value[layer] = null;
+    });
+  }
+
+  const requestQueue: Promise<void>[] = [];
+  const requestLayers: LayerKey[] = [];
+
+  requestableLayers.forEach((layer) => {
+    const previousViewport = lastRequestedViewportByLayer.value[layer];
+    if (!force && isSimilarViewport(viewport, previousViewport)) {
+      debugMapRefresh(`skip ${layer} because viewport change is too small`, {
+        bbox: viewport.bbox,
+        zoom: viewport.zoom
+      });
+      return;
+    }
+
+    requestLayers.push(layer);
+    requestQueue.push(
+      refreshLayer(layer, viewport).then((completed) => {
+        if (!completed) {
+          debugMapRefresh(`request ${layer} canceled or superseded`, {
+            bbox: viewport.bbox
+          });
+          return;
+        }
+
+        lastRequestedViewportByLayer.value[layer] = cloneViewport(viewport);
+      })
+    );
+  });
+
+  if (!requestQueue.length) {
+    debugMapRefresh('skip refresh because all visible layers hit viewport dedupe', {
+      reason: pendingRefreshReason.value,
+      bbox: viewport.bbox
+    });
+    return;
+  }
+
+  debugMapRefresh('request visible layers', {
+    reason: pendingRefreshReason.value,
+    bbox: viewport.bbox,
+    layers: requestLayers
+  });
+
   try {
-    await Promise.all([
-      shopStore.fetchGeoJsonForMap({ bbox }),
-      areaStore.fetchGeoJsonForMap({ bbox }),
-      poiStore.fetchGeoJsonForMap({ bbox }),
-      placeStore.fetchGeoJsonForMap({ bbox }),
-      boundaryStore.fetchGeoJsonForMap({ bbox })
-    ]);
+    await Promise.all(requestQueue);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '地图数据加载失败');
   }
 }
 
-function handleMapReady(mapInstance: MapLibreMap): void {
-  mapStore.setMap(mapInstance);
+function scheduleRefresh(viewport: MapViewportState, options?: { immediate?: boolean; force?: boolean; reason?: string }): void {
+  mapStore.setViewport(viewport);
+  pendingViewport.value = cloneViewport(viewport);
+  pendingRefreshReason.value = options?.reason ?? 'viewport-change';
 
-  if (mapStore.viewport.bbox) {
-    void refreshGeoJson(mapStore.viewport.bbox);
+  if (options?.immediate) {
+    void flushScheduledRefresh(options.force);
     return;
   }
 
-  void refreshGeoJson();
+  if (refreshTimer.value !== null) {
+    debugMapRefresh('debounce previous refresh', {
+      reason: pendingRefreshReason.value
+    });
+    window.clearTimeout(refreshTimer.value);
+  }
+
+  refreshTimer.value = window.setTimeout(() => {
+    void flushScheduledRefresh(options?.force);
+  }, MAP_REFRESH_DEBOUNCE_MS);
+}
+
+function handleMapReady(mapInstance: MapLibreMap): void {
+  mapStore.setMap(mapInstance);
+  scheduleRefresh(getViewportSnapshot(mapInstance), {
+    immediate: true,
+    force: true,
+    reason: 'initial-load'
+  });
 }
 
 function handleViewportChange(payload: { bbox: string; center: [number, number]; zoom: number }): void {
-  mapStore.setViewport(payload);
-  void refreshGeoJson(payload.bbox);
+  scheduleRefresh(payload, {
+    reason: 'moveend'
+  });
 }
 
 function handleEntityClick(target: MapFocusTarget): void {
@@ -446,7 +714,45 @@ onMounted(() => {
   mapStore.setSearchResults([]);
 });
 
+watch(
+  () => ({ ...mapStore.layerVisibility }),
+  (next, previous) => {
+    const changedLayers = (Object.keys(next) as LayerKey[]).filter((key) => next[key] !== previous[key]);
+
+    if (!changedLayers.length) {
+      return;
+    }
+
+    changedLayers.forEach((layer) => {
+      if (!next[layer]) {
+        debugMapRefresh(`skip ${layer} because layer is disabled`);
+        cancelLayerRequest(layer, 'layer-disabled');
+        clearLayerData(layer);
+        lastRequestedViewportByLayer.value[layer] = null;
+        return;
+      }
+
+      debugMapRefresh(`layer ${layer} enabled, schedule refresh`, {
+        bbox: mapStore.viewport.bbox,
+        zoom: mapStore.viewport.zoom,
+        minZoom: LAYER_MIN_ZOOM[layer]
+      });
+      lastRequestedViewportByLayer.value[layer] = null;
+    });
+
+    if (mapStore.viewport.bbox) {
+      scheduleRefresh(mapStore.viewport, {
+        reason: 'layer-visibility-change'
+      });
+    }
+  }
+);
+
 onBeforeUnmount(() => {
+  resetScheduledRefresh();
+  (['shops', 'areas', 'pois', 'places', 'boundaries'] as LayerKey[]).forEach((layer) => {
+    cancelLayerRequest(layer, 'map-view-unmount');
+  });
   mapStore.setMap(null);
 });
 </script>

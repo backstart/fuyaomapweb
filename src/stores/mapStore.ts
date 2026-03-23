@@ -9,9 +9,9 @@ export const useMapStore = defineStore('map', () => {
   const layerVisibility = ref<LayerVisibility>({
     shops: true,
     areas: true,
-    pois: true,
-    places: true,
-    boundaries: true
+    pois: false,
+    places: false,
+    boundaries: false
   });
   // 当前选中的要素既可能来自地图点击，也可能来自列表页或搜索结果。
   const selectedEntity = ref<MapFocusTarget | null>(null);

@@ -66,6 +66,37 @@ const hasBaseMap = Boolean(appConfig.pmtilesUrl.trim());
 let popup: maplibregl.Popup | null = null;
 let popupApp: ReturnType<typeof createApp> | null = null;
 
+function setupBusinessLayers(instance: MapLibreMap): void {
+  ensureBusinessLayers(instance);
+  updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
+  setBusinessLayerVisibility(instance, props.layerVisibility);
+  updateFocusedEntity(instance, props.focusTarget);
+  registerBusinessLayerEvents(instance, {
+    onShopClick: (target) => {
+      emit('shop-click', target);
+      openPopup(target, [target.longitude, target.latitude]);
+    },
+    onAreaClick: (target, event) => {
+      emit('area-click', target);
+      openPopup(target, event.lngLat);
+    },
+    onPoiClick: (target) => {
+      emit('poi-click', target);
+      openPopup(target, [target.longitude, target.latitude]);
+    },
+    onPlaceClick: (target, event) => {
+      emit('place-click', target);
+      openPopup(target, event.lngLat);
+    },
+    onBoundaryClick: (target, event) => {
+      emit('boundary-click', target);
+      openPopup(target, event.lngLat);
+    }
+  });
+  emit('ready', instance);
+  instance.on('moveend', () => emitViewport(instance));
+}
+
 function emitViewport(mapInstance: MapLibreMap): void {
   const bounds = mapInstance.getBounds();
   emit('viewport-change', {
@@ -168,37 +199,15 @@ onMounted(async () => {
   }
 
   const instance = await initMap(mapContainer.value);
+
+  if (instance.isStyleLoaded()) {
+    setupBusinessLayers(instance);
+    return;
+  }
+
   instance.once('load', () => {
     // 地图 load 后再创建 source/layer，避免 style 尚未准备好时报错。
-    ensureBusinessLayers(instance);
-    updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
-    setBusinessLayerVisibility(instance, props.layerVisibility);
-    updateFocusedEntity(instance, props.focusTarget);
-    registerBusinessLayerEvents(instance, {
-      onShopClick: (target) => {
-        emit('shop-click', target);
-        openPopup(target, [target.longitude, target.latitude]);
-      },
-      onAreaClick: (target, event) => {
-        emit('area-click', target);
-        openPopup(target, event.lngLat);
-      },
-      onPoiClick: (target) => {
-        emit('poi-click', target);
-        openPopup(target, [target.longitude, target.latitude]);
-      },
-      onPlaceClick: (target, event) => {
-        emit('place-click', target);
-        openPopup(target, event.lngLat);
-      },
-      onBoundaryClick: (target, event) => {
-        emit('boundary-click', target);
-        openPopup(target, event.lngLat);
-      }
-    });
-    emitViewport(instance);
-    emit('ready', instance);
-    instance.on('moveend', () => emitViewport(instance));
+    setupBusinessLayers(instance);
   });
 });
 

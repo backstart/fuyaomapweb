@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapPoi, MapPoiListItem, PoiFeatureCollection, QueryMapPoiParams, SaveMapPoiPayload } from '@/types/poi';
@@ -13,9 +14,13 @@ export function getMapPoiById(id: EntityId): Promise<MapPoi> {
   return getRequest(`/map/pois/${id}`);
 }
 
-export function getMapPoisGeoJson(params: QueryMapPoiParams): Promise<PoiFeatureCollection> {
+export function getMapPoisGeoJson(
+  params: QueryMapPoiParams,
+  config?: AxiosRequestConfig
+): Promise<PoiFeatureCollection> {
   return getRequest('/map/pois/geojson', {
-    params
+    params,
+    ...config
   });
 }
 

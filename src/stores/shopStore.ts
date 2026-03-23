@@ -4,6 +4,7 @@ import { getMapShopById, getMapShops, getMapShopsGeoJson } from '@/api/mapShopAp
 import type { PaginationState } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapShop, MapShopListItem, QueryMapShopParams, ShopFeatureCollection } from '@/types/shop';
+import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): ShopFeatureCollection {
   return {
@@ -19,6 +20,7 @@ export const useShopStore = defineStore('shops', () => {
   const geoJson = ref<ShopFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
   const loadingGeoJson = ref(false);
+  let mapGeoJsonAbortController: AbortController | null = null;
   const filters = reactive<QueryMapShopParams>({
     keyword: '',
     category: '',
@@ -69,17 +71,59 @@ export const useShopStore = defineStore('shops', () => {
     }
   }
 
-  async function fetchGeoJsonForMap(overrides: QueryMapShopParams = {}): Promise<void> {
+  async function fetchGeoJsonForMap(overrides: QueryMapShopParams = {}): Promise<boolean> {
+    cancelMapGeoJsonRequest('replaced-by-new-bbox');
+    const controller = new AbortController();
+    mapGeoJsonAbortController = controller;
     loadingGeoJson.value = true;
     try {
       // 地图页只按视口和地图自身状态取数，避免复用列表页残留筛选条件。
-      geoJson.value = await getMapShopsGeoJson({
-        bbox: overrides.bbox,
-        keyword: overrides.keyword
-      });
+      const nextGeoJson = await getMapShopsGeoJson(
+        {
+          bbox: overrides.bbox,
+          keyword: overrides.keyword
+        },
+        {
+          signal: controller.signal
+        }
+      );
+
+      if (mapGeoJsonAbortController !== controller) {
+        return false;
+      }
+
+      geoJson.value = nextGeoJson;
+      return true;
+    } catch (error) {
+      if (isRequestCanceled(error) || controller.signal.aborted) {
+        return false;
+      }
+
+      throw error;
     } finally {
-      loadingGeoJson.value = false;
+      if (mapGeoJsonAbortController === controller) {
+        loadingGeoJson.value = false;
+        mapGeoJsonAbortController = null;
+      }
     }
+  }
+
+  function cancelMapGeoJsonRequest(reason?: string): void {
+    if (!mapGeoJsonAbortController) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug('[MapGeoJson][shops] cancel request', reason ?? 'manual');
+    }
+
+    mapGeoJsonAbortController.abort();
+    mapGeoJsonAbortController = null;
+    loadingGeoJson.value = false;
+  }
+
+  function clearGeoJson(): void {
+    geoJson.value = createEmptyFeatureCollection();
   }
 
   function updateFilters(patch: QueryMapShopParams): void {
@@ -111,6 +155,8 @@ export const useShopStore = defineStore('shops', () => {
     fetchList,
     fetchGeoJson,
     fetchGeoJsonForMap,
+    cancelMapGeoJsonRequest,
+    clearGeoJson,
     updateFilters,
     resetFilters,
     getShopDetail

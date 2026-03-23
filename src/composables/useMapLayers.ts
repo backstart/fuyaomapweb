@@ -66,6 +66,26 @@ function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
   return map.getSource(sourceId) as GeoJSONSource;
 }
 
+function cloneGeoJsonData<TData extends FeatureCollection<Geometry>>(data: TData): TData {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(data);
+  }
+
+  return JSON.parse(JSON.stringify(data)) as TData;
+}
+
+function setGeoJsonSourceData<TData extends FeatureCollection<Geometry>>(map: MapLibreMap, sourceId: string, data: TData): void {
+  const source = map.getSource(sourceId) as GeoJSONSource | undefined;
+  if (!source) {
+    if (import.meta.env.DEV) {
+      console.warn(`[MapLayers] source not found: ${sourceId}`);
+    }
+    return;
+  }
+
+  source.setData(cloneGeoJsonData(data));
+}
+
 function toEntityId(value: unknown): EntityId {
   if (typeof value === 'string' || typeof value === 'number') {
     return value;
@@ -492,15 +512,15 @@ export function updateBusinessSources(
   places: PlaceFeatureCollection,
   boundaries: BoundaryFeatureCollection
 ): void {
-  getGeoJsonSource(map, SHOP_SOURCE_ID).setData(shops);
-  getGeoJsonSource(map, AREA_SOURCE_ID).setData(areas);
-  getGeoJsonSource(map, POI_SOURCE_ID).setData(pois);
-  getGeoJsonSource(map, PLACE_SOURCE_ID).setData(places);
-  getGeoJsonSource(map, BOUNDARY_SOURCE_ID).setData(boundaries);
+  setGeoJsonSourceData(map, SHOP_SOURCE_ID, shops);
+  setGeoJsonSourceData(map, AREA_SOURCE_ID, areas);
+  setGeoJsonSourceData(map, POI_SOURCE_ID, pois);
+  setGeoJsonSourceData(map, PLACE_SOURCE_ID, places);
+  setGeoJsonSourceData(map, BOUNDARY_SOURCE_ID, boundaries);
 }
 
 export function updateFocusedEntity(map: MapLibreMap, target: MapFocusTarget | null | undefined): void {
-  getGeoJsonSource(map, FOCUS_SOURCE_ID).setData(createFocusFeatureCollection(target));
+  setGeoJsonSourceData(map, FOCUS_SOURCE_ID, createFocusFeatureCollection(target));
 }
 
 export function setBusinessLayerVisibility(map: MapLibreMap, visibility: LayerVisibility): void {

@@ -4,6 +4,7 @@ import { getMapAreaById, getMapAreas, getMapAreasGeoJson } from '@/api/mapAreaAp
 import type { PaginationState } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
+import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): AreaFeatureCollection {
   return {
@@ -18,6 +19,7 @@ export const useAreaStore = defineStore('areas', () => {
   const geoJson = ref<AreaFeatureCollection>(createEmptyFeatureCollection());
   const loadingList = ref(false);
   const loadingGeoJson = ref(false);
+  let mapGeoJsonAbortController: AbortController | null = null;
   const filters = reactive<QueryMapAreaParams>({
     keyword: '',
     type: '',
@@ -67,16 +69,58 @@ export const useAreaStore = defineStore('areas', () => {
     }
   }
 
-  async function fetchGeoJsonForMap(overrides: QueryMapAreaParams = {}): Promise<void> {
+  async function fetchGeoJsonForMap(overrides: QueryMapAreaParams = {}): Promise<boolean> {
+    cancelMapGeoJsonRequest('replaced-by-new-bbox');
+    const controller = new AbortController();
+    mapGeoJsonAbortController = controller;
     loadingGeoJson.value = true;
     try {
-      geoJson.value = await getMapAreasGeoJson({
-        bbox: overrides.bbox,
-        keyword: overrides.keyword
-      });
+      const nextGeoJson = await getMapAreasGeoJson(
+        {
+          bbox: overrides.bbox,
+          keyword: overrides.keyword
+        },
+        {
+          signal: controller.signal
+        }
+      );
+
+      if (mapGeoJsonAbortController !== controller) {
+        return false;
+      }
+
+      geoJson.value = nextGeoJson;
+      return true;
+    } catch (error) {
+      if (isRequestCanceled(error) || controller.signal.aborted) {
+        return false;
+      }
+
+      throw error;
     } finally {
-      loadingGeoJson.value = false;
+      if (mapGeoJsonAbortController === controller) {
+        loadingGeoJson.value = false;
+        mapGeoJsonAbortController = null;
+      }
     }
+  }
+
+  function cancelMapGeoJsonRequest(reason?: string): void {
+    if (!mapGeoJsonAbortController) {
+      return;
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug('[MapGeoJson][areas] cancel request', reason ?? 'manual');
+    }
+
+    mapGeoJsonAbortController.abort();
+    mapGeoJsonAbortController = null;
+    loadingGeoJson.value = false;
+  }
+
+  function clearGeoJson(): void {
+    geoJson.value = createEmptyFeatureCollection();
   }
 
   function updateFilters(patch: QueryMapAreaParams): void {
@@ -107,6 +151,8 @@ export const useAreaStore = defineStore('areas', () => {
     fetchList,
     fetchGeoJson,
     fetchGeoJsonForMap,
+    cancelMapGeoJsonRequest,
+    clearGeoJson,
     updateFilters,
     resetFilters,
     getAreaDetail

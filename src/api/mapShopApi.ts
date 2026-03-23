@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { MapShop, MapShopListItem, QueryMapShopParams, ShopFeatureCollection } from '@/types/shop';
@@ -16,8 +17,12 @@ export function getMapShopById(id: EntityId): Promise<MapShop> {
 }
 
 // GeoJSON 接口直接喂给 MapLibre source，不再做二次结构转换。
-export function getMapShopsGeoJson(params: QueryMapShopParams): Promise<ShopFeatureCollection> {
+export function getMapShopsGeoJson(
+  params: QueryMapShopParams,
+  config?: AxiosRequestConfig
+): Promise<ShopFeatureCollection> {
   return getRequest('/map/shops/geojson', {
-    params
+    params,
+    ...config
   });
 }
