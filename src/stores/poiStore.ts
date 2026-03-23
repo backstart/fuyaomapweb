@@ -75,6 +75,18 @@ export const usePoiStore = defineStore('pois', () => {
     }
   }
 
+  async function fetchGeoJsonForMap(overrides: QueryMapPoiParams = {}): Promise<void> {
+    loadingGeoJson.value = true;
+    try {
+      geoJson.value = await getMapPoisGeoJson({
+        bbox: overrides.bbox,
+        keyword: overrides.keyword
+      });
+    } finally {
+      loadingGeoJson.value = false;
+    }
+  }
+
   function updateFilters(patch: QueryMapPoiParams): void {
     Object.assign(filters, patch);
   }
@@ -114,6 +126,7 @@ export const usePoiStore = defineStore('pois', () => {
     pagination,
     fetchList,
     fetchGeoJson,
+    fetchGeoJsonForMap,
     updateFilters,
     resetFilters,
     getPoiDetail,

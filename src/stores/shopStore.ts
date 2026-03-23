@@ -57,13 +57,25 @@ export const useShopStore = defineStore('shops', () => {
   async function fetchGeoJson(overrides: QueryMapShopParams = {}): Promise<void> {
     loadingGeoJson.value = true;
     try {
-      // GeoJSON 查询主要用于地图渲染，因此通常只关心筛选条件和 bbox。
       geoJson.value = await getMapShopsGeoJson({
         keyword: filters.keyword,
         category: filters.category,
         status: filters.status,
         bbox: filters.bbox,
         ...overrides
+      });
+    } finally {
+      loadingGeoJson.value = false;
+    }
+  }
+
+  async function fetchGeoJsonForMap(overrides: QueryMapShopParams = {}): Promise<void> {
+    loadingGeoJson.value = true;
+    try {
+      // 地图页只按视口和地图自身状态取数，避免复用列表页残留筛选条件。
+      geoJson.value = await getMapShopsGeoJson({
+        bbox: overrides.bbox,
+        keyword: overrides.keyword
       });
     } finally {
       loadingGeoJson.value = false;
@@ -98,6 +110,7 @@ export const useShopStore = defineStore('shops', () => {
     pagination,
     fetchList,
     fetchGeoJson,
+    fetchGeoJsonForMap,
     updateFilters,
     resetFilters,
     getShopDetail

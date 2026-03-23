@@ -34,6 +34,8 @@ const BOUNDARY_LINE_LAYER_ID = 'business-boundaries-line';
 const FOCUS_SOURCE_ID = 'business-focus';
 const FOCUS_FILL_LAYER_ID = 'business-focus-fill';
 const FOCUS_LINE_LAYER_ID = 'business-focus-line';
+const FOCUS_HALO_LAYER_ID = 'business-focus-halo';
+const FOCUS_RING_LAYER_ID = 'business-focus-ring';
 const FOCUS_CIRCLE_LAYER_ID = 'business-focus-circle';
 
 const registeredMaps = new WeakSet<MapLibreMap>();
@@ -188,15 +190,28 @@ function createFocusFeatureCollection(target: MapFocusTarget | null | undefined)
 
   const geometry = parseGeometryGeoJson(target.geometryGeoJson);
   if (geometry) {
+    const features: Feature<Geometry>[] = [
+      {
+        type: 'Feature',
+        properties: {},
+        geometry
+      }
+    ];
+
+    if (target.entityType === 'place' && typeof target.centerLongitude === 'number' && typeof target.centerLatitude === 'number') {
+      features.push({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Point',
+          coordinates: [target.centerLongitude, target.centerLatitude]
+        }
+      });
+    }
+
     return {
       type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {},
-          geometry
-        }
-      ]
+      features
     };
   }
 
@@ -400,7 +415,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: FOCUS_SOURCE_ID,
       paint: {
         'fill-color': '#1f7cff',
-        'fill-opacity': 0.16
+        'fill-opacity': 0.18
       }
     });
   }
@@ -415,8 +430,39 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       },
       paint: {
         'line-color': '#1f7cff',
-        'line-opacity': 0.98,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 3.2, 18, 4]
+        'line-opacity': 1,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.4, 14, 4, 18, 5]
+      }
+    });
+  }
+
+  if (!map.getLayer(FOCUS_HALO_LAYER_ID)) {
+    map.addLayer({
+      id: FOCUS_HALO_LAYER_ID,
+      type: 'circle',
+      source: FOCUS_SOURCE_ID,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 12, 22, 16, 28],
+        'circle-color': '#1f7cff',
+        'circle-opacity': 0.14,
+        'circle-blur': 0.5
+      }
+    });
+  }
+
+  if (!map.getLayer(FOCUS_RING_LAYER_ID)) {
+    map.addLayer({
+      id: FOCUS_RING_LAYER_ID,
+      type: 'circle',
+      source: FOCUS_SOURCE_ID,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 13, 16, 16],
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 2.2, 16, 2.8],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-opacity': 0.96
       }
     });
   }
@@ -428,10 +474,10 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: FOCUS_SOURCE_ID,
       filter: ['==', ['geometry-type'], 'Point'],
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 7, 12, 10, 16, 14],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 12, 6.8, 16, 8.8],
         'circle-color': '#1f7cff',
-        'circle-opacity': 0.2,
-        'circle-stroke-width': 2.2,
+        'circle-opacity': 0.98,
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 1.8, 16, 2.6],
         'circle-stroke-color': '#ffffff'
       }
     });

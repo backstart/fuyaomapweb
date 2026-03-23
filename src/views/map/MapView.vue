@@ -138,19 +138,13 @@ const searchResultCountLabel = computed(() =>
 );
 
 async function refreshGeoJson(bbox?: string): Promise<void> {
-  shopStore.updateFilters({ bbox });
-  areaStore.updateFilters({ bbox });
-  poiStore.updateFilters({ bbox });
-  placeStore.updateFilters({ bbox });
-  boundaryStore.updateFilters({ bbox });
-
   try {
     await Promise.all([
-      shopStore.fetchGeoJson({ bbox }),
-      areaStore.fetchGeoJson({ bbox }),
-      poiStore.fetchGeoJson({ bbox }),
-      placeStore.fetchGeoJson({ bbox }),
-      boundaryStore.fetchGeoJson({ bbox })
+      shopStore.fetchGeoJsonForMap({ bbox }),
+      areaStore.fetchGeoJsonForMap({ bbox }),
+      poiStore.fetchGeoJsonForMap({ bbox }),
+      placeStore.fetchGeoJsonForMap({ bbox }),
+      boundaryStore.fetchGeoJsonForMap({ bbox })
     ]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '地图数据加载失败');

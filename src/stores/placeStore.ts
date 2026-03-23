@@ -75,6 +75,18 @@ export const usePlaceStore = defineStore('places', () => {
     }
   }
 
+  async function fetchGeoJsonForMap(overrides: QueryMapPlaceParams = {}): Promise<void> {
+    loadingGeoJson.value = true;
+    try {
+      geoJson.value = await getMapPlacesGeoJson({
+        bbox: overrides.bbox,
+        keyword: overrides.keyword
+      });
+    } finally {
+      loadingGeoJson.value = false;
+    }
+  }
+
   function updateFilters(patch: QueryMapPlaceParams): void {
     Object.assign(filters, patch);
   }
@@ -114,6 +126,7 @@ export const usePlaceStore = defineStore('places', () => {
     pagination,
     fetchList,
     fetchGeoJson,
+    fetchGeoJsonForMap,
     updateFilters,
     resetFilters,
     getPlaceDetail,

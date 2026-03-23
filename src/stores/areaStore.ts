@@ -55,13 +55,24 @@ export const useAreaStore = defineStore('areas', () => {
   async function fetchGeoJson(overrides: QueryMapAreaParams = {}): Promise<void> {
     loadingGeoJson.value = true;
     try {
-      // 区域 GeoJSON 返回的几何通常比点位更重，因此单独维护 loading。
       geoJson.value = await getMapAreasGeoJson({
         keyword: filters.keyword,
         type: filters.type,
         status: filters.status,
         bbox: filters.bbox,
         ...overrides
+      });
+    } finally {
+      loadingGeoJson.value = false;
+    }
+  }
+
+  async function fetchGeoJsonForMap(overrides: QueryMapAreaParams = {}): Promise<void> {
+    loadingGeoJson.value = true;
+    try {
+      geoJson.value = await getMapAreasGeoJson({
+        bbox: overrides.bbox,
+        keyword: overrides.keyword
       });
     } finally {
       loadingGeoJson.value = false;
@@ -95,6 +106,7 @@ export const useAreaStore = defineStore('areas', () => {
     pagination,
     fetchList,
     fetchGeoJson,
+    fetchGeoJsonForMap,
     updateFilters,
     resetFilters,
     getAreaDetail

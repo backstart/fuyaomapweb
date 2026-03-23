@@ -81,6 +81,18 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     }
   }
 
+  async function fetchGeoJsonForMap(overrides: QueryMapBoundaryParams = {}): Promise<void> {
+    loadingGeoJson.value = true;
+    try {
+      geoJson.value = await getMapBoundariesGeoJson({
+        bbox: overrides.bbox,
+        keyword: overrides.keyword
+      });
+    } finally {
+      loadingGeoJson.value = false;
+    }
+  }
+
   function updateFilters(patch: QueryMapBoundaryParams): void {
     Object.assign(filters, patch);
   }
@@ -120,6 +132,7 @@ export const useBoundaryStore = defineStore('boundaries', () => {
     pagination,
     fetchList,
     fetchGeoJson,
+    fetchGeoJsonForMap,
     updateFilters,
     resetFilters,
     getBoundaryDetail,
