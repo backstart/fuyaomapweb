@@ -1,7 +1,7 @@
 import { ref, shallowRef } from 'vue';
 import type { Map, MapOptions } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
-import { ensureMapLibreRuntime, maplibregl } from '@/utils/maplibreRuntime';
+import { ensureMapLibreRuntime, maplibreglRuntime } from '@/utils/maplibreRuntime';
 import { getPmtilesInitialView, resolveMapStyle } from '@/utils/mapStyle';
 
 // 仅在 PMTiles 头信息不可用时兜底使用。
@@ -20,7 +20,7 @@ export function useMapLibre() {
       getPmtilesInitialView(pmtilesUrl)
     ]);
 
-    const instance = new maplibregl.Map({
+    const instance = new maplibreglRuntime.Map({
       container,
       style,
       center: initialView?.center ?? DEFAULT_CENTER,
@@ -32,14 +32,14 @@ export function useMapLibre() {
 
     // 这些控件后续如果需要做“纯净模式”，可以在这里集中裁剪。
     instance.addControl(
-      new maplibregl.NavigationControl({
+      new maplibreglRuntime.NavigationControl({
         showCompass: true,
         showZoom: true,
         visualizePitch: false
       }),
       'top-right'
     );
-    instance.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+    instance.addControl(new maplibreglRuntime.AttributionControl({ compact: true }), 'bottom-right');
 
     instance.once('load', () => {
       ready.value = true;

@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    optimizeDeps: {
+      exclude: ['pmtiles']
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src')
@@ -30,6 +33,12 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       headers: {
         'Cache-Control': 'no-store'
+      },
+      watch: {
+        ignored: [
+          '**/.tmp-*',
+          '**/test-results/**'
+        ]
       },
       proxy: {
         '/api': {

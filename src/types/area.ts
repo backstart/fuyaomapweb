@@ -33,6 +33,9 @@ export interface AreaGeoJsonProperties {
   remark?: string | null;
   styleJson?: string | null;
   status: number;
+  businessId?: string | null;
+  sourceId?: string | null;
+  geometryGeoJson?: string | null;
 }
 
 export type AreaFeatureCollection = FeatureCollection<Geometry, AreaGeoJsonProperties>;

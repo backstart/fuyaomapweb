@@ -34,8 +34,11 @@ export interface PlaceGeoJsonProperties {
   adminLevel?: number | null;
   remark?: string | null;
   status: number;
+  businessId?: string | null;
+  sourceId?: string | null;
   centerLongitude?: number | null;
   centerLatitude?: number | null;
+  geometryGeoJson?: string | null;
 }
 
 export type PlaceFeatureCollection = FeatureCollection<Geometry, PlaceGeoJsonProperties>;

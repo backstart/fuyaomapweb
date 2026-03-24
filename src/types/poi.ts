@@ -39,6 +39,8 @@ export interface PoiGeoJsonProperties {
   icon?: string | null;
   address?: string | null;
   phone?: string | null;
+  businessId?: string | null;
+  sourceId?: string | null;
   status: number;
 }
 

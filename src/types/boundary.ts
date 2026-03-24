@@ -33,6 +33,9 @@ export interface BoundaryGeoJsonProperties {
   remark?: string | null;
   styleJson?: string | null;
   status: number;
+  businessId?: string | null;
+  sourceId?: string | null;
+  geometryGeoJson?: string | null;
 }
 
 export type BoundaryFeatureCollection = FeatureCollection<Geometry, BoundaryGeoJsonProperties>;

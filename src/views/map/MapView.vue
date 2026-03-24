@@ -8,6 +8,7 @@
         :place-data="placeStore.geoJson"
         :boundary-data="boundaryStore.geoJson"
         :layer-visibility="mapStore.layerVisibility"
+        :selected-target="mapStore.selectedEntity"
         :focus-target="focusTarget"
         @ready="handleMapReady"
         @viewport-change="handleViewportChange"
@@ -48,9 +49,9 @@
                   <strong>{{ item.name }}</strong>
                   <p>{{ getSearchItemSubtitle(item) }}</p>
                 </div>
-                <el-tag :type="getStatusTagType(item.status)" effect="light">
+                <span :class="['result-status', `result-status--${getStatusTagType(item.status)}`]">
                   {{ getStatusLabel(item.status) }}
-                </el-tag>
+                </span>
               </button>
             </div>
             <el-empty
@@ -75,9 +76,9 @@
           <div v-if="mapStore.selectedEntity" class="inspector-body">
             <div class="inspector-title-row">
               <strong>{{ mapStore.selectedEntity.name }}</strong>
-              <el-tag :type="getStatusTagType(mapStore.selectedEntity.status)" effect="light">
+              <span :class="['result-status', `result-status--${getStatusTagType(mapStore.selectedEntity.status)}`]">
                 {{ getStatusLabel(mapStore.selectedEntity.status) }}
-              </el-tag>
+              </span>
             </div>
             <p class="inspector-meta">
               {{ getFocusTargetSubtitle(mapStore.selectedEntity) }}
@@ -436,7 +437,7 @@ function handleViewportChange(payload: { bbox: string; center: [number, number];
 }
 
 function handleEntityClick(target: MapFocusTarget): void {
-  focusTarget.value = target;
+  focusTarget.value = null;
   mapStore.setSelectedEntity(target);
 }
 
@@ -849,6 +850,45 @@ onBeforeUnmount(() => {
   margin: 4px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.result-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.result-status--success {
+  background: #ecfdf3;
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.result-status--warning {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.22);
+}
+
+.result-status--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+.result-status--info {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.22);
 }
 
 .inspector-body {

@@ -5,9 +5,9 @@
         <p class="popup-label">{{ getEntityTypeLabel(entity.entityType) }}</p>
         <h3>{{ entity.name }}</h3>
       </div>
-      <el-tag :type="getStatusTagType(entity.status)" effect="light">
+      <span :class="['popup-status', `popup-status--${getStatusTagType(entity.status)}`]">
         {{ getStatusLabel(entity.status) }}
-      </el-tag>
+      </span>
     </div>
     <dl class="popup-grid">
       <template v-if="entity.entityType === 'shop'">
@@ -167,6 +167,45 @@ h3 {
   display: grid;
   gap: 12px;
   margin: 0;
+}
+
+.popup-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.popup-status--success {
+  background: #ecfdf3;
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.popup-status--warning {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: rgba(249, 115, 22, 0.22);
+}
+
+.popup-status--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+.popup-status--info {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.22);
 }
 
 dt {

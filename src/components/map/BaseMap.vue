@@ -37,7 +37,7 @@ import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
-import { maplibregl } from '@/utils/maplibreRuntime';
+import { maplibreglRuntime } from '@/utils/maplibreRuntime';
 
 const props = defineProps<{
   shopData: ShopFeatureCollection;
@@ -46,6 +46,7 @@ const props = defineProps<{
   placeData: PlaceFeatureCollection;
   boundaryData: BoundaryFeatureCollection;
   layerVisibility: LayerVisibility;
+  selectedTarget?: MapFocusTarget | null;
   focusTarget?: MapFocusTarget | null;
 }>();
 
@@ -67,11 +68,17 @@ const hasBaseMap = Boolean(appConfig.pmtilesUrl.trim());
 let popup: MapLibrePopup | null = null;
 let popupApp: ReturnType<typeof createApp> | null = null;
 
+declare global {
+  interface Window {
+    __FUYAO_MAP_DEBUG__?: MapLibreMap;
+  }
+}
+
 function setupBusinessLayers(instance: MapLibreMap): void {
   ensureBusinessLayers(instance);
   updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
   setBusinessLayerVisibility(instance, props.layerVisibility);
-  updateFocusedEntity(instance, props.focusTarget);
+  updateFocusedEntity(instance, getDisplayTarget());
   registerBusinessLayerEvents(instance, {
     onShopClick: (target) => {
       emit('shop-click', target);
@@ -95,7 +102,36 @@ function setupBusinessLayers(instance: MapLibreMap): void {
     }
   });
   emit('ready', instance);
+  if (import.meta.env.DEV) {
+    window.__FUYAO_MAP_DEBUG__ = instance;
+  }
   instance.on('moveend', () => emitViewport(instance));
+}
+
+function isTargetVisible(target: MapFocusTarget | null | undefined): boolean {
+  if (!target) {
+    return false;
+  }
+
+  switch (target.entityType) {
+    case 'shop':
+      return props.layerVisibility.shops;
+    case 'area':
+      return props.layerVisibility.areas;
+    case 'poi':
+      return props.layerVisibility.pois;
+    case 'place':
+      return props.layerVisibility.places;
+    case 'boundary':
+      return props.layerVisibility.boundaries;
+    default:
+      return false;
+  }
+}
+
+function getDisplayTarget(): MapFocusTarget | null {
+  const candidate = props.selectedTarget ?? props.focusTarget ?? null;
+  return isTargetVisible(candidate) ? candidate : null;
 }
 
 function emitViewport(mapInstance: MapLibreMap): void {
@@ -126,7 +162,7 @@ function openPopup(target: MapFocusTarget, lngLat: LngLatLike): void {
   popupApp = createApp(EntityPopup, { entity: target });
   popupApp.mount(container);
 
-  popup = new maplibregl.Popup({
+  popup = new maplibreglRuntime.Popup({
     closeButton: true,
     closeOnClick: false,
     maxWidth: '360px',
@@ -233,6 +269,21 @@ watch(
     }
 
     setBusinessLayerVisibility(map.value, visibility);
+    updateFocusedEntity(map.value, getDisplayTarget());
+
+    if (!getDisplayTarget()) {
+      clearPopup();
+    }
+  },
+  { deep: true }
+);
+
+watch(
+  () => props.selectedTarget ?? props.focusTarget ?? null,
+  (target) => {
+    if (map.value) {
+      updateFocusedEntity(map.value, isTargetVisible(target) ? target : null);
+    }
   },
   { deep: true }
 );
@@ -240,20 +291,25 @@ watch(
 watch(
   () => props.focusTarget,
   (target) => {
-    // 外部页面只需要传 focusTarget，具体 flyTo/fitBounds 逻辑由 BaseMap 内部处理。
+    // 只有程序性定位才触发 flyTo/fitBounds；地图点击选中只更新高亮。
+    if (!target) {
+      return;
+    }
+
     if (map.value) {
       updateFocusedEntity(map.value, target);
     }
 
-    if (target) {
-      focusOnTarget(target);
-    }
+    focusOnTarget(target);
   },
   { deep: true }
 );
 
 onBeforeUnmount(() => {
   clearPopup();
+  if (import.meta.env.DEV && window.__FUYAO_MAP_DEBUG__ === map.value) {
+    delete window.__FUYAO_MAP_DEBUG__;
+  }
   destroyMap();
 });
 </script>

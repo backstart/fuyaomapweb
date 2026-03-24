@@ -1,5 +1,5 @@
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
-import type { GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapLayerMouseEvent } from 'maplibre-gl';
+import type { FilterSpecification, GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapLayerMouseEvent } from 'maplibre-gl';
 import { toRaw } from 'vue';
 import type { AreaFeatureCollection, AreaGeoJsonProperties } from '@/types/area';
 import type { BoundaryFeatureCollection, BoundaryGeoJsonProperties } from '@/types/boundary';
@@ -16,7 +16,7 @@ import type {
 import type { PlaceFeatureCollection, PlaceGeoJsonProperties } from '@/types/place';
 import type { PoiFeatureCollection, PoiGeoJsonProperties } from '@/types/poi';
 import type { ShopFeatureCollection, ShopGeoJsonProperties } from '@/types/shop';
-import { parseGeometryGeoJson } from '@/utils/geometry';
+import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
 
 const SHOP_SOURCE_ID = 'business-shops';
 const SHOP_LAYER_ID = 'business-shops-circle';
@@ -40,6 +40,14 @@ const FOCUS_RING_LAYER_ID = 'business-focus-ring';
 const FOCUS_CIRCLE_LAYER_ID = 'business-focus-circle';
 
 const registeredMaps = new WeakSet<MapLibreMap>();
+const lastInteractionSignature = new WeakMap<MapLibreMap, string>();
+const sourceFeatureIndex = new WeakMap<MapLibreMap, Record<string, Map<string, Feature<Geometry>>>>();
+
+interface SourceFeatureProperties {
+  businessId?: string | number | null;
+  sourceId?: string | null;
+  geometryGeoJson?: string | null;
+}
 
 interface BusinessLayerHandlers {
   onShopClick?: (target: ShopFocusTarget, event: MapLayerMouseEvent) => void;
@@ -67,10 +75,206 @@ function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
   return map.getSource(sourceId) as GeoJSONSource;
 }
 
+function getGeometryTypeFilter(type: 'Point' | 'LineString' | 'Polygon'): FilterSpecification {
+  return ['==', ['geometry-type'], type] as FilterSpecification;
+}
+
+function getLineOrPolygonFilter(): FilterSpecification {
+  return ['match', ['geometry-type'], ['LineString', 'Polygon'], true, false] as FilterSpecification;
+}
+
+function getFeatureLookupKey(id: unknown, properties?: SourceFeatureProperties | null): string | null {
+  const sourceId = properties?.sourceId;
+  if (typeof sourceId === 'string' && sourceId.trim()) {
+    return sourceId.trim();
+  }
+
+  if (typeof id === 'string' && id.trim()) {
+    return id.trim();
+  }
+
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return String(id);
+  }
+
+  return null;
+}
+
+function getBusinessEntityId(id: unknown, properties?: SourceFeatureProperties | null): EntityId {
+  const businessId = properties?.businessId;
+  if (typeof businessId === 'string' && businessId.trim()) {
+    return businessId.trim();
+  }
+
+  if (typeof businessId === 'number' && Number.isFinite(businessId)) {
+    return String(businessId);
+  }
+
+  if (typeof id === 'string' && id.trim()) {
+    return id.trim();
+  }
+
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return String(id);
+  }
+
+  return '';
+}
+
 function cloneGeoJsonData<TData extends FeatureCollection<Geometry>>(data: TData): TData {
-  // MapLibre 会在 setData 内部再做 structuredClone。这里如果直接把 Vue 响应式对象传进去，
-  // 浏览器会因为 Proxy 不可克隆而抛 DataCloneError，导致业务图层完全不渲染。
-  return JSON.parse(JSON.stringify(toRaw(data))) as TData;
+  // MapLibre worker 对 Vue 响应式对象和超大整数 id 都比较敏感，这里统一
+  // 规范成普通对象，并将 sourceId 作为地图侧 feature.id，业务主键保留在 properties.businessId。
+  const raw = toRaw(data);
+
+  return {
+    type: raw.type,
+    features: raw.features.map((feature) => {
+      const rawProperties = (feature.properties ?? {}) as SourceFeatureProperties;
+      const properties = JSON.parse(JSON.stringify(rawProperties)) as SourceFeatureProperties;
+      const normalizedId = getFeatureLookupKey(feature.id, properties);
+      const businessId = getBusinessEntityId(feature.id, properties);
+      const geometryGeoJson = JSON.stringify(feature.geometry);
+
+      if (!properties.sourceId && normalizedId) {
+        properties.sourceId = normalizedId;
+      }
+
+      if (
+        !properties.businessId &&
+        ((typeof businessId === 'string' && businessId.trim()) ||
+          (typeof businessId === 'number' && Number.isFinite(businessId)))
+      ) {
+        properties.businessId = String(businessId);
+      }
+
+      if (!properties.geometryGeoJson) {
+        properties.geometryGeoJson = geometryGeoJson;
+      }
+
+      return {
+        type: feature.type,
+        id: normalizedId ?? undefined,
+        properties,
+        geometry: JSON.parse(geometryGeoJson)
+      };
+    })
+  } as TData;
+}
+
+function indexSourceFeatures<TProperties>(
+  map: MapLibreMap,
+  sourceId: string,
+  data: FeatureCollection<Geometry, TProperties>
+): void {
+  let bucket = sourceFeatureIndex.get(map);
+  if (!bucket) {
+    bucket = {};
+    sourceFeatureIndex.set(map, bucket);
+  }
+
+  const featureMap = new Map<string, Feature<Geometry>>();
+  for (const feature of data.features) {
+    const featureKey = getFeatureLookupKey(feature.id, feature.properties as SourceFeatureProperties | null);
+    if (!featureKey) {
+      continue;
+    }
+
+    featureMap.set(featureKey, feature as Feature<Geometry>);
+  }
+
+  bucket[sourceId] = featureMap;
+}
+
+function resolveGeometryGeoJson(
+  map: MapLibreMap,
+  sourceId: string,
+  feature: MapGeoJSONFeature,
+  inlineGeometry?: string | null
+): string {
+  if (inlineGeometry) {
+    return inlineGeometry;
+  }
+
+  const bucket = sourceFeatureIndex.get(map);
+  const featureKey = getFeatureLookupKey(feature.id, feature.properties as SourceFeatureProperties | null);
+  const cachedFeature = featureKey ? bucket?.[sourceId]?.get(featureKey) : undefined;
+  if (cachedFeature) {
+    return JSON.stringify(cachedFeature.geometry);
+  }
+
+  return JSON.stringify(feature.geometry);
+}
+
+function getResolvedGeometry(map: MapLibreMap, sourceId: string, feature: MapGeoJSONFeature): Geometry | null {
+  const geometryGeoJson = resolveGeometryGeoJson(
+    map,
+    sourceId,
+    feature,
+    (feature.properties as SourceFeatureProperties | null | undefined)?.geometryGeoJson
+  );
+
+  return parseGeometryGeoJson(geometryGeoJson);
+}
+
+function getApproxGeometryBoundsArea(geometry: Geometry | null): number {
+  if (!geometry) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const bounds = getGeometryBounds(geometry);
+  if (!bounds) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.abs(bounds[1][0] - bounds[0][0]) * Math.abs(bounds[1][1] - bounds[0][1]);
+}
+
+function getNumericProperty(properties: unknown, key: string): number | null {
+  if (!properties || typeof properties !== 'object') {
+    return null;
+  }
+
+  const value = (properties as Record<string, unknown>)[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function selectMostSpecificFeature(
+  map: MapLibreMap,
+  sourceId: string,
+  features: MapGeoJSONFeature[],
+  options?: {
+    preferHigherAdminLevel?: boolean;
+    preferSmallerGeometry?: boolean;
+  }
+): MapGeoJSONFeature | null {
+  if (!features.length) {
+    return null;
+  }
+
+  const ranked = features.map((feature) => {
+    const geometry = getResolvedGeometry(map, sourceId, feature);
+    const properties = feature.properties as Record<string, unknown> | undefined;
+
+    return {
+      feature,
+      adminLevel: getNumericProperty(properties, 'adminLevel') ?? -1,
+      area: getApproxGeometryBoundsArea(geometry)
+    };
+  });
+
+  ranked.sort((left, right) => {
+    if (options?.preferHigherAdminLevel && left.adminLevel !== right.adminLevel) {
+      return right.adminLevel - left.adminLevel;
+    }
+
+    if (options?.preferSmallerGeometry && left.area !== right.area) {
+      return left.area - right.area;
+    }
+
+    return 0;
+  });
+
+  return ranked[0]?.feature ?? null;
 }
 
 function setGeoJsonSourceData<TData extends FeatureCollection<Geometry>>(map: MapLibreMap, sourceId: string, data: TData): void {
@@ -115,7 +319,7 @@ function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
 
   return {
     entityType: 'shop',
-    id: toEntityId(feature.id),
+    id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名店铺',
     category: properties.category,
     remark: properties.remark,
@@ -136,7 +340,7 @@ function toPoiTarget(feature: MapGeoJSONFeature): PoiFocusTarget | null {
 
   return {
     entityType: 'poi',
-    id: toEntityId(feature.id),
+    id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名 POI',
     category: properties.category,
     subcategory: properties.subcategory,
@@ -150,51 +354,51 @@ function toPoiTarget(feature: MapGeoJSONFeature): PoiFocusTarget | null {
   };
 }
 
-function toAreaTarget(feature: MapGeoJSONFeature): AreaFocusTarget {
+function toAreaTarget(map: MapLibreMap, feature: MapGeoJSONFeature): AreaFocusTarget {
   const properties = feature.properties as Partial<AreaGeoJsonProperties>;
 
   return {
     entityType: 'area',
-    id: toEntityId(feature.id),
+    id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名区域',
     type: properties.type,
     remark: properties.remark,
     styleJson: properties.styleJson,
     status: typeof properties.status === 'number' ? properties.status : 0,
-    geometryGeoJson: JSON.stringify(feature.geometry)
+    geometryGeoJson: resolveGeometryGeoJson(map, AREA_SOURCE_ID, feature, properties.geometryGeoJson)
   };
 }
 
-function toPlaceTarget(feature: MapGeoJSONFeature): PlaceFocusTarget {
+function toPlaceTarget(map: MapLibreMap, feature: MapGeoJSONFeature): PlaceFocusTarget {
   const properties = feature.properties as Partial<PlaceGeoJsonProperties>;
 
   return {
     entityType: 'place',
-    id: toEntityId(feature.id),
+    id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名地名',
     placeType: properties.placeType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,
     remark: properties.remark,
     status: typeof properties.status === 'number' ? properties.status : 0,
-    geometryGeoJson: JSON.stringify(feature.geometry),
+    geometryGeoJson: resolveGeometryGeoJson(map, PLACE_SOURCE_ID, feature, properties.geometryGeoJson),
     centerLongitude: typeof properties.centerLongitude === 'number' ? properties.centerLongitude : undefined,
     centerLatitude: typeof properties.centerLatitude === 'number' ? properties.centerLatitude : undefined
   };
 }
 
-function toBoundaryTarget(feature: MapGeoJSONFeature): BoundaryFocusTarget {
+function toBoundaryTarget(map: MapLibreMap, feature: MapGeoJSONFeature): BoundaryFocusTarget {
   const properties = feature.properties as Partial<BoundaryGeoJsonProperties>;
 
   return {
     entityType: 'boundary',
-    id: toEntityId(feature.id),
+    id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名边界',
     boundaryType: properties.boundaryType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,
     remark: properties.remark,
     styleJson: properties.styleJson,
     status: typeof properties.status === 'number' ? properties.status : 0,
-    geometryGeoJson: JSON.stringify(feature.geometry)
+    geometryGeoJson: resolveGeometryGeoJson(map, BOUNDARY_SOURCE_ID, feature, properties.geometryGeoJson)
   };
 }
 
@@ -313,6 +517,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: AREA_FILL_LAYER_ID,
       type: 'fill',
       source: AREA_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       paint: {
         'fill-color': '#5a8ee6',
         'fill-opacity': 0.12
@@ -325,6 +530,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: AREA_LINE_LAYER_ID,
       type: 'line',
       source: AREA_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       layout: {
         'line-join': 'round'
       },
@@ -341,6 +547,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: BOUNDARY_FILL_LAYER_ID,
       type: 'fill',
       source: BOUNDARY_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       paint: {
         'fill-color': '#8d6a4a',
         'fill-opacity': 0.06
@@ -353,6 +560,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: BOUNDARY_LINE_LAYER_ID,
       type: 'line',
       source: BOUNDARY_SOURCE_ID,
+      filter: getLineOrPolygonFilter(),
       layout: {
         'line-join': 'round'
       },
@@ -370,6 +578,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_FILL_LAYER_ID,
       type: 'fill',
       source: PLACE_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       paint: {
         'fill-color': '#7b78d6',
         'fill-opacity': 0.08
@@ -382,6 +591,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_LINE_LAYER_ID,
       type: 'line',
       source: PLACE_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       layout: {
         'line-join': 'round'
       },
@@ -398,6 +608,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_CIRCLE_LAYER_ID,
       type: 'circle',
       source: PLACE_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.8, 16, 8],
         'circle-color': '#6f6ad2',
@@ -413,6 +624,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: SHOP_LAYER_ID,
       type: 'circle',
       source: SHOP_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4.6, 12, 6.2, 16, 8.8],
         'circle-color': '#3e7fe0',
@@ -428,6 +640,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: POI_LAYER_ID,
       type: 'circle',
       source: POI_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4.2, 12, 5.9, 16, 8.4],
         'circle-color': '#1d9ab0',
@@ -443,6 +656,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_FILL_LAYER_ID,
       type: 'fill',
       source: FOCUS_SOURCE_ID,
+      filter: getGeometryTypeFilter('Polygon'),
       paint: {
         'fill-color': '#1f7cff',
         'fill-opacity': 0.18
@@ -455,6 +669,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_LINE_LAYER_ID,
       type: 'line',
       source: FOCUS_SOURCE_ID,
+      filter: getLineOrPolygonFilter(),
       layout: {
         'line-join': 'round'
       },
@@ -471,6 +686,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_HALO_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 12, 22, 16, 28],
         'circle-color': '#1f7cff',
@@ -485,6 +701,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_RING_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 13, 16, 16],
         'circle-color': 'rgba(0,0,0,0)',
@@ -500,6 +717,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_CIRCLE_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 12, 6.8, 16, 8.8],
         'circle-color': '#1f7cff',
@@ -519,6 +737,12 @@ export function updateBusinessSources(
   places: PlaceFeatureCollection,
   boundaries: BoundaryFeatureCollection
 ): void {
+  indexSourceFeatures(map, SHOP_SOURCE_ID, shops);
+  indexSourceFeatures(map, AREA_SOURCE_ID, areas);
+  indexSourceFeatures(map, POI_SOURCE_ID, pois);
+  indexSourceFeatures(map, PLACE_SOURCE_ID, places);
+  indexSourceFeatures(map, BOUNDARY_SOURCE_ID, boundaries);
+
   setGeoJsonSourceData(map, SHOP_SOURCE_ID, shops);
   setGeoJsonSourceData(map, AREA_SOURCE_ID, areas);
   setGeoJsonSourceData(map, POI_SOURCE_ID, pois);
@@ -563,9 +787,29 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
 
   registeredMaps.add(map);
 
+  const shouldHandleInteraction = (feature: MapGeoJSONFeature, event: MapLayerMouseEvent): boolean => {
+    const signature = `${event.originalEvent.timeStamp}:${String(feature.id)}`;
+    const previous = lastInteractionSignature.get(map);
+    if (previous === signature) {
+      return false;
+    }
+
+    lastInteractionSignature.set(map, signature);
+    window.setTimeout(() => {
+      if (lastInteractionSignature.get(map) === signature) {
+        lastInteractionSignature.delete(map);
+      }
+    }, 0);
+    return true;
+  };
+
   map.on('click', SHOP_LAYER_ID, (event) => {
     const feature = event.features?.[0];
     if (!feature) {
+      return;
+    }
+
+    if (!shouldHandleInteraction(feature, event)) {
       return;
     }
 
@@ -581,6 +825,10 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
       return;
     }
 
+    if (!shouldHandleInteraction(feature, event)) {
+      return;
+    }
+
     const target = toPoiTarget(feature);
     if (target) {
       handlers.onPoiClick?.(target, event);
@@ -589,34 +837,54 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
 
   for (const layerId of [AREA_FILL_LAYER_ID, AREA_LINE_LAYER_ID]) {
     map.on('click', layerId, (event) => {
-      const feature = event.features?.[0];
+      const feature = selectMostSpecificFeature(map, AREA_SOURCE_ID, event.features ?? [], {
+        preferSmallerGeometry: true
+      });
       if (!feature) {
         return;
       }
 
-      handlers.onAreaClick?.(toAreaTarget(feature), event);
+      if (!shouldHandleInteraction(feature, event)) {
+        return;
+      }
+
+      handlers.onAreaClick?.(toAreaTarget(map, feature), event);
     });
   }
 
   for (const layerId of [PLACE_FILL_LAYER_ID, PLACE_LINE_LAYER_ID, PLACE_CIRCLE_LAYER_ID]) {
     map.on('click', layerId, (event) => {
-      const feature = event.features?.[0];
+      const feature = selectMostSpecificFeature(map, PLACE_SOURCE_ID, event.features ?? [], {
+        preferHigherAdminLevel: true,
+        preferSmallerGeometry: true
+      });
       if (!feature) {
         return;
       }
 
-      handlers.onPlaceClick?.(toPlaceTarget(feature), event);
+      if (!shouldHandleInteraction(feature, event)) {
+        return;
+      }
+
+      handlers.onPlaceClick?.(toPlaceTarget(map, feature), event);
     });
   }
 
   for (const layerId of [BOUNDARY_FILL_LAYER_ID, BOUNDARY_LINE_LAYER_ID]) {
     map.on('click', layerId, (event) => {
-      const feature = event.features?.[0];
+      const feature = selectMostSpecificFeature(map, BOUNDARY_SOURCE_ID, event.features ?? [], {
+        preferHigherAdminLevel: true,
+        preferSmallerGeometry: true
+      });
       if (!feature) {
         return;
       }
 
-      handlers.onBoundaryClick?.(toBoundaryTarget(feature), event);
+      if (!shouldHandleInteraction(feature, event)) {
+        return;
+      }
+
+      handlers.onBoundaryClick?.(toBoundaryTarget(map, feature), event);
     });
   }
 

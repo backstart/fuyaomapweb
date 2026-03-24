@@ -10,3 +10,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.vite-dev-*.log
+.tmp-chrome-profile/
+.last-run.json
+test-results/
+playwright-report/

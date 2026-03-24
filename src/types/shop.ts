@@ -35,6 +35,8 @@ export interface ShopGeoJsonProperties {
   category?: string | null;
   remark?: string | null;
   icon?: string | null;
+  businessId?: string | null;
+  sourceId?: string | null;
   status: number;
 }
 
