@@ -99,6 +99,36 @@
       color: #ba3e2f;
     }
 
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .action-button {
+      appearance: none;
+      border: 1px solid #d5e1ee;
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #f8fbff;
+      color: #1e4a72;
+      font-size: 12px;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+      box-shadow: 0 8px 18px rgba(30, 74, 114, 0.08);
+    }
+
+    .action-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .action-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
     .footer {
       position: absolute;
       right: 14px;
@@ -123,8 +153,12 @@
       <span id="embedded-mode" class="badge">VIEW</span>
       <span id="embedded-status" class="badge">Loading</span>
     </div>
-    <p class="hint">URL 参数可控制 center / zoom / marker / mode。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__.receiveHostMessage 控制地图。</p>
+    <p id="embedded-hint" class="hint">URL 参数可控制 center / zoom / marker / mode。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图。</p>
     <p id="embedded-coordinates" class="coords">--</p>
+    <div class="actions">
+      <button id="embedded-recenter-button" class="action-button" type="button">回到起始位置</button>
+      <button id="embedded-clear-button" class="action-button" type="button" disabled>清除标记</button>
+    </div>
     <p id="embedded-error" class="error" hidden></p>
   </section>
 

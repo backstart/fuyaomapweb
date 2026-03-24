@@ -9,7 +9,8 @@
   "demoUrl": "/map-resources/examples/maplibre-demo.html",
   "embeddedUrl": "/map-resources/embedded.html",
   "embeddedDemoUrl": "/map-resources/examples/embedded-demo.html",
-  "readmeUrl": "/map-resources/README.txt",
+  "readmeUrl": "/map-resources/README.md",
+  "readmeTextUrl": "/map-resources/README.txt",
   "supportedClients": [
     "MapLibre GL JS",
     "Web/H5 clients compatible with MapLibre",

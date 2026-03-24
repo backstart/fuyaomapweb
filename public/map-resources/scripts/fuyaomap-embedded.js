@@ -11,7 +11,8 @@
     markers: [],
     config: null,
     mapReady: false,
-    pendingMessages: []
+    pendingMessages: [],
+    uiBound: false
   };
 
   function toNumber(value) {
@@ -313,6 +314,44 @@
     }
   }
 
+  function updateHintText(mode) {
+    var hintEl = document.getElementById('embedded-hint');
+    if (!hintEl) {
+      return;
+    }
+
+    hintEl.textContent = mode === 'pick'
+      ? '当前为选点模式，点击地图会自动放置 marker 并回传坐标。宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图。'
+      : '当前为浏览模式，可通过 URL 参数或宿主消息控制中心点、缩放和 marker。';
+  }
+
+  function getPrimaryMarkerSpec() {
+    if (state.markers.length === 0) {
+      return null;
+    }
+
+    return state.markers[0].spec;
+  }
+
+  function updateActionButtons() {
+    var clearButton = document.getElementById('embedded-clear-button');
+    if (clearButton) {
+      clearButton.disabled = state.markers.length === 0;
+    }
+  }
+
+  function applyModeUi(mode) {
+    updateModeBadge(mode);
+    updateHintText(mode);
+
+    if (state.map && typeof state.map.getCanvas === 'function') {
+      var canvas = state.map.getCanvas();
+      if (canvas) {
+        canvas.style.cursor = mode === 'pick' ? 'crosshair' : '';
+      }
+    }
+  }
+
   function showError(message) {
     var errorEl = document.getElementById('embedded-error');
     if (errorEl) {
@@ -360,6 +399,14 @@
       marker.instance.remove();
     }
 
+    if (state.config && state.config.mode === 'pick') {
+      setStatusText('Pick');
+    } else if (state.mapReady) {
+      setStatusText('Ready');
+    }
+
+    updateActionButtons();
+
     if (shouldEmit) {
       emitMarkerUpdated(action);
     }
@@ -404,27 +451,56 @@
       state.markers.push(createMarker(markerSpec, index));
     });
 
+    if (state.markers.length > 0) {
+      var firstMarker = state.markers[0].spec;
+      setCoordinatesText(firstMarker.lng + ', ' + firstMarker.lat);
+    }
+
+    updateActionButtons();
+
     if (shouldEmit) {
       emitMarkerUpdated(action);
     }
   }
 
+  function toMessageCandidates(rawMessage) {
+    if (rawMessage && typeof rawMessage === 'object' && Array.isArray(rawMessage.data) && typeof rawMessage.type !== 'string') {
+      return rawMessage.data;
+    }
+
+    return Array.isArray(rawMessage) ? rawMessage : [rawMessage];
+  }
+
   function normalizeHostMessage(rawMessage) {
-    if (!rawMessage || typeof rawMessage !== 'object') {
+    var candidate = rawMessage;
+
+    if (candidate && typeof candidate === 'object' && 'data' in candidate && typeof candidate.type !== 'string') {
+      candidate = candidate.data;
+    }
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      try {
+        candidate = JSON.parse(candidate);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    if (!candidate || typeof candidate !== 'object') {
       return null;
     }
 
-    if (rawMessage.source === EMBEDDED_SOURCE) {
+    if (candidate.source === EMBEDDED_SOURCE) {
       return null;
     }
 
-    if (typeof rawMessage.type !== 'string' || !rawMessage.type.trim()) {
+    if (typeof candidate.type !== 'string' || !candidate.type.trim()) {
       return null;
     }
 
     return {
-      type: rawMessage.type.trim(),
-      payload: rawMessage.payload && typeof rawMessage.payload === 'object' ? rawMessage.payload : {}
+      type: candidate.type.trim(),
+      payload: candidate.payload && typeof candidate.payload === 'object' ? candidate.payload : {}
     };
   }
 
@@ -560,6 +636,42 @@
     emitHostMessage('map-click', payload);
   }
 
+  function focusSelectionOrInitialView() {
+    if (!state.map || !state.config) {
+      return;
+    }
+
+    var primaryMarker = getPrimaryMarkerSpec();
+    if (primaryMarker) {
+      jumpToCenter([primaryMarker.lng, primaryMarker.lat], null);
+      return;
+    }
+
+    jumpToCenter(state.config.center, state.config.zoom);
+  }
+
+  function bindUiActions() {
+    if (state.uiBound) {
+      return;
+    }
+
+    var recenterButton = document.getElementById('embedded-recenter-button');
+    if (recenterButton) {
+      recenterButton.addEventListener('click', function () {
+        focusSelectionOrInitialView();
+      });
+    }
+
+    var clearButton = document.getElementById('embedded-clear-button');
+    if (clearButton) {
+      clearButton.addEventListener('click', function () {
+        dispatchCommand('clear-marker', {});
+      });
+    }
+
+    state.uiBound = true;
+  }
+
   function createMap(manifest, config) {
     state.map = new maplibregl.Map({
       container: 'embedded-map',
@@ -573,10 +685,12 @@
     });
 
     state.map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    applyModeUi(config.mode);
+    updateActionButtons();
 
     state.map.on('load', function () {
       state.mapReady = true;
-      setStatusText('Ready');
+      setStatusText(config.mode === 'pick' ? 'Pick' : 'Ready');
       setCoordinatesText(config.center[0] + ', ' + config.center[1]);
 
       var initialMarkers = [];
@@ -623,22 +737,39 @@
     });
   }
 
+  function dispatchCommand(type, payload) {
+    return queueOrHandleMessage({
+      type: type,
+      payload: payload && typeof payload === 'object' ? payload : {}
+    });
+  }
+
   function receiveHostMessage(rawMessage) {
-    return queueOrHandleMessage(normalizeHostMessage(rawMessage));
+    var handled = false;
+
+    toMessageCandidates(rawMessage).forEach(function (candidate) {
+      if (queueOrHandleMessage(normalizeHostMessage(candidate))) {
+        handled = true;
+      }
+    });
+
+    return handled;
   }
 
   function bootstrap() {
     var manifestUrl = './manifest.json';
 
-    updateModeBadge('view');
+    bindUiActions();
+    applyModeUi('view');
     setStatusText('Loading');
     setCoordinatesText('--');
+    updateActionButtons();
 
     loadManifest(manifestUrl)
       .then(function (manifest) {
         state.manifest = manifest;
         state.config = buildInitialConfig(manifest);
-        updateModeBadge(state.config.mode);
+        applyModeUi(state.config.mode);
         createMap(manifest, state.config);
       })
       .catch(function (error) {
@@ -661,10 +792,25 @@
 
   window.__FUYAO_EMBEDDED_MAP__ = {
     receiveHostMessage: receiveHostMessage,
-    clearMarker: function () {
-      clearMarkers();
+    setCenter: function (center) {
+      return dispatchCommand('set-center', { center: center });
     },
-    getViewport: getViewportPayload
+    setZoom: function (zoom) {
+      return dispatchCommand('set-zoom', { zoom: zoom });
+    },
+    flyTo: function (payload) {
+      return dispatchCommand('fly-to', payload);
+    },
+    setMarker: function (marker) {
+      return dispatchCommand('set-marker', marker);
+    },
+    clearMarker: function () {
+      return dispatchCommand('clear-marker', {});
+    },
+    getViewport: getViewportPayload,
+    getSelection: function () {
+      return buildMarkerPayload('current');
+    }
   };
 
   if (document.readyState === 'loading') {

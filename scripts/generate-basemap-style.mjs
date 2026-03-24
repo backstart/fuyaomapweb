@@ -10,7 +10,8 @@ const MAP_RESOURCES_DIR = path.join(PUBLIC_DIR, 'map-resources');
 const STYLE_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'styles', 'amap-like.json');
 const MANIFEST_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'manifest.json');
 const DEMO_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'examples', 'maplibre-demo.html');
-const README_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'README.txt');
+const README_TEXT_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'README.txt');
+const README_MARKDOWN_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'README.md');
 const VENDOR_DIR = path.join(MAP_RESOURCES_DIR, 'vendor');
 
 const DEFAULT_BASEMAP_PMTILES_FILE = path.join(PUBLIC_DIR, 'tiles', 'city.pmtiles');
@@ -20,7 +21,8 @@ const MANIFEST_PUBLIC_PATH = '/map-resources/manifest.json';
 const DEMO_PUBLIC_PATH = '/map-resources/examples/maplibre-demo.html';
 const EMBEDDED_PUBLIC_PATH = '/map-resources/embedded.html';
 const EMBEDDED_DEMO_PUBLIC_PATH = '/map-resources/examples/embedded-demo.html';
-const README_PUBLIC_PATH = '/map-resources/README.txt';
+const README_PUBLIC_PATH = '/map-resources/README.md';
+const README_TEXT_PUBLIC_PATH = '/map-resources/README.txt';
 const DEFAULT_CENTER = [113.4445, 22.4915];
 const DEFAULT_ZOOM = 10;
 
@@ -274,6 +276,7 @@ function buildManifest({
   embeddedUrl,
   embeddedDemoUrl,
   readmeUrl,
+  readmeTextUrl,
   header
 }) {
   return {
@@ -288,6 +291,7 @@ function buildManifest({
     embeddedUrl,
     embeddedDemoUrl,
     readmeUrl,
+    readmeTextUrl,
     supportedClients: [
       'MapLibre GL JS',
       'Web/H5 clients compatible with MapLibre',
@@ -540,6 +544,8 @@ function buildReadmeText({
   demoUrl,
   embeddedUrl,
   embeddedDemoUrl,
+  readmeUrl,
+  readmeTextUrl,
   publicOrigin,
   basemapPmtilesFile,
   basemapPmtilesUrl,
@@ -561,6 +567,8 @@ function buildReadmeText({
 - Style: ${styleUrl}
 - Tiles: ${tilesUrl}
 - Demo: ${demoUrl}
+- Docs: ${readmeUrl}
+- Docs Text: ${readmeTextUrl}
 - Embedded: ${embeddedUrl}
 - Embedded Demo: ${embeddedDemoUrl}
 
@@ -601,6 +609,8 @@ new maplibregl.Map({
   map-ready / map-click / marker-updated / marker-click / viewport-change
 - 入站控制消息：
   set-center / set-zoom / fly-to / set-marker / clear-marker
+- 页面内全局 API：
+  window.__FUYAO_EMBEDDED_MAP__.setCenter / setZoom / flyTo / setMarker / clearMarker / getViewport / getSelection
 
 普通网页 iframe 接入示例
 -----------------------
@@ -674,12 +684,8 @@ export default {
       });
     },
     setMarkerFromHost(lng, lat) {
-      const command = JSON.stringify({
-        type: 'set-marker',
-        payload: { lng, lat }
-      });
       this.$refs.mapView?.evalJS?.(
-        \`window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.receiveHostMessage(\${command})\`
+        \`window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.setMarker({ lng: \${lng}, lat: \${lat} })\`
       );
     }
   }
@@ -739,6 +745,7 @@ async function main() {
   const embeddedUrl = buildPublicUrl(publicOrigin, EMBEDDED_PUBLIC_PATH);
   const embeddedDemoUrl = buildPublicUrl(publicOrigin, EMBEDDED_DEMO_PUBLIC_PATH);
   const readmeUrl = buildPublicUrl(publicOrigin, README_PUBLIC_PATH);
+  const readmeTextUrl = buildPublicUrl(publicOrigin, README_TEXT_PUBLIC_PATH);
   const [styleTemplate, manifestTemplate] = await Promise.all([
     readJsonIfExists(STYLE_OUTPUT_PATH),
     readJsonIfExists(MANIFEST_OUTPUT_PATH)
@@ -811,25 +818,31 @@ async function main() {
     embeddedUrl,
     embeddedDemoUrl,
     readmeUrl,
+    readmeTextUrl,
     header
+  });
+
+  const readmeText = buildReadmeText({
+    manifestUrl,
+    styleUrl,
+    tilesUrl,
+    demoUrl,
+    embeddedUrl,
+    embeddedDemoUrl,
+    readmeUrl,
+    readmeTextUrl,
+    publicOrigin,
+    basemapPmtilesFile,
+    basemapPmtilesUrl,
+    usedBuildTimeMetadata
   });
 
   await Promise.all([
     writeJson(STYLE_OUTPUT_PATH, style),
     writeJson(MANIFEST_OUTPUT_PATH, manifest),
     writeText(DEMO_OUTPUT_PATH, buildDemoHtml({ manifestUrl, styleUrl, tilesUrl, readmeUrl })),
-    writeText(README_OUTPUT_PATH, buildReadmeText({
-      manifestUrl,
-      styleUrl,
-      tilesUrl,
-      demoUrl,
-      embeddedUrl,
-      embeddedDemoUrl,
-      publicOrigin,
-      basemapPmtilesFile,
-      basemapPmtilesUrl,
-      usedBuildTimeMetadata
-    })),
+    writeText(README_TEXT_OUTPUT_PATH, readmeText),
+    writeText(README_MARKDOWN_OUTPUT_PATH, readmeText),
     copyVendorAssets()
   ]);
 
@@ -837,7 +850,8 @@ async function main() {
   - ${path.relative(ROOT_DIR, MANIFEST_OUTPUT_PATH)}
   - ${path.relative(ROOT_DIR, STYLE_OUTPUT_PATH)}
   - ${path.relative(ROOT_DIR, DEMO_OUTPUT_PATH)}
-  - ${path.relative(ROOT_DIR, README_OUTPUT_PATH)}`);
+  - ${path.relative(ROOT_DIR, README_MARKDOWN_OUTPUT_PATH)}
+  - ${path.relative(ROOT_DIR, README_TEXT_OUTPUT_PATH)}`);
 }
 
 main().catch((error) => {
