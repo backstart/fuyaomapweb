@@ -6,6 +6,7 @@ import { registerMapLibreProtocol } from '@/utils/maplibreRuntime';
 // 这里只关心前端构造 style 需要的最小 PMTiles 元数据。
 interface VectorLayerMetadata {
   id: string;
+  fields?: Record<string, string>;
 }
 
 interface PmtilesMetadata {
@@ -33,6 +34,14 @@ function buildBlankStyle(): StyleSpecification {
       }
     ]
   };
+}
+
+function getVectorLayerIds(metadata: PmtilesMetadata): string[] {
+  const ids = metadata.vector_layers
+    ?.map((layer) => layer.id?.trim())
+    .filter((layerId): layerId is string => Boolean(layerId)) ?? [];
+
+  return Array.from(new Set(ids));
 }
 
 function ensureProtocol(): Protocol {
@@ -171,7 +180,9 @@ export async function resolveMapStyle(baseUrl: string): Promise<string | StyleSp
 
   try {
     const metadata = (await archive.getMetadata()) as PmtilesMetadata;
-    const sourceLayers = metadata.vector_layers?.map((layer) => layer.id).filter(Boolean) ?? [];
+    // 当前底图样式只依赖 source-layer 列表；即使 metadata 没有字段定义，
+    // 标签层也会按常见名称字段 name:zh / name / name_en / ref 做前端兜底。
+    const sourceLayers = getVectorLayerIds(metadata);
     if (sourceLayers.length > 0) {
       return buildPmtilesVectorStyle(normalizedUrl, sourceLayers);
     }
