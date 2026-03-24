@@ -13,14 +13,16 @@ const DEMO_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'examples', 'maplibre-demo
 const README_OUTPUT_PATH = path.join(MAP_RESOURCES_DIR, 'README.txt');
 const VENDOR_DIR = path.join(MAP_RESOURCES_DIR, 'vendor');
 
-const PMTILES_ARCHIVE_PATH = path.join(PUBLIC_DIR, 'tiles', 'city.pmtiles');
-const PMTILES_PUBLIC_PATH = '/tiles/city.pmtiles';
+const DEFAULT_BASEMAP_PMTILES_FILE = path.join(PUBLIC_DIR, 'tiles', 'city.pmtiles');
+const DEFAULT_BASEMAP_PMTILES_URL = '/tiles/city.pmtiles';
 const STYLE_PUBLIC_PATH = '/map-resources/styles/amap-like.json';
 const MANIFEST_PUBLIC_PATH = '/map-resources/manifest.json';
 const DEMO_PUBLIC_PATH = '/map-resources/examples/maplibre-demo.html';
 const EMBEDDED_PUBLIC_PATH = '/map-resources/embedded.html';
 const EMBEDDED_DEMO_PUBLIC_PATH = '/map-resources/examples/embedded-demo.html';
 const README_PUBLIC_PATH = '/map-resources/README.txt';
+const DEFAULT_CENTER = [113.4445, 22.4915];
+const DEFAULT_ZOOM = 10;
 
 function normalizePublicOrigin(rawOrigin) {
   const normalized = rawOrigin?.trim();
@@ -39,6 +41,49 @@ function buildPublicUrl(publicOrigin, publicPath) {
   return new URL(publicPath, `${publicOrigin}/`).toString();
 }
 
+function resolveBasemapPmtilesFile(rawFilePath) {
+  const normalized = rawFilePath?.trim();
+  if (!normalized) {
+    return DEFAULT_BASEMAP_PMTILES_FILE;
+  }
+
+  return path.isAbsolute(normalized) ? normalized : path.resolve(ROOT_DIR, normalized);
+}
+
+function resolveBasemapPmtilesUrl(rawUrl) {
+  const normalized = rawUrl?.trim();
+  return normalized || DEFAULT_BASEMAP_PMTILES_URL;
+}
+
+function toFiniteNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCenter(rawCenter) {
+  if (!Array.isArray(rawCenter) || rawCenter.length < 2) {
+    return null;
+  }
+
+  const lng = toFiniteNumber(rawCenter[0]);
+  const lat = toFiniteNumber(rawCenter[1]);
+  if (lng === null || lat === null) {
+    return null;
+  }
+
+  return [lng, lat];
+}
+
 async function ensureDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true });
 }
@@ -51,6 +96,28 @@ async function writeJson(filePath, value) {
 async function writeText(filePath, value) {
   await ensureDir(path.dirname(filePath));
   await fs.writeFile(filePath, value, 'utf8');
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readJsonIfExists(filePath) {
+  if (!(await fileExists(filePath))) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch (error) {
+    console.warn(`[generate-basemap-style] warning: failed to parse JSON template at ${filePath}, fallback to defaults.`, error);
+    return null;
+  }
 }
 
 async function copyVendorFile(sourcePath, targetPath) {
@@ -77,9 +144,9 @@ async function loadAmapStyleBuilder() {
   return import(moduleUrl);
 }
 
-async function readArchiveMetadata() {
-  const fileBuffer = await fs.readFile(PMTILES_ARCHIVE_PATH);
-  const file = new File([fileBuffer], path.basename(PMTILES_ARCHIVE_PATH));
+async function readArchiveMetadata(archivePath) {
+  const fileBuffer = await fs.readFile(archivePath);
+  const file = new File([fileBuffer], path.basename(archivePath));
   const archive = new PMTiles(new FileSource(file));
   const [header, metadata] = await Promise.all([
     archive.getHeader(),
@@ -93,11 +160,110 @@ async function readArchiveMetadata() {
 }
 
 function getVectorLayerIds(metadata) {
-  const layerIds = metadata.vector_layers
+  const layerIds = metadata?.vector_layers
     ?.map((layer) => layer.id?.trim())
     .filter((layerId) => Boolean(layerId)) ?? [];
 
   return Array.from(new Set(layerIds));
+}
+
+function buildFallbackHeader(manifestTemplate, styleTemplate) {
+  const manifestCenter = normalizeCenter(manifestTemplate?.defaultCenter);
+  const styleCenter = normalizeCenter(styleTemplate?.center);
+  const center = manifestCenter || styleCenter || DEFAULT_CENTER;
+
+  const zoom = toFiniteNumber(manifestTemplate?.defaultZoom)
+    ?? toFiniteNumber(styleTemplate?.zoom)
+    ?? DEFAULT_ZOOM;
+
+  return {
+    centerLon: center[0],
+    centerLat: center[1],
+    centerZoom: zoom
+  };
+}
+
+function buildStyleOptions(header, attribution) {
+  return {
+    styleName: 'Fuyao Basemap AMap Like',
+    sourceAttribution: typeof attribution === 'string' ? attribution : undefined,
+    center: [header.centerLon, header.centerLat],
+    zoom: header.centerZoom
+  };
+}
+
+function buildMinimalStyle(basemapSourceId, tilesUrl, header, attribution) {
+  const sources = {
+    [basemapSourceId]: {
+      type: 'vector',
+      url: `pmtiles://${tilesUrl}`
+    }
+  };
+
+  if (typeof attribution === 'string' && attribution.trim()) {
+    sources[basemapSourceId].attribution = attribution.trim();
+  }
+
+  return {
+    version: 8,
+    name: 'Fuyao Basemap AMap Like',
+    center: [header.centerLon, header.centerLat],
+    zoom: header.centerZoom,
+    sources,
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#f6f4ef'
+        }
+      }
+    ]
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function applyRuntimeTilesUrl(styleTemplate, basemapSourceId, tilesUrl, header, attribution) {
+  const style = cloneJson(styleTemplate);
+  const sourceUrl = `pmtiles://${tilesUrl}`;
+
+  style.version = 8;
+  style.name = typeof style.name === 'string' && style.name.trim() ? style.name : 'Fuyao Basemap AMap Like';
+  style.center = [header.centerLon, header.centerLat];
+  style.zoom = header.centerZoom;
+  style.sources = style.sources && typeof style.sources === 'object' ? style.sources : {};
+
+  const sourceDefinition = style.sources[basemapSourceId] && typeof style.sources[basemapSourceId] === 'object'
+    ? style.sources[basemapSourceId]
+    : { type: 'vector' };
+
+  sourceDefinition.type = sourceDefinition.type || 'vector';
+  sourceDefinition.url = sourceUrl;
+
+  if (typeof attribution === 'string' && attribution.trim()) {
+    sourceDefinition.attribution = attribution.trim();
+  } else {
+    delete sourceDefinition.attribution;
+  }
+
+  style.sources[basemapSourceId] = sourceDefinition;
+
+  if (!Array.isArray(style.layers) || style.layers.length === 0) {
+    style.layers = [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#f6f4ef'
+        }
+      }
+    ];
+  }
+
+  return style;
 }
 
 function buildManifest({
@@ -135,7 +301,7 @@ function buildManifest({
       messageSource: 'fuyaomap-embedded',
       supportedModes: ['view', 'pick'],
       inboundTypes: ['set-center', 'set-zoom', 'fly-to', 'set-marker', 'clear-marker'],
-      outboundTypes: ['map-ready', 'map-click', 'marker-click', 'viewport-change']
+      outboundTypes: ['map-ready', 'map-click', 'marker-updated', 'marker-click', 'viewport-change']
     }
   };
 }
@@ -270,7 +436,7 @@ function buildDemoHtml({ manifestUrl, styleUrl, tilesUrl, readmeUrl }) {
     <section class="panel">
       <div>
         <h1>Fuyao Basemap</h1>
-        <p>这个页面验证 <code>${STYLE_PUBLIC_PATH}</code>、<code>${MANIFEST_PUBLIC_PATH}</code> 与 <code>${PMTILES_PUBLIC_PATH}</code> 是否能作为标准地图资源出口被直接接入。</p>
+        <p>这个页面验证 <code>${styleUrl}</code>、<code>${manifestUrl}</code> 与 <code>${tilesUrl}</code> 是否能作为标准地图资源出口被直接接入。</p>
       </div>
 
       <div class="meta">
@@ -367,10 +533,25 @@ new maplibregl.Map({
 `;
 }
 
-function buildReadmeText({ manifestUrl, styleUrl, tilesUrl, demoUrl, embeddedUrl, embeddedDemoUrl, publicOrigin }) {
+function buildReadmeText({
+  manifestUrl,
+  styleUrl,
+  tilesUrl,
+  demoUrl,
+  embeddedUrl,
+  embeddedDemoUrl,
+  publicOrigin,
+  basemapPmtilesFile,
+  basemapPmtilesUrl,
+  usedBuildTimeMetadata
+}) {
   const originMode = publicOrigin
     ? `当前构建已写入绝对公网/内网 origin：${publicOrigin}`
-    : '当前构建未设置 MAP_RESOURCES_PUBLIC_ORIGIN，style 内部 tiles 地址使用同源路径 /tiles/city.pmtiles。';
+    : `当前构建未设置 MAP_RESOURCES_PUBLIC_ORIGIN，style 内部 tiles 地址使用同源路径 ${basemapPmtilesUrl}。`;
+
+  const metadataMode = usedBuildTimeMetadata
+    ? `构建阶段已读取本地 PMTiles 文件：${basemapPmtilesFile}`
+    : `构建阶段未读取到本地 PMTiles 文件，已降级为仅基于运行时 URL 生成资源：${basemapPmtilesUrl}`;
 
   return `Fuyao Basemap Map Resources
 ============================
@@ -410,8 +591,14 @@ new maplibregl.Map({
   - marker=lng,lat
   - mode=view|pick
   - style=amap-like
+- pick 模式行为：
+  - 点击地图后会在点击位置落一个默认 marker
+  - 同时发送 map-click，payload 至少包含 lng / lat / zoom
+  - marker 更新后会发送 marker-updated
 - 对外消息格式：
   { source: 'fuyaomap-embedded', type: 'map-ready', payload: { ... } }
+- 出站消息：
+  map-ready / map-click / marker-updated / marker-click / viewport-change
 - 入站控制消息：
   set-center / set-zoom / fly-to / set-marker / clear-marker
 
@@ -433,6 +620,10 @@ new maplibregl.Map({
 
     if (message.type === 'map-click') {
       console.log('picked point:', message.payload);
+    }
+
+    if (message.type === 'marker-updated') {
+      console.log('marker state:', message.payload);
     }
   });
 
@@ -469,8 +660,16 @@ export default {
       const rawList = Array.isArray(event?.detail?.data) ? event.detail.data : [event?.detail?.data];
       rawList.forEach((item) => {
         const message = item?.data ?? item;
-        if (message?.source === 'fuyaomap-embedded' && message.type === 'map-click') {
+        if (message?.source !== 'fuyaomap-embedded') {
+          return;
+        }
+
+        if (message.type === 'map-click') {
           console.log('uni-app picked point:', message.payload);
+        }
+
+        if (message.type === 'marker-updated') {
+          console.log('uni-app marker state:', message.payload);
         }
       });
     },
@@ -494,6 +693,7 @@ export default {
 - examples/maplibre-demo.html 可直接验证资源是否正常。
 - embedded.html 可直接作为地图嵌入页使用，embedded-demo.html 用于验证 URL 参数与 postMessage 控制。
 - 嵌入页会优先走 window.parent.postMessage；若运行环境暴露 uni.postMessage，也会同步向 uni-app web-view 发送消息。
+- ${metadataMode}
 - ${originMode}
 - uni-app 官方文档说明：web-view 页面对外发消息使用 uni.postMessage，H5 可直接使用 window.postMessage；宿主向 web-view 注入控制消息可通过 evalJS。
 - 如果外部网页部署在不同 origin，建议在构建时设置环境变量 MAP_RESOURCES_PUBLIC_ORIGIN=https://your-map-host。
@@ -523,35 +723,83 @@ async function main() {
   const publicOrigin = normalizePublicOrigin(
     process.env.MAP_RESOURCES_PUBLIC_ORIGIN ?? process.env.VITE_MAP_RESOURCES_PUBLIC_ORIGIN ?? ''
   );
+  const basemapPmtilesFile = resolveBasemapPmtilesFile(
+    process.env.BASEMAP_PMTILES_FILE ?? process.env.VITE_BASEMAP_PMTILES_FILE ?? ''
+  );
+  const basemapPmtilesUrl = resolveBasemapPmtilesUrl(
+    process.env.BASEMAP_PMTILES_URL ?? process.env.VITE_BASEMAP_PMTILES_URL ?? ''
+  );
 
   const packageVersion = await loadPackageVersion();
-  const { buildAmapLikePmtilesStyle } = await loadAmapStyleBuilder();
-  const { header, metadata } = await readArchiveMetadata();
-
-  const sourceLayers = getVectorLayerIds(metadata);
+  const { BASEMAP_SOURCE_ID, buildAmapLikePmtilesStyle } = await loadAmapStyleBuilder();
   const styleUrl = buildPublicUrl(publicOrigin, STYLE_PUBLIC_PATH);
-  const tilesUrl = buildPublicUrl(publicOrigin, PMTILES_PUBLIC_PATH);
+  const tilesUrl = buildPublicUrl(publicOrigin, basemapPmtilesUrl);
   const manifestUrl = buildPublicUrl(publicOrigin, MANIFEST_PUBLIC_PATH);
   const demoUrl = buildPublicUrl(publicOrigin, DEMO_PUBLIC_PATH);
   const embeddedUrl = buildPublicUrl(publicOrigin, EMBEDDED_PUBLIC_PATH);
   const embeddedDemoUrl = buildPublicUrl(publicOrigin, EMBEDDED_DEMO_PUBLIC_PATH);
   const readmeUrl = buildPublicUrl(publicOrigin, README_PUBLIC_PATH);
+  const [styleTemplate, manifestTemplate] = await Promise.all([
+    readJsonIfExists(STYLE_OUTPUT_PATH),
+    readJsonIfExists(MANIFEST_OUTPUT_PATH)
+  ]);
 
-  const style = buildAmapLikePmtilesStyle(tilesUrl, sourceLayers, {
-    styleName: 'Fuyao Basemap AMap Like',
-    sourceAttribution: metadata.attribution,
-    center: [header.centerLon, header.centerLat],
-    zoom: header.centerZoom
-  });
+  const fallbackHeader = buildFallbackHeader(manifestTemplate, styleTemplate);
+
+  let archiveHeader = null;
+  let archiveMetadata = null;
+  let usedBuildTimeMetadata = false;
+
+  if (await fileExists(basemapPmtilesFile)) {
+    console.log(`[generate-basemap-style] reading optional build-time PMTiles file: ${basemapPmtilesFile}`);
+
+    try {
+      const archiveData = await readArchiveMetadata(basemapPmtilesFile);
+      archiveHeader = archiveData.header;
+      archiveMetadata = archiveData.metadata;
+      usedBuildTimeMetadata = true;
+    } catch (error) {
+      console.warn(
+        `[generate-basemap-style] warning: failed to read PMTiles file at build time, fallback to runtime url only: ${basemapPmtilesFile}`,
+        error
+      );
+    }
+  } else {
+    console.warn(
+      `[generate-basemap-style] warning: pmtiles file not found at build time, fallback to runtime url only: ${basemapPmtilesFile}`
+    );
+  }
+
+  console.log(`[generate-basemap-style] continue generating basemap resources with BASEMAP_PMTILES_URL=${basemapPmtilesUrl}`);
+
+  const header = archiveHeader ?? fallbackHeader;
+  const metadata = archiveMetadata ?? {};
+  const styleOptions = buildStyleOptions(header, metadata.attribution);
+  const sourceLayers = getVectorLayerIds(metadata);
+
+  let style = null;
+
+  if (sourceLayers.length > 0) {
+    style = buildAmapLikePmtilesStyle(tilesUrl, sourceLayers, styleOptions);
+  }
+
+  if (!style && styleTemplate) {
+    console.warn('[generate-basemap-style] warning: using existing style template fallback because PMTiles metadata is unavailable at build time.');
+    style = applyRuntimeTilesUrl(styleTemplate, BASEMAP_SOURCE_ID, tilesUrl, header, metadata.attribution);
+  }
 
   if (!style) {
-    throw new Error('Failed to build external basemap style from city.pmtiles metadata.');
+    console.warn('[generate-basemap-style] warning: using minimal fallback style because no PMTiles metadata or style template is available.');
+    style = buildMinimalStyle(BASEMAP_SOURCE_ID, tilesUrl, header, metadata.attribution);
   }
 
   style.metadata = {
     resourceType: 'fuyao-basemap',
     manifestUrl,
     tilesUrl,
+    pmtilesUrl: basemapPmtilesUrl,
+    buildTimePmtilesFile: basemapPmtilesFile,
+    usedBuildTimeMetadata,
     generatedAt: new Date().toISOString()
   };
 
@@ -577,7 +825,10 @@ async function main() {
       demoUrl,
       embeddedUrl,
       embeddedDemoUrl,
-      publicOrigin
+      publicOrigin,
+      basemapPmtilesFile,
+      basemapPmtilesUrl,
+      usedBuildTimeMetadata
     })),
     copyVendorAssets()
   ]);

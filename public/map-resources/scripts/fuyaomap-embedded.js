@@ -322,10 +322,46 @@
     setStatusText('Failed');
   }
 
-  function clearMarkers() {
+  function serializeMarkerSpec(markerSpec) {
+    return {
+      id: markerSpec.id || '',
+      lng: Number(markerSpec.lng),
+      lat: Number(markerSpec.lat),
+      label: markerSpec.label || '',
+      color: markerSpec.color || '#1f7cff'
+    };
+  }
+
+  function buildMarkerPayload(action) {
+    var markers = state.markers.map(function (marker) {
+      return serializeMarkerSpec(marker.spec);
+    });
+
+    return {
+      action: action || 'set',
+      mode: state.config ? state.config.mode : 'view',
+      zoom: state.map ? Number(state.map.getZoom().toFixed(2)) : null,
+      markerCount: markers.length,
+      marker: markers.length > 0 ? markers[0] : null,
+      markers: markers
+    };
+  }
+
+  function emitMarkerUpdated(action) {
+    emitHostMessage('marker-updated', buildMarkerPayload(action));
+  }
+
+  function clearMarkers(options) {
+    var shouldEmit = !options || options.emitEvent !== false;
+    var action = options && typeof options.action === 'string' ? options.action : 'cleared';
+
     while (state.markers.length > 0) {
       var marker = state.markers.pop();
       marker.instance.remove();
+    }
+
+    if (shouldEmit) {
+      emitMarkerUpdated(action);
     }
   }
 
@@ -358,11 +394,19 @@
   }
 
   function setMarkers(markerSpecs) {
-    clearMarkers();
+    var options = arguments.length > 1 && arguments[1] ? arguments[1] : null;
+    var shouldEmit = !options || options.emitEvent !== false;
+    var action = options && typeof options.action === 'string' ? options.action : 'set';
+
+    clearMarkers({ emitEvent: false });
 
     markerSpecs.forEach(function (markerSpec, index) {
       state.markers.push(createMarker(markerSpec, index));
     });
+
+    if (shouldEmit) {
+      emitMarkerUpdated(action);
+    }
   }
 
   function normalizeHostMessage(rawMessage) {
@@ -451,7 +495,7 @@
       }
 
       if (markers.length > 0) {
-        setMarkers(markers);
+        setMarkers(markers, { action: 'host-set' });
         if (payload.flyTo !== false) {
           jumpToCenter([markers[0].lng, markers[0].lat], toNumber(payload.zoom));
         }
@@ -460,7 +504,7 @@
     }
 
     if (message.type === 'clear-marker') {
-      clearMarkers();
+      clearMarkers({ action: 'host-clear' });
     }
   }
 
@@ -493,6 +537,7 @@
     var payload = {
       lng: Number(lngLat.lng.toFixed(6)),
       lat: Number(lngLat.lat.toFixed(6)),
+      zoom: state.map ? Number(state.map.getZoom().toFixed(2)) : Number(state.config.zoom.toFixed(2)),
       mode: state.config.mode
     };
 
@@ -505,10 +550,13 @@
           label: 'Picked Location',
           color: '#ff6b2c'
         }
-      ]);
+      ], { action: 'picked' });
+      setStatusText('Picked');
+    } else {
+      setStatusText('Ready');
     }
 
-    setCoordinatesText(payload.lng + ', ' + payload.lat);
+    setCoordinatesText(payload.lng + ', ' + payload.lat + ' · z' + payload.zoom);
     emitHostMessage('map-click', payload);
   }
 
@@ -539,7 +587,7 @@
       }
 
       if (initialMarkers.length > 0) {
-        setMarkers(initialMarkers);
+        setMarkers(initialMarkers, { emitEvent: false });
       }
 
       emitHostMessage('map-ready', {
@@ -556,6 +604,10 @@
           version: manifest.version
         }
       });
+
+      if (initialMarkers.length > 0) {
+        emitMarkerUpdated('initial');
+      }
 
       drainPendingMessages();
     });

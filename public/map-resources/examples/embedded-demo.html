@@ -165,6 +165,15 @@
       white-space: pre-wrap;
     }
 
+    .status-card {
+      padding: 12px;
+      border-radius: 14px;
+      background: #f3f8ff;
+      border: 1px solid #d6e3f2;
+      color: #23415e;
+      font-variant-numeric: tabular-nums;
+    }
+
     @media (max-width: 1024px) {
       .layout {
         grid-template-columns: 1fr;
@@ -224,6 +233,11 @@
       </div>
 
       <div class="group">
+        <div class="group-title">Last Selection</div>
+        <div id="selectedPoint" class="status-card">No point selected yet.</div>
+      </div>
+
+      <div class="group">
         <div class="group-title">Message Log</div>
         <pre id="messageLog" class="log">Waiting for embedded page...</pre>
       </div>
@@ -243,6 +257,7 @@
     const iframe = document.getElementById('embeddedFrame');
     const iframeSrcText = document.getElementById('iframeSrcText');
     const logEl = document.getElementById('messageLog');
+    const selectedPointEl = document.getElementById('selectedPoint');
 
     function buildIframeUrl() {
       const params = new URLSearchParams();
@@ -277,6 +292,31 @@
       appendLog({ type: 'host-command', payload: { type, payload } });
     }
 
+    function updateSelectedPoint(message) {
+      if (!message || !message.type) {
+        return;
+      }
+
+      if (message.type === 'map-ready') {
+        const center = Array.isArray(message.payload?.center) ? message.payload.center.join(', ') : '--';
+        selectedPointEl.textContent = `Map ready. Center: ${center} | Zoom: ${message.payload?.zoom ?? '--'}`;
+        return;
+      }
+
+      if (message.type === 'map-click') {
+        selectedPointEl.textContent = `Picked: ${message.payload.lng}, ${message.payload.lat} | Zoom: ${message.payload.zoom}`;
+        return;
+      }
+
+      if (message.type === 'marker-updated') {
+        if (message.payload?.marker) {
+          selectedPointEl.textContent = `Marker: ${message.payload.marker.lng}, ${message.payload.marker.lat} | Count: ${message.payload.markerCount}`;
+        } else {
+          selectedPointEl.textContent = 'Marker cleared.';
+        }
+      }
+    }
+
     document.getElementById('loadButton').addEventListener('click', loadIframe);
     document.getElementById('reloadButton').addEventListener('click', () => {
       iframe.contentWindow?.location.reload();
@@ -302,6 +342,7 @@
         return;
       }
 
+      updateSelectedPoint(message);
       appendLog(message);
     });
 

@@ -1351,6 +1351,9 @@
     "resourceType": "fuyao-basemap",
     "manifestUrl": "/map-resources/manifest.json",
     "tilesUrl": "/tiles/city.pmtiles",
-    "generatedAt": "2026-03-24T13:43:20.248Z"
+    "pmtilesUrl": "/tiles/city.pmtiles",
+    "buildTimePmtilesFile": "D:\\Code\\Dev\\fuyaomapweb\\public\\tiles\\city.pmtiles",
+    "usedBuildTimeMetadata": true,
+    "generatedAt": "2026-03-24T14:38:44.392Z"
   }
 }

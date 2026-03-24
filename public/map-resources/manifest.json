@@ -38,6 +38,7 @@
     "outboundTypes": [
       "map-ready",
       "map-click",
+      "marker-updated",
       "marker-click",
       "viewport-change"
     ]

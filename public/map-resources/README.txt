@@ -36,8 +36,14 @@ new maplibregl.Map({
   - marker=lng,lat
   - mode=view|pick
   - style=amap-like
+- pick 模式行为：
+  - 点击地图后会在点击位置落一个默认 marker
+  - 同时发送 map-click，payload 至少包含 lng / lat / zoom
+  - marker 更新后会发送 marker-updated
 - 对外消息格式：
   { source: 'fuyaomap-embedded', type: 'map-ready', payload: { ... } }
+- 出站消息：
+  map-ready / map-click / marker-updated / marker-click / viewport-change
 - 入站控制消息：
   set-center / set-zoom / fly-to / set-marker / clear-marker
 
@@ -59,6 +65,10 @@ new maplibregl.Map({
 
     if (message.type === 'map-click') {
       console.log('picked point:', message.payload);
+    }
+
+    if (message.type === 'marker-updated') {
+      console.log('marker state:', message.payload);
     }
   });
 
@@ -95,8 +105,16 @@ export default {
       const rawList = Array.isArray(event?.detail?.data) ? event.detail.data : [event?.detail?.data];
       rawList.forEach((item) => {
         const message = item?.data ?? item;
-        if (message?.source === 'fuyaomap-embedded' && message.type === 'map-click') {
+        if (message?.source !== 'fuyaomap-embedded') {
+          return;
+        }
+
+        if (message.type === 'map-click') {
           console.log('uni-app picked point:', message.payload);
+        }
+
+        if (message.type === 'marker-updated') {
+          console.log('uni-app marker state:', message.payload);
         }
       });
     },
@@ -120,6 +138,7 @@ export default {
 - examples/maplibre-demo.html 可直接验证资源是否正常。
 - embedded.html 可直接作为地图嵌入页使用，embedded-demo.html 用于验证 URL 参数与 postMessage 控制。
 - 嵌入页会优先走 window.parent.postMessage；若运行环境暴露 uni.postMessage，也会同步向 uni-app web-view 发送消息。
+- 构建阶段已读取本地 PMTiles 文件：D:\Code\Dev\fuyaomapweb\public\tiles\city.pmtiles
 - 当前构建未设置 MAP_RESOURCES_PUBLIC_ORIGIN，style 内部 tiles 地址使用同源路径 /tiles/city.pmtiles。
 - uni-app 官方文档说明：web-view 页面对外发消息使用 uni.postMessage，H5 可直接使用 window.postMessage；宿主向 web-view 注入控制消息可通过 evalJS。
 - 如果外部网页部署在不同 origin，建议在构建时设置环境变量 MAP_RESOURCES_PUBLIC_ORIGIN=https://your-map-host。
