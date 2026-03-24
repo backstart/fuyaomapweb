@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { createApp, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import maplibregl, { type LngLatLike, type Map as MapLibreMap } from 'maplibre-gl';
+import type { LngLatLike, Map as MapLibreMap, Popup as MapLibrePopup } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
 import { useMapLibre } from '@/composables/useMapLibre';
 import {
@@ -37,6 +37,7 @@ import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
+import { maplibregl } from '@/utils/maplibreRuntime';
 
 const props = defineProps<{
   shopData: ShopFeatureCollection;
@@ -63,7 +64,7 @@ const mapContainer = ref<HTMLDivElement | null>(null);
 const hasBaseMap = Boolean(appConfig.pmtilesUrl.trim());
 
 // Popup 使用独立 Vue app 挂载，这样可以直接复用现有 Vue 组件。
-let popup: maplibregl.Popup | null = null;
+let popup: MapLibrePopup | null = null;
 let popupApp: ReturnType<typeof createApp> | null = null;
 
 function setupBusinessLayers(instance: MapLibreMap): void {

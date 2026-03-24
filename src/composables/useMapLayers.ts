@@ -1,5 +1,6 @@
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 import type { GeoJSONSource, Map as MapLibreMap, MapGeoJSONFeature, MapLayerMouseEvent } from 'maplibre-gl';
+import { toRaw } from 'vue';
 import type { AreaFeatureCollection, AreaGeoJsonProperties } from '@/types/area';
 import type { BoundaryFeatureCollection, BoundaryGeoJsonProperties } from '@/types/boundary';
 import type { EntityId } from '@/types/entity';
@@ -67,11 +68,9 @@ function getGeoJsonSource(map: MapLibreMap, sourceId: string): GeoJSONSource {
 }
 
 function cloneGeoJsonData<TData extends FeatureCollection<Geometry>>(data: TData): TData {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(data);
-  }
-
-  return JSON.parse(JSON.stringify(data)) as TData;
+  // MapLibre 会在 setData 内部再做 structuredClone。这里如果直接把 Vue 响应式对象传进去，
+  // 浏览器会因为 Proxy 不可克隆而抛 DataCloneError，导致业务图层完全不渲染。
+  return JSON.parse(JSON.stringify(toRaw(data))) as TData;
 }
 
 function setGeoJsonSourceData<TData extends FeatureCollection<Geometry>>(map: MapLibreMap, sourceId: string, data: TData): void {
@@ -83,7 +82,19 @@ function setGeoJsonSourceData<TData extends FeatureCollection<Geometry>>(map: Ma
     return;
   }
 
-  source.setData(cloneGeoJsonData(data));
+  try {
+    source.setData(cloneGeoJsonData(data));
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.error('[MapLayers] setData failed', {
+        sourceId,
+        featureCount: Array.isArray(data.features) ? data.features.length : 0,
+        error
+      });
+    }
+
+    throw error;
+  }
 }
 
 function toEntityId(value: unknown): EntityId {
@@ -359,6 +370,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_FILL_LAYER_ID,
       type: 'fill',
       source: PLACE_SOURCE_ID,
+      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon']],
       paint: {
         'fill-color': '#7b78d6',
         'fill-opacity': 0.08
@@ -371,6 +383,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_LINE_LAYER_ID,
       type: 'line',
       source: PLACE_SOURCE_ID,
+      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon'], ['==', '$type', 'LineString'], ['==', '$type', 'MultiLineString']],
       layout: {
         'line-join': 'round'
       },
@@ -387,7 +400,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_CIRCLE_LAYER_ID,
       type: 'circle',
       source: PLACE_SOURCE_ID,
-      filter: ['==', ['geometry-type'], 'Point'],
+      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.8, 16, 8],
         'circle-color': '#6f6ad2',
@@ -433,6 +446,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_FILL_LAYER_ID,
       type: 'fill',
       source: FOCUS_SOURCE_ID,
+      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon']],
       paint: {
         'fill-color': '#1f7cff',
         'fill-opacity': 0.18
@@ -445,6 +459,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_LINE_LAYER_ID,
       type: 'line',
       source: FOCUS_SOURCE_ID,
+      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon'], ['==', '$type', 'LineString'], ['==', '$type', 'MultiLineString']],
       layout: {
         'line-join': 'round'
       },
@@ -461,7 +476,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_HALO_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', ['geometry-type'], 'Point'],
+      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 12, 22, 16, 28],
         'circle-color': '#1f7cff',
@@ -476,7 +491,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_RING_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', ['geometry-type'], 'Point'],
+      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 13, 16, 16],
         'circle-color': 'rgba(0,0,0,0)',
@@ -492,7 +507,7 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_CIRCLE_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', ['geometry-type'], 'Point'],
+      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 12, 6.8, 16, 8.8],
         'circle-color': '#1f7cff',

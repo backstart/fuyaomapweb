@@ -1,18 +1,19 @@
 import { ref, shallowRef } from 'vue';
-import maplibregl, { type Map, type MapOptions } from 'maplibre-gl';
+import type { Map, MapOptions } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
+import { ensureMapLibreRuntime, maplibregl } from '@/utils/maplibreRuntime';
 import { getPmtilesInitialView, resolveMapStyle } from '@/utils/mapStyle';
 
 // 仅在 PMTiles 头信息不可用时兜底使用。
 const DEFAULT_CENTER: [number, number] = [113.2644, 23.1291];
 const DEFAULT_ZOOM = 10.5;
-
 export function useMapLibre() {
   const map = shallowRef<Map | null>(null);
   const ready = ref(false);
 
   async function initMap(container: HTMLElement, options: Partial<MapOptions> = {}): Promise<Map> {
     const pmtilesUrl = appConfig.pmtilesUrl;
+    ensureMapLibreRuntime();
     // 样式解析和初始视图读取并行执行，减少地图首屏等待时间。
     const [style, initialView] = await Promise.all([
       resolveMapStyle(pmtilesUrl),
