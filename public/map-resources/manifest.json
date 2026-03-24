@@ -2,18 +2,44 @@
   "name": "Fuyao Basemap",
   "version": "0.1.0",
   "styleUrl": "/map-resources/styles/amap-like.json",
+  "styles": {
+    "amap-like": "/map-resources/styles/amap-like.json"
+  },
   "tilesUrl": "/tiles/city.pmtiles",
   "demoUrl": "/map-resources/examples/maplibre-demo.html",
+  "embeddedUrl": "/map-resources/embedded.html",
+  "embeddedDemoUrl": "/map-resources/examples/embedded-demo.html",
   "readmeUrl": "/map-resources/README.txt",
   "supportedClients": [
     "MapLibre GL JS",
     "Web/H5 clients compatible with MapLibre",
-    "PMTiles-enabled basemap consumers"
+    "PMTiles-enabled basemap consumers",
+    "uni-app web-view containers"
   ],
   "defaultCenter": [
     113.4445,
     22.4915
   ],
   "defaultZoom": 9,
-  "description": "Fuyao 内网 PMTiles 底图标准资源出口，提供 AMap-like style、manifest 与 MapLibre 接入示例。"
+  "description": "Fuyao 内网 PMTiles 底图标准资源出口，提供 AMap-like style、manifest、嵌入式地图页与接入示例。",
+  "embedded": {
+    "messageSource": "fuyaomap-embedded",
+    "supportedModes": [
+      "view",
+      "pick"
+    ],
+    "inboundTypes": [
+      "set-center",
+      "set-zoom",
+      "fly-to",
+      "set-marker",
+      "clear-marker"
+    ],
+    "outboundTypes": [
+      "map-ready",
+      "map-click",
+      "marker-click",
+      "viewport-change"
+    ]
+  }
 }
