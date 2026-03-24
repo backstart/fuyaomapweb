@@ -1,0 +1,19 @@
+{
+  "name": "Fuyao Basemap",
+  "version": "0.1.0",
+  "styleUrl": "/map-resources/styles/amap-like.json",
+  "tilesUrl": "/tiles/city.pmtiles",
+  "demoUrl": "/map-resources/examples/maplibre-demo.html",
+  "readmeUrl": "/map-resources/README.txt",
+  "supportedClients": [
+    "MapLibre GL JS",
+    "Web/H5 clients compatible with MapLibre",
+    "PMTiles-enabled basemap consumers"
+  ],
+  "defaultCenter": [
+    113.4445,
+    22.4915
+  ],
+  "defaultZoom": 9,
+  "description": "Fuyao 内网 PMTiles 底图标准资源出口，提供 AMap-like style、manifest 与 MapLibre 接入示例。"
+}

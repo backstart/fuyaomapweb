@@ -68,6 +68,8 @@ function loadArchive(url: string): PMTiles {
 }
 
 function buildPmtilesVectorStyle(url: string, sourceLayers: string[]): StyleSpecification {
+  // 后台运行时样式与 /map-resources/styles/amap-like.json 共用同一套 builder，
+  // 避免内部地图与对外导出底图逐步演化成两套视觉配置。
   const amapLikeStyle = buildAmapLikePmtilesStyle(url, sourceLayers);
   if (amapLikeStyle) {
     return amapLikeStyle;

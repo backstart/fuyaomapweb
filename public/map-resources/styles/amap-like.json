@@ -1,0 +1,1356 @@
+{
+  "version": 8,
+  "name": "Fuyao Basemap AMap Like",
+  "sources": {
+    "pmtiles-basemap": {
+      "type": "vector",
+      "url": "pmtiles:///tiles/city.pmtiles",
+      "attribution": "<a href=\"https://www.openmaptiles.org/\" target=\"_blank\">&copy; OpenMapTiles</a> <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">&copy; OpenStreetMap contributors</a>"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f6f4ef"
+      }
+    },
+    {
+      "id": "landcover-green",
+      "type": "fill",
+      "source": "pmtiles-basemap",
+      "source-layer": "landcover",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "grass",
+              "park",
+              "garden",
+              "forest",
+              "wood",
+              "nature_reserve",
+              "golf_course",
+              "meadow"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "grass",
+              "park",
+              "garden",
+              "forest",
+              "wood",
+              "nature_reserve",
+              "golf_course",
+              "meadow"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 4,
+      "paint": {
+        "fill-color": "#dfead6",
+        "fill-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          0.44,
+          9,
+          0.56,
+          14,
+          0.68
+        ]
+      }
+    },
+    {
+      "id": "water-fill",
+      "type": "fill",
+      "source": "pmtiles-basemap",
+      "source-layer": "water",
+      "filter": [
+        "==",
+        [
+          "geometry-type"
+        ],
+        "Polygon"
+      ],
+      "paint": {
+        "fill-color": "#cfe3f5",
+        "fill-opacity": 0.96
+      }
+    },
+    {
+      "id": "waterway-line",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "waterway",
+      "filter": [
+        "==",
+        [
+          "geometry-type"
+        ],
+        "LineString"
+      ],
+      "minzoom": 7,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#b8d4ee",
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          7,
+          0.35,
+          10,
+          0.62,
+          15,
+          0.86
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          7,
+          0.4,
+          11,
+          1.15,
+          16,
+          2.1
+        ]
+      }
+    },
+    {
+      "id": "boundary-line",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "boundary",
+      "filter": [
+        "==",
+        [
+          "geometry-type"
+        ],
+        "LineString"
+      ],
+      "minzoom": 4,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#ccd2da",
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          0.16,
+          8,
+          0.3,
+          12,
+          0.5
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          0.45,
+          8,
+          0.8,
+          12,
+          1.2
+        ],
+        "line-dasharray": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "road-major-casing",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "motorway",
+              "trunk"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "motorway",
+              "trunk"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 5,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#d7dbe3",
+        "line-opacity": 0.88,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          1.3,
+          9,
+          2.4,
+          13,
+          6.8,
+          17,
+          14
+        ]
+      }
+    },
+    {
+      "id": "road-major-fill",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "motorway",
+              "trunk"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "motorway",
+              "trunk"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 5,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#ffffff",
+        "line-opacity": 0.96,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.8,
+          9,
+          1.7,
+          13,
+          5.6,
+          17,
+          12
+        ]
+      }
+    },
+    {
+      "id": "road-primary-casing",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "primary"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "primary"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 8,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#dde1e7",
+        "line-opacity": 0.86,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          8,
+          1.05,
+          11,
+          1.9,
+          15,
+          8,
+          17,
+          11
+        ]
+      }
+    },
+    {
+      "id": "road-primary-fill",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "primary"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "primary"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 8,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#ffffff",
+        "line-opacity": 0.96,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          8,
+          0.64,
+          11,
+          1.3,
+          15,
+          6.6,
+          17,
+          9.8
+        ]
+      }
+    },
+    {
+      "id": "road-secondary-casing",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "secondary",
+              "tertiary"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "secondary",
+              "tertiary"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 10,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#e3e6eb",
+        "line-opacity": 0.82,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          10,
+          0.9,
+          13,
+          1.5,
+          16,
+          5.8
+        ]
+      }
+    },
+    {
+      "id": "road-secondary-fill",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "secondary",
+              "tertiary"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "secondary",
+              "tertiary"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 10,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#ffffff",
+        "line-opacity": 0.94,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          10,
+          0.48,
+          13,
+          1.05,
+          16,
+          4.6
+        ]
+      }
+    },
+    {
+      "id": "road-local-casing",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "minor",
+              "residential",
+              "service",
+              "street",
+              "unclassified",
+              "living_street"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "minor",
+              "residential",
+              "service",
+              "street",
+              "unclassified",
+              "living_street"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 13,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#eaedf1",
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.45,
+          16,
+          0.82
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.7,
+          16,
+          3.2,
+          18,
+          5
+        ]
+      }
+    },
+    {
+      "id": "road-local-fill",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "minor",
+              "residential",
+              "service",
+              "street",
+              "unclassified",
+              "living_street"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "minor",
+              "residential",
+              "service",
+              "street",
+              "unclassified",
+              "living_street"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 13,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#ffffff",
+        "line-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.6,
+          16,
+          0.94
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.42,
+          16,
+          2.4,
+          18,
+          3.9
+        ]
+      }
+    },
+    {
+      "id": "road-path",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "path",
+              "track",
+              "pedestrian",
+              "footway",
+              "cycleway"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "path",
+              "track",
+              "pedestrian",
+              "footway",
+              "cycleway"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 15,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#d7dbe0",
+        "line-opacity": 0.82,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          0.7,
+          18,
+          1.5
+        ],
+        "line-dasharray": [
+          1.4,
+          1.2
+        ]
+      }
+    },
+    {
+      "id": "rail-line",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "match",
+            [
+              "get",
+              "class"
+            ],
+            [
+              "rail",
+              "transit",
+              "major_rail",
+              "minor_rail",
+              "service_rail"
+            ],
+            true,
+            false
+          ],
+          [
+            "match",
+            [
+              "get",
+              "subclass"
+            ],
+            [
+              "rail",
+              "transit",
+              "major_rail",
+              "minor_rail",
+              "service_rail"
+            ],
+            true,
+            false
+          ]
+        ]
+      ],
+      "minzoom": 10,
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#c3c9d1",
+        "line-opacity": 0.72,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          10,
+          0.8,
+          14,
+          1.8,
+          17,
+          2.7
+        ],
+        "line-dasharray": [
+          2.2,
+          1.4
+        ]
+      }
+    },
+    {
+      "id": "building-fill",
+      "type": "fill",
+      "source": "pmtiles-basemap",
+      "source-layer": "building",
+      "filter": [
+        "==",
+        [
+          "geometry-type"
+        ],
+        "Polygon"
+      ],
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#e8e3dc",
+        "fill-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.52,
+          16,
+          0.78
+        ]
+      }
+    },
+    {
+      "id": "building-outline",
+      "type": "line",
+      "source": "pmtiles-basemap",
+      "source-layer": "building",
+      "filter": [
+        "==",
+        [
+          "geometry-type"
+        ],
+        "Polygon"
+      ],
+      "minzoom": 14,
+      "paint": {
+        "line-color": "#d8d1c9",
+        "line-opacity": 0.72,
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          14,
+          0.45,
+          17,
+          0.9
+        ]
+      }
+    },
+    {
+      "id": "place-label",
+      "type": "symbol",
+      "source": "pmtiles-basemap",
+      "source-layer": "place",
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "geometry-type"
+          ],
+          [
+            "Point",
+            "Polygon"
+          ],
+          true,
+          false
+        ],
+        [
+          "any",
+          [
+            "has",
+            "name:zh"
+          ],
+          [
+            "has",
+            "name"
+          ],
+          [
+            "has",
+            "name_en"
+          ],
+          [
+            "has",
+            "ref"
+          ]
+        ]
+      ],
+      "minzoom": 4,
+      "layout": {
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "name:zh"
+          ],
+          [
+            "get",
+            "name"
+          ],
+          [
+            "get",
+            "name_en"
+          ],
+          [
+            "get",
+            "ref"
+          ],
+          ""
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          4,
+          10.5,
+          7,
+          11.5,
+          11,
+          13.5,
+          15,
+          16.5
+        ],
+        "text-max-width": 8,
+        "text-letter-spacing": 0.02,
+        "text-padding": 4,
+        "text-optional": true,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#445363",
+        "text-halo-color": "rgba(246, 244, 239, 0.94)",
+        "text-halo-width": 1.4,
+        "text-halo-blur": 0.6
+      }
+    },
+    {
+      "id": "road-label",
+      "type": "symbol",
+      "source": "pmtiles-basemap",
+      "source-layer": "transportation_name",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "has",
+            "name:zh"
+          ],
+          [
+            "has",
+            "name"
+          ],
+          [
+            "has",
+            "name_en"
+          ],
+          [
+            "has",
+            "ref"
+          ]
+        ],
+        [
+          "!",
+          [
+            "any",
+            [
+              "match",
+              [
+                "get",
+                "class"
+              ],
+              [
+                "rail",
+                "transit",
+                "major_rail",
+                "minor_rail",
+                "service_rail"
+              ],
+              true,
+              false
+            ],
+            [
+              "match",
+              [
+                "get",
+                "subclass"
+              ],
+              [
+                "rail",
+                "transit",
+                "major_rail",
+                "minor_rail",
+                "service_rail"
+              ],
+              true,
+              false
+            ]
+          ]
+        ]
+      ],
+      "minzoom": 11,
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 380,
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "name:zh"
+          ],
+          [
+            "get",
+            "name"
+          ],
+          [
+            "get",
+            "name_en"
+          ],
+          [
+            "get",
+            "ref"
+          ],
+          ""
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          11,
+          10,
+          14,
+          11.5,
+          16,
+          12.5,
+          18,
+          14
+        ],
+        "text-padding": 2,
+        "text-max-angle": 32,
+        "text-keep-upright": true,
+        "text-optional": true,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#5a6676",
+        "text-halo-color": "rgba(255, 255, 255, 0.96)",
+        "text-halo-width": 1.5,
+        "text-halo-blur": 0.45
+      }
+    },
+    {
+      "id": "poi-label",
+      "type": "symbol",
+      "source": "pmtiles-basemap",
+      "source-layer": "poi",
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "geometry-type"
+          ],
+          [
+            "Point",
+            "Polygon"
+          ],
+          true,
+          false
+        ],
+        [
+          "any",
+          [
+            "has",
+            "name:zh"
+          ],
+          [
+            "has",
+            "name"
+          ],
+          [
+            "has",
+            "name_en"
+          ],
+          [
+            "has",
+            "ref"
+          ]
+        ]
+      ],
+      "minzoom": 13,
+      "layout": {
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "name:zh"
+          ],
+          [
+            "get",
+            "name"
+          ],
+          [
+            "get",
+            "name_en"
+          ],
+          [
+            "get",
+            "ref"
+          ],
+          ""
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          10,
+          15,
+          11,
+          17,
+          12.5
+        ],
+        "text-max-width": 10,
+        "text-padding": 6,
+        "text-variable-anchor": [
+          "top",
+          "bottom",
+          "left",
+          "right"
+        ],
+        "text-radial-offset": 0.65,
+        "text-justify": "auto",
+        "text-optional": true,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#495768",
+        "text-halo-color": "rgba(255, 255, 255, 0.96)",
+        "text-halo-width": 1.35,
+        "text-halo-blur": 0.5
+      }
+    }
+  ],
+  "center": [
+    113.4445,
+    22.4915
+  ],
+  "zoom": 9,
+  "metadata": {
+    "resourceType": "fuyao-basemap",
+    "manifestUrl": "/map-resources/manifest.json",
+    "tilesUrl": "/tiles/city.pmtiles",
+    "generatedAt": "2026-03-24T13:22:31.553Z"
+  }
+}

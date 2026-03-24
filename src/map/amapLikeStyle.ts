@@ -55,6 +55,13 @@ interface SymbolLayerOptions {
   paint: SymbolLayerSpecification['paint'];
 }
 
+export interface AmapLikePmtilesStyleOptions {
+  styleName?: string;
+  sourceAttribution?: string;
+  center?: [number, number];
+  zoom?: number;
+}
+
 function pickSourceLayer(sourceLayers: string[], candidates: readonly string[]): string | null {
   return candidates.find((candidate) => sourceLayers.includes(candidate)) ?? null;
 }
@@ -616,7 +623,11 @@ function appendLabelLayers(layers: LayerSpecification[], layerSelection: Basemap
   }
 }
 
-export function buildAmapLikePmtilesStyle(url: string, sourceLayers: string[]): StyleSpecification | null {
+export function buildAmapLikePmtilesStyle(
+  url: string,
+  sourceLayers: string[],
+  options: AmapLikePmtilesStyleOptions = {}
+): StyleSpecification | null {
   const layerSelection = selectBasemapLayers(sourceLayers);
 
   const hasKnownLayers = [
@@ -650,15 +661,31 @@ export function buildAmapLikePmtilesStyle(url: string, sourceLayers: string[]): 
   appendBuildingLayers(layers, layerSelection.buildingLayer);
   appendLabelLayers(layers, layerSelection);
 
-  return {
+  const sourceDefinition: StyleSpecification['sources'][typeof BASEMAP_SOURCE_ID] = {
+    type: 'vector',
+    url: `pmtiles://${url}`
+  };
+
+  if (options.sourceAttribution?.trim()) {
+    sourceDefinition.attribution = options.sourceAttribution.trim();
+  }
+
+  const style: StyleSpecification = {
     version: 8,
-    name: 'Fuyao AMap Like',
+    name: options.styleName?.trim() || 'Fuyao AMap Like',
     sources: {
-      [BASEMAP_SOURCE_ID]: {
-        type: 'vector',
-        url: `pmtiles://${url}`
-      }
+      [BASEMAP_SOURCE_ID]: sourceDefinition
     },
     layers
   };
+
+  if (options.center) {
+    style.center = options.center;
+  }
+
+  if (typeof options.zoom === 'number' && Number.isFinite(options.zoom)) {
+    style.zoom = options.zoom;
+  }
+
+  return style;
 }
