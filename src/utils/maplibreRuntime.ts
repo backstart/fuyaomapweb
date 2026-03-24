@@ -1,27 +1,28 @@
-import type * as MapLibreTypes from 'maplibre-gl';
-import maplibreglImport from 'maplibre-gl/dist/maplibre-gl-csp.js';
+import maplibregl from 'maplibre-gl/dist/maplibre-gl-csp.js';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?url';
 
-type MapLibreModule = typeof MapLibreTypes;
+type MapLibreModule = typeof import('maplibre-gl');
+type ProtocolHandler = NonNullable<MapLibreModule['addProtocol']> extends (name: string, handler: infer T) => unknown ? T : (...args: unknown[]) => unknown;
 
-export const maplibregl = maplibreglImport as unknown as MapLibreModule;
+const registeredProtocolNames = new Set<string>();
 
-let workerConfigured = false;
+export { maplibregl };
 
 export function ensureMapLibreRuntime(): void {
-  if (workerConfigured) {
+  if (typeof maplibregl.setWorkerUrl === 'function') {
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  }
+}
+
+export function registerMapLibreProtocol(name: string, handler: ProtocolHandler): void {
+  if (registeredProtocolNames.has(name)) {
     return;
   }
 
-  if (typeof maplibregl.setWorkerUrl === 'function') {
-    maplibregl.setWorkerUrl(maplibreWorkerUrl);
-  } else if (maplibregl.config && typeof maplibregl.config === 'object') {
-    maplibregl.config.WORKER_URL = maplibreWorkerUrl;
+  if (typeof maplibregl.addProtocol !== 'function') {
+    throw new Error(`MapLibre protocol registration is unavailable for ${name}.`);
   }
 
-  workerConfigured = true;
-}
-
-export function getMapLibreRegisteredProtocols(): Record<string, unknown> | null {
-  return maplibregl.config?.REGISTERED_PROTOCOLS ?? null;
+  maplibregl.addProtocol(name, handler);
+  registeredProtocolNames.add(name);
 }

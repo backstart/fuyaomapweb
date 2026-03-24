@@ -1,7 +1,7 @@
 import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import { PMTiles, Protocol } from 'pmtiles';
 import { BASEMAP_SOURCE_ID, buildAmapLikePmtilesStyle } from '@/map/amapLikeStyle';
-import { getMapLibreRegisteredProtocols } from '@/utils/maplibreRuntime';
+import { registerMapLibreProtocol } from '@/utils/maplibreRuntime';
 
 // 这里只关心前端构造 style 需要的最小 PMTiles 元数据。
 interface VectorLayerMetadata {
@@ -43,12 +43,7 @@ function ensureProtocol(): Protocol {
   // pmtiles:// 协议是全局注册的，同一页面生命周期内只做一次。
   protocolInstance = new Protocol();
   if (!protocolRegistered) {
-    const registeredProtocols = getMapLibreRegisteredProtocols();
-    if (!registeredProtocols) {
-      throw new Error('MapLibre protocol registry is unavailable for pmtiles.');
-    }
-
-    registeredProtocols.pmtiles = protocolInstance.tile;
+    registerMapLibreProtocol('pmtiles', protocolInstance.tile);
     protocolRegistered = true;
   }
 

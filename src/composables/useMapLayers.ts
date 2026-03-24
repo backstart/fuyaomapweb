@@ -370,7 +370,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_FILL_LAYER_ID,
       type: 'fill',
       source: PLACE_SOURCE_ID,
-      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon']],
       paint: {
         'fill-color': '#7b78d6',
         'fill-opacity': 0.08
@@ -383,7 +382,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_LINE_LAYER_ID,
       type: 'line',
       source: PLACE_SOURCE_ID,
-      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon'], ['==', '$type', 'LineString'], ['==', '$type', 'MultiLineString']],
       layout: {
         'line-join': 'round'
       },
@@ -400,7 +398,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: PLACE_CIRCLE_LAYER_ID,
       type: 'circle',
       source: PLACE_SOURCE_ID,
-      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.8, 16, 8],
         'circle-color': '#6f6ad2',
@@ -446,7 +443,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_FILL_LAYER_ID,
       type: 'fill',
       source: FOCUS_SOURCE_ID,
-      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon']],
       paint: {
         'fill-color': '#1f7cff',
         'fill-opacity': 0.18
@@ -459,7 +455,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_LINE_LAYER_ID,
       type: 'line',
       source: FOCUS_SOURCE_ID,
-      filter: ['any', ['==', '$type', 'Polygon'], ['==', '$type', 'MultiPolygon'], ['==', '$type', 'LineString'], ['==', '$type', 'MultiLineString']],
       layout: {
         'line-join': 'round'
       },
@@ -476,7 +471,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_HALO_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 12, 22, 16, 28],
         'circle-color': '#1f7cff',
@@ -491,7 +485,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_RING_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 13, 16, 16],
         'circle-color': 'rgba(0,0,0,0)',
@@ -507,7 +500,6 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       id: FOCUS_CIRCLE_LAYER_ID,
       type: 'circle',
       source: FOCUS_SOURCE_ID,
-      filter: ['==', '$type', 'Point'],
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 12, 6.8, 16, 8.8],
         'circle-color': '#1f7cff',
@@ -539,15 +531,29 @@ export function updateFocusedEntity(map: MapLibreMap, target: MapFocusTarget | n
 }
 
 export function setBusinessLayerVisibility(map: MapLibreMap, visibility: LayerVisibility): void {
-  map.setLayoutProperty(SHOP_LAYER_ID, 'visibility', visibility.shops ? 'visible' : 'none');
-  map.setLayoutProperty(AREA_FILL_LAYER_ID, 'visibility', visibility.areas ? 'visible' : 'none');
-  map.setLayoutProperty(AREA_LINE_LAYER_ID, 'visibility', visibility.areas ? 'visible' : 'none');
-  map.setLayoutProperty(POI_LAYER_ID, 'visibility', visibility.pois ? 'visible' : 'none');
-  map.setLayoutProperty(PLACE_FILL_LAYER_ID, 'visibility', visibility.places ? 'visible' : 'none');
-  map.setLayoutProperty(PLACE_LINE_LAYER_ID, 'visibility', visibility.places ? 'visible' : 'none');
-  map.setLayoutProperty(PLACE_CIRCLE_LAYER_ID, 'visibility', visibility.places ? 'visible' : 'none');
-  map.setLayoutProperty(BOUNDARY_FILL_LAYER_ID, 'visibility', visibility.boundaries ? 'visible' : 'none');
-  map.setLayoutProperty(BOUNDARY_LINE_LAYER_ID, 'visibility', visibility.boundaries ? 'visible' : 'none');
+  const setVisibility = (layerId: string, show: boolean): void => {
+    if (!map.getLayer(layerId)) {
+      return;
+    }
+
+    try {
+      map.setLayoutProperty(layerId, 'visibility', show ? 'visible' : 'none');
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn(`[MapLayers] failed to update visibility for ${layerId}`, error);
+      }
+    }
+  };
+
+  setVisibility(SHOP_LAYER_ID, visibility.shops);
+  setVisibility(AREA_FILL_LAYER_ID, visibility.areas);
+  setVisibility(AREA_LINE_LAYER_ID, visibility.areas);
+  setVisibility(POI_LAYER_ID, visibility.pois);
+  setVisibility(PLACE_FILL_LAYER_ID, visibility.places);
+  setVisibility(PLACE_LINE_LAYER_ID, visibility.places);
+  setVisibility(PLACE_CIRCLE_LAYER_ID, visibility.places);
+  setVisibility(BOUNDARY_FILL_LAYER_ID, visibility.boundaries);
+  setVisibility(BOUNDARY_LINE_LAYER_ID, visibility.boundaries);
 }
 
 export function registerBusinessLayerEvents(map: MapLibreMap, handlers: BusinessLayerHandlers): void {
