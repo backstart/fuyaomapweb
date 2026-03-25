@@ -214,6 +214,10 @@
             <option value="pick" selected>pick</option>
           </select>
         </label>
+        <label>
+          Layers
+          <input id="layersInput" value="shops,areas" />
+        </label>
         <div class="button-row">
           <button id="loadButton">Load Embedded Map</button>
           <button id="reloadButton" class="secondary">Reload Iframe</button>
@@ -229,6 +233,14 @@
         <div class="button-row">
           <button id="clearMarkerButton" class="secondary">Clear Marker</button>
           <button id="zoomInButton" class="secondary">Zoom In</button>
+        </div>
+        <div class="button-row">
+          <button id="setLayersButton" class="secondary">Set Layers</button>
+          <button id="showPoisButton" class="secondary">Show POIs</button>
+        </div>
+        <div class="button-row">
+          <button id="hideAreasButton" class="secondary">Hide Areas</button>
+          <button id="showBoundariesButton" class="secondary">Show Boundaries</button>
         </div>
       </div>
 
@@ -265,11 +277,13 @@
       const zoom = document.getElementById('zoomInput').value.trim();
       const marker = document.getElementById('markerInput').value.trim();
       const mode = document.getElementById('modeInput').value;
+      const layers = document.getElementById('layersInput').value.trim();
 
       if (center) params.set('center', center);
       if (zoom) params.set('zoom', zoom);
       if (marker) params.set('marker', marker);
       if (mode) params.set('mode', mode);
+      if (layers) params.set('layers', layers);
 
       return params.toString() ? `${embeddedBaseUrl}?${params.toString()}` : embeddedBaseUrl;
     }
@@ -314,6 +328,12 @@
         } else {
           selectedPointEl.textContent = 'Marker cleared.';
         }
+        return;
+      }
+
+      if (message.type === 'layers-ready' || message.type === 'layers-changed') {
+        const enabledLayers = Array.isArray(message.payload?.enabledLayers) ? message.payload.enabledLayers.join(', ') : 'none';
+        selectedPointEl.textContent = `Layers: ${enabledLayers || 'none'}`;
       }
     }
 
@@ -334,6 +354,19 @@
     });
     document.getElementById('zoomInButton').addEventListener('click', () => {
       postCommand('set-zoom', { zoom: Number(document.getElementById('zoomInput').value || '12') + 1 });
+    });
+    document.getElementById('setLayersButton').addEventListener('click', () => {
+      const layers = document.getElementById('layersInput').value.trim();
+      postCommand('set-layers', { layers: layers ? layers.split(',').map((item) => item.trim()).filter(Boolean) : [] });
+    });
+    document.getElementById('showPoisButton').addEventListener('click', () => {
+      postCommand('show-layer', { layer: 'pois' });
+    });
+    document.getElementById('hideAreasButton').addEventListener('click', () => {
+      postCommand('hide-layer', { layer: 'areas' });
+    });
+    document.getElementById('showBoundariesButton').addEventListener('click', () => {
+      postCommand('show-layer', { layer: 'boundaries' });
     });
 
     window.addEventListener('message', (event) => {

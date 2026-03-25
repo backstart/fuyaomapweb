@@ -29,19 +29,35 @@
       "view",
       "pick"
     ],
+    "availableLayers": [
+      "shops",
+      "areas",
+      "pois",
+      "places",
+      "boundaries"
+    ],
+    "defaultLayers": [
+      "shops",
+      "areas"
+    ],
     "inboundTypes": [
       "set-center",
       "set-zoom",
       "fly-to",
       "set-marker",
-      "clear-marker"
+      "clear-marker",
+      "set-layers",
+      "show-layer",
+      "hide-layer"
     ],
     "outboundTypes": [
       "map-ready",
       "map-click",
       "marker-updated",
       "marker-click",
-      "viewport-change"
+      "viewport-change",
+      "layers-ready",
+      "layers-changed"
     ]
   }
 }

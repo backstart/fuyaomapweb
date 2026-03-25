@@ -153,8 +153,9 @@
       <span id="embedded-mode" class="badge">VIEW</span>
       <span id="embedded-status" class="badge">Loading</span>
     </div>
-    <p id="embedded-hint" class="hint">URL 参数可控制 center / zoom / marker / mode。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图。</p>
+    <p id="embedded-hint" class="hint">URL 参数可控制 center / zoom / marker / mode / layers。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图和业务图层。</p>
     <p id="embedded-coordinates" class="coords">--</p>
+    <p id="embedded-layer-state" class="hint">业务图层：--</p>
     <div class="actions">
       <button id="embedded-recenter-button" class="action-button" type="button">回到起始位置</button>
       <button id="embedded-clear-button" class="action-button" type="button" disabled>清除标记</button>
@@ -172,6 +173,7 @@
       window.maplibregl.addProtocol('pmtiles', window.__FUYAO_PMTILES_PROTOCOL__.tile);
     }
   </script>
+  <script src="./scripts/fuyaomap-business-layers.js"></script>
   <script src="./scripts/fuyaomap-embedded.js"></script>
 </body>
 </html>

@@ -3,12 +3,14 @@
 
   var EMBEDDED_SOURCE = 'fuyaomap-embedded';
   var DEFAULT_STYLE_NAME = 'amap-like';
+  var DEFAULT_BUSINESS_LAYERS = ['shops', 'areas'];
   var UNI_BRIDGE_QUEUE = [];
 
   var state = {
     manifest: null,
     map: null,
     markers: [],
+    layerManager: null,
     config: null,
     mapReady: false,
     pendingMessages: [],
@@ -163,11 +165,56 @@
     return new URLSearchParams(window.location.search);
   }
 
+  function normalizeBusinessLayers(rawLayers, fallbackLayers, allowEmpty) {
+    if (window.FuyaoBusinessLayerManager && typeof window.FuyaoBusinessLayerManager.normalizeLayerList === 'function') {
+      return window.FuyaoBusinessLayerManager.normalizeLayerList(rawLayers, fallbackLayers, allowEmpty);
+    }
+
+    var baseFallback = Array.isArray(fallbackLayers) ? fallbackLayers : DEFAULT_BUSINESS_LAYERS;
+    var rawCandidates = [];
+
+    if (Array.isArray(rawLayers)) {
+      rawCandidates = rawLayers;
+    } else if (typeof rawLayers === 'string' && rawLayers.trim()) {
+      rawCandidates = rawLayers.split(',');
+    }
+
+    var layers = [];
+    rawCandidates.forEach(function (item) {
+      if (typeof item !== 'string') {
+        return;
+      }
+
+      var normalized = item.trim().toLowerCase();
+      if (!normalized || DEFAULT_BUSINESS_LAYERS.concat(['pois', 'places', 'boundaries']).indexOf(normalized) === -1) {
+        return;
+      }
+
+      if (layers.indexOf(normalized) === -1) {
+        layers.push(normalized);
+      }
+    });
+
+    if (!layers.length && !allowEmpty) {
+      return baseFallback.slice();
+    }
+
+    return layers;
+  }
+
   function buildInitialConfig(manifest) {
     var params = getParams();
     var marker = parseLngLat(params.get('marker'));
     var markers = parseMarkers(params.get('markers'));
     var center = parseLngLat(params.get('center'));
+    var defaultLayers = normalizeBusinessLayers(
+      manifest && manifest.embedded ? manifest.embedded.defaultLayers : DEFAULT_BUSINESS_LAYERS,
+      DEFAULT_BUSINESS_LAYERS,
+      false
+    );
+    var layers = params.has('layers')
+      ? normalizeBusinessLayers(params.get('layers'), [], true)
+      : defaultLayers;
 
     if (!center) {
       if (marker) {
@@ -199,12 +246,7 @@
       pitch: pitch === null ? 0 : clamp(pitch, 0, 60),
       mode: parseMode(params.get('mode')),
       keyword: params.get('keyword') || '',
-      layers: (params.get('layers') || '')
-        .split(',')
-        .map(function (item) {
-          return item.trim();
-        })
-        .filter(Boolean),
+      layers: layers,
       styleName: params.get('style') || DEFAULT_STYLE_NAME,
       styleUrl: resolveStyleUrl(params.get('style') || DEFAULT_STYLE_NAME, manifest),
       markers: markers,
@@ -321,8 +363,8 @@
     }
 
     hintEl.textContent = mode === 'pick'
-      ? '当前为选点模式，点击地图会自动放置 marker 并回传坐标。宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图。'
-      : '当前为浏览模式，可通过 URL 参数或宿主消息控制中心点、缩放和 marker。';
+      ? '当前为选点模式，点击地图会自动放置 marker 并回传坐标。宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图和业务图层。'
+      : '当前为浏览模式，可通过 URL 参数或宿主消息控制中心点、缩放、marker 和业务图层。';
   }
 
   function getPrimaryMarkerSpec() {
@@ -338,6 +380,20 @@
     if (clearButton) {
       clearButton.disabled = state.markers.length === 0;
     }
+  }
+
+  function setLayerStateText(enabledLayers) {
+    var layerStateEl = document.getElementById('embedded-layer-state');
+    if (!layerStateEl) {
+      return;
+    }
+
+    if (!Array.isArray(enabledLayers) || enabledLayers.length === 0) {
+      layerStateEl.textContent = '业务图层：未启用';
+      return;
+    }
+
+    layerStateEl.textContent = '业务图层：' + enabledLayers.join(', ');
   }
 
   function applyModeUi(mode) {
@@ -463,6 +519,53 @@
     }
   }
 
+  function buildLayerStatePayload(layerState) {
+    var enabledLayers = normalizeBusinessLayers(
+      layerState && Array.isArray(layerState.enabledLayers) ? layerState.enabledLayers : state.config && state.config.layers,
+      [],
+      true
+    );
+
+    return {
+      enabledLayers: enabledLayers,
+      availableLayers: normalizeBusinessLayers(
+        layerState && Array.isArray(layerState.availableLayers) ? layerState.availableLayers : DEFAULT_BUSINESS_LAYERS.concat(['pois', 'places', 'boundaries']),
+        DEFAULT_BUSINESS_LAYERS.concat(['pois', 'places', 'boundaries']),
+        false
+      )
+    };
+  }
+
+  function applyLayerState(layerState) {
+    var payload = buildLayerStatePayload(layerState);
+
+    if (state.config) {
+      state.config.layers = payload.enabledLayers.slice();
+    }
+
+    setLayerStateText(payload.enabledLayers);
+    return payload;
+  }
+
+  function initializeBusinessLayers() {
+    if (!state.map || !state.config || !window.FuyaoBusinessLayerManager || typeof window.FuyaoBusinessLayerManager.create !== 'function') {
+      setLayerStateText(state.config ? state.config.layers : []);
+      return;
+    }
+
+    state.layerManager = window.FuyaoBusinessLayerManager.create(state.map, {
+      defaultLayers: state.config.layers,
+      onReady: function (layerState) {
+        var payload = applyLayerState(layerState);
+        emitHostMessage('layers-ready', payload);
+      },
+      onChange: function (layerState) {
+        var payload = applyLayerState(layerState);
+        emitHostMessage('layers-changed', payload);
+      }
+    });
+  }
+
   function toMessageCandidates(rawMessage) {
     if (rawMessage && typeof rawMessage === 'object' && Array.isArray(rawMessage.data) && typeof rawMessage.type !== 'string') {
       return rawMessage.data;
@@ -581,6 +684,27 @@
 
     if (message.type === 'clear-marker') {
       clearMarkers({ action: 'host-clear' });
+      return;
+    }
+
+    if (message.type === 'set-layers') {
+      if (state.layerManager && typeof state.layerManager.setLayers === 'function') {
+        state.layerManager.setLayers(payload.layers || payload.layerList || payload);
+      }
+      return;
+    }
+
+    if (message.type === 'show-layer') {
+      if (state.layerManager && typeof state.layerManager.showLayer === 'function') {
+        state.layerManager.showLayer(payload.layer || payload.name || payload.id);
+      }
+      return;
+    }
+
+    if (message.type === 'hide-layer') {
+      if (state.layerManager && typeof state.layerManager.hideLayer === 'function') {
+        state.layerManager.hideLayer(payload.layer || payload.name || payload.id);
+      }
     }
   }
 
@@ -704,6 +828,9 @@
         setMarkers(initialMarkers, { emitEvent: false });
       }
 
+      setLayerStateText(config.layers);
+      initializeBusinessLayers();
+
       emitHostMessage('map-ready', {
         mode: config.mode,
         styleUrl: config.styleUrl,
@@ -763,6 +890,7 @@
     applyModeUi('view');
     setStatusText('Loading');
     setCoordinatesText('--');
+    setLayerStateText([]);
     updateActionButtons();
 
     loadManifest(manifestUrl)
@@ -804,10 +932,24 @@
     setMarker: function (marker) {
       return dispatchCommand('set-marker', marker);
     },
+    setLayers: function (layers) {
+      return dispatchCommand('set-layers', { layers: layers });
+    },
+    showLayer: function (layerName) {
+      return dispatchCommand('show-layer', { layer: layerName });
+    },
+    hideLayer: function (layerName) {
+      return dispatchCommand('hide-layer', { layer: layerName });
+    },
     clearMarker: function () {
       return dispatchCommand('clear-marker', {});
     },
     getViewport: getViewportPayload,
+    getLayers: function () {
+      return state.layerManager && typeof state.layerManager.getState === 'function'
+        ? state.layerManager.getState()
+        : buildLayerStatePayload();
+    },
     getSelection: function () {
       return buildMarkerPayload('current');
     }

@@ -37,25 +37,30 @@ new maplibregl.Map({
   - pitch=number
   - marker=lng,lat
   - mode=view|pick
+  - layers=shops,areas,pois,places,boundaries
   - style=amap-like
 - pick 模式行为：
   - 点击地图后会在点击位置落一个默认 marker
   - 同时发送 map-click，payload 至少包含 lng / lat / zoom
   - marker 更新后会发送 marker-updated
+- 业务图层行为：
+  - 未传 layers 时默认启用 shops,areas
+  - 可通过 layers 参数只显示部分业务图层
+  - 地图页会发送 layers-ready / layers-changed 回传当前启用图层
 - 对外消息格式：
   { source: 'fuyaomap-embedded', type: 'map-ready', payload: { ... } }
 - 出站消息：
-  map-ready / map-click / marker-updated / marker-click / viewport-change
+  map-ready / map-click / marker-updated / marker-click / viewport-change / layers-ready / layers-changed
 - 入站控制消息：
-  set-center / set-zoom / fly-to / set-marker / clear-marker
+  set-center / set-zoom / fly-to / set-marker / clear-marker / set-layers / show-layer / hide-layer
 - 页面内全局 API：
-  window.__FUYAO_EMBEDDED_MAP__.setCenter / setZoom / flyTo / setMarker / clearMarker / getViewport / getSelection
+  window.__FUYAO_EMBEDDED_MAP__.setCenter / setZoom / flyTo / setMarker / clearMarker / setLayers / showLayer / hideLayer / getViewport / getSelection / getLayers
 
 普通网页 iframe 接入示例
 -----------------------
 <iframe
   id="fuyaoMap"
-  src="/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12"
+  src="/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas"
   style="width:100%;height:480px;border:0"
 ></iframe>
 
@@ -77,10 +82,9 @@ new maplibregl.Map({
   });
 
   iframe.contentWindow?.postMessage({
-    type: 'fly-to',
+    type: 'set-layers',
     payload: {
-      center: [113.472, 22.507],
-      zoom: 14
+      layers: ['shops', 'areas', 'pois']
     }
   }, '*');
 </script>
@@ -101,7 +105,7 @@ uni-app web-view 接入示例
 export default {
   data() {
     return {
-      embeddedSrc: '/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12'
+      embeddedSrc: '/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas'
     };
   },
   methods: {
@@ -125,6 +129,11 @@ export default {
     setMarkerFromHost(lng, lat) {
       this.$refs.mapView?.evalJS?.(
         `window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.setMarker({ lng: ${lng}, lat: ${lat} })`
+      );
+    },
+    showPoiLayer() {
+      this.$refs.mapView?.evalJS?.(
+        `window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.showLayer('pois')`
       );
     }
   }
