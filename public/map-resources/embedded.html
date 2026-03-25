@@ -105,6 +105,94 @@
       flex-wrap: wrap;
     }
 
+    .search-block {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(33, 52, 70, 0.08);
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+    }
+
+    .search-input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid #d5e1ee;
+      border-radius: 12px;
+      padding: 9px 11px;
+      background: #f8fbff;
+      color: #203243;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .search-button {
+      appearance: none;
+      border: 1px solid #d5e1ee;
+      border-radius: 12px;
+      padding: 9px 11px;
+      background: #1f7cff;
+      color: #f7fbff;
+      font-size: 12px;
+      line-height: 1.2;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(31, 124, 255, 0.18);
+    }
+
+    .search-button.secondary {
+      background: #f8fbff;
+      color: #1e4a72;
+      box-shadow: none;
+    }
+
+    .search-state {
+      margin: 0;
+      font-size: 12px;
+      color: #4b5f72;
+    }
+
+    .search-results {
+      display: grid;
+      gap: 6px;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .search-result-button {
+      display: grid;
+      gap: 4px;
+      width: 100%;
+      border: 1px solid #dbe6f1;
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: #f9fbfe;
+      color: #213446;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease;
+    }
+
+    .search-result-button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(31, 124, 255, 0.34);
+    }
+
+    .search-result-button strong {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .search-result-meta {
+      color: #617386;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
     .action-button {
       appearance: none;
       border: 1px solid #d5e1ee;
@@ -153,9 +241,18 @@
       <span id="embedded-mode" class="badge">VIEW</span>
       <span id="embedded-status" class="badge">Loading</span>
     </div>
-    <p id="embedded-hint" class="hint">URL 参数可控制 center / zoom / marker / mode / layers。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图和业务图层。</p>
+    <p id="embedded-hint" class="hint">URL 参数可控制 center / zoom / marker / mode / layers / keyword。pick 模式下点击地图会落点并回传坐标，宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图、业务图层和搜索定位。</p>
     <p id="embedded-coordinates" class="coords">--</p>
     <p id="embedded-layer-state" class="hint">业务图层：--</p>
+    <div class="search-block">
+      <div class="search-row">
+        <input id="embedded-search-input" class="search-input" type="search" placeholder="搜索门店、POI、地名、区域、边界" />
+        <button id="embedded-search-button" class="search-button" type="button">搜索</button>
+        <button id="embedded-search-clear-button" class="search-button secondary" type="button">清空</button>
+      </div>
+      <p id="embedded-search-state" class="search-state">搜索待命</p>
+      <div id="embedded-search-results" class="search-results" hidden></div>
+    </div>
     <div class="actions">
       <button id="embedded-recenter-button" class="action-button" type="button">回到起始位置</button>
       <button id="embedded-clear-button" class="action-button" type="button" disabled>清除标记</button>
@@ -174,6 +271,7 @@
     }
   </script>
   <script src="./scripts/fuyaomap-business-layers.js"></script>
+  <script src="./scripts/fuyaomap-embedded-search.js"></script>
   <script src="./scripts/fuyaomap-embedded.js"></script>
 </body>
 </html>

@@ -11,6 +11,9 @@
     map: null,
     markers: [],
     layerManager: null,
+    searchManager: null,
+    searchResults: [],
+    manualSearchTriggered: false,
     config: null,
     mapReady: false,
     pendingMessages: [],
@@ -34,6 +37,25 @@
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  function parseBoolean(rawValue, defaultValue) {
+    if (typeof rawValue === 'boolean') {
+      return rawValue;
+    }
+
+    if (typeof rawValue === 'string' && rawValue.trim()) {
+      var normalized = rawValue.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+        return true;
+      }
+
+      if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+        return false;
+      }
+    }
+
+    return defaultValue;
   }
 
   function parseLngLat(rawValue) {
@@ -202,6 +224,14 @@
     return layers;
   }
 
+  function normalizeSearchTypes(rawTypes, fallbackTypes, allowEmpty) {
+    if (window.FuyaoEmbeddedSearch && typeof window.FuyaoEmbeddedSearch.normalizeSearchTypes === 'function') {
+      return window.FuyaoEmbeddedSearch.normalizeSearchTypes(rawTypes, fallbackTypes, allowEmpty);
+    }
+
+    return Array.isArray(fallbackTypes) ? fallbackTypes.slice() : ['shops', 'areas', 'pois', 'places', 'boundaries'];
+  }
+
   function buildInitialConfig(manifest) {
     var params = getParams();
     var marker = parseLngLat(params.get('marker'));
@@ -215,6 +245,14 @@
     var layers = params.has('layers')
       ? normalizeBusinessLayers(params.get('layers'), [], true)
       : defaultLayers;
+    var defaultSearchTypes = normalizeSearchTypes(
+      manifest && manifest.embedded && manifest.embedded.search ? manifest.embedded.search.defaultTypes : ['shops', 'areas', 'pois', 'places', 'boundaries'],
+      ['shops', 'areas', 'pois', 'places', 'boundaries'],
+      false
+    );
+    var searchTypes = params.has('types')
+      ? normalizeSearchTypes(params.get('types'), defaultSearchTypes, false)
+      : defaultSearchTypes;
 
     if (!center) {
       if (marker) {
@@ -246,6 +284,10 @@
       pitch: pitch === null ? 0 : clamp(pitch, 0, 60),
       mode: parseMode(params.get('mode')),
       keyword: params.get('keyword') || '',
+      autoSearch: params.has('autoSearch')
+        ? parseBoolean(params.get('autoSearch'), true)
+        : !!(params.get('keyword') || '').trim(),
+      searchTypes: searchTypes,
       layers: layers,
       styleName: params.get('style') || DEFAULT_STYLE_NAME,
       styleUrl: resolveStyleUrl(params.get('style') || DEFAULT_STYLE_NAME, manifest),
@@ -363,8 +405,8 @@
     }
 
     hintEl.textContent = mode === 'pick'
-      ? '当前为选点模式，点击地图会自动放置 marker 并回传坐标。宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图和业务图层。'
-      : '当前为浏览模式，可通过 URL 参数或宿主消息控制中心点、缩放、marker 和业务图层。';
+      ? '当前为选点模式，点击地图会自动放置 marker 并回传坐标。宿主可通过 postMessage 或 window.__FUYAO_EMBEDDED_MAP__ 控制地图、业务图层和搜索定位。'
+      : '当前为浏览模式，可通过 URL 参数或宿主消息控制中心点、缩放、marker、业务图层和搜索定位。';
   }
 
   function getPrimaryMarkerSpec() {
@@ -394,6 +436,219 @@
     }
 
     layerStateEl.textContent = '业务图层：' + enabledLayers.join(', ');
+  }
+
+  function setSearchStatusText(value) {
+    var searchStateEl = document.getElementById('embedded-search-state');
+    if (searchStateEl) {
+      searchStateEl.textContent = value;
+    }
+  }
+
+  function syncSearchInput(value) {
+    var inputEl = document.getElementById('embedded-search-input');
+    if (inputEl && typeof value === 'string') {
+      inputEl.value = value;
+    }
+  }
+
+  function formatSearchResultMeta(item) {
+    var parts = [];
+    if (item.type) {
+      parts.push(item.type);
+    }
+    if (item.classification) {
+      parts.push(item.classification);
+    }
+    if (item.address) {
+      parts.push(item.address);
+    }
+
+    return parts.join(' · ');
+  }
+
+  function renderSearchResults(items) {
+    var listEl = document.getElementById('embedded-search-results');
+    if (!listEl) {
+      return;
+    }
+
+    listEl.innerHTML = '';
+
+    if (!Array.isArray(items) || items.length === 0) {
+      listEl.hidden = true;
+      return;
+    }
+
+    items.forEach(function (item, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'search-result-button';
+      button.dataset.index = String(index);
+
+      var title = document.createElement('strong');
+      title.textContent = item.displayName || item.name || '未命名对象';
+      button.appendChild(title);
+
+      var meta = formatSearchResultMeta(item);
+      if (meta) {
+        var metaEl = document.createElement('span');
+        metaEl.className = 'search-result-meta';
+        metaEl.textContent = meta;
+        button.appendChild(metaEl);
+      }
+
+      button.addEventListener('click', function () {
+        locateEmbeddedFeature(item, {
+          reason: 'panel-search-result',
+          highlight: true
+        });
+      });
+
+      listEl.appendChild(button);
+    });
+
+    listEl.hidden = false;
+  }
+
+  function buildSearchResultsPayload(result) {
+    return {
+      query: result.query,
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      types: result.types,
+      items: result.items
+    };
+  }
+
+  function emitFeatureLocated(located, reason) {
+    if (!located || !located.item) {
+      return;
+    }
+
+    emitHostMessage('search-result', {
+      reason: reason || 'search',
+      item: located.item
+    });
+
+    emitHostMessage('feature-located', {
+      reason: reason || 'search',
+      item: located.item,
+      method: located.method,
+      bbox: located.bbox || null,
+      viewport: located.viewport || getViewportPayload()
+    });
+  }
+
+  function highlightEmbeddedFeature(feature, options) {
+    if (!state.searchManager || typeof state.searchManager.highlightFeature !== 'function') {
+      return null;
+    }
+
+    var highlighted = state.searchManager.highlightFeature(feature);
+    if (highlighted) {
+      setSearchStatusText('已高亮：' + (highlighted.displayName || highlighted.name || '对象'));
+      if (!options || options.emitEvent !== false) {
+        emitHostMessage('search-result', {
+          reason: options && options.reason ? options.reason : 'highlight-feature',
+          item: highlighted,
+          highlighted: true
+        });
+      }
+    }
+
+    return highlighted;
+  }
+
+  function locateEmbeddedFeature(feature, options) {
+    if (!state.searchManager || typeof state.searchManager.locateFeature !== 'function') {
+      return null;
+    }
+
+    var locateOptions = options && typeof options === 'object' ? options : {};
+    var located = state.searchManager.locateFeature(feature, {
+      highlight: locateOptions.highlight !== false,
+      zoom: locateOptions.zoom,
+      duration: locateOptions.duration,
+      padding: locateOptions.padding
+    });
+
+    if (located && located.item) {
+      setSearchStatusText('已定位：' + (located.item.displayName || located.item.name || '对象'));
+      emitFeatureLocated(located, locateOptions.reason || 'locate-feature');
+    }
+
+    return located;
+  }
+
+  function executeSearch(searchOptions, meta) {
+    if (!state.searchManager || typeof state.searchManager.search !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    var requestOptions = searchOptions && typeof searchOptions === 'object' ? searchOptions : {};
+    var keyword = typeof requestOptions.keyword === 'string' ? requestOptions.keyword : requestOptions.q;
+
+    setSearchStatusText(keyword && keyword.trim() ? '搜索中...' : '请输入搜索关键词');
+    return state.searchManager.search(requestOptions)
+      .then(function (result) {
+        if (!result) {
+          return null;
+        }
+
+        state.searchResults = Array.isArray(result.items) ? result.items.slice() : [];
+        if (state.config && typeof result.query === 'string') {
+          state.config.keyword = result.query;
+          state.config.searchTypes = normalizeSearchTypes(result.types, state.config.searchTypes, false);
+        }
+
+        syncSearchInput(result.query || '');
+        renderSearchResults(state.searchResults);
+
+        if (!state.searchResults.length) {
+          setSearchStatusText('未找到匹配对象');
+          emitHostMessage('search-empty', {
+            query: result.query,
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            types: result.types
+          });
+          return result;
+        }
+
+        setSearchStatusText('命中 ' + result.total + ' 条结果');
+        emitHostMessage('search-results', buildSearchResultsPayload(result));
+
+        if (result.located) {
+          emitFeatureLocated(result.located, meta && meta.reason ? meta.reason : 'search');
+        }
+
+        return result;
+      })
+      .catch(function (error) {
+        console.warn('[FuyaoEmbedded] search failed', error);
+        setSearchStatusText('搜索失败');
+        return null;
+      });
+  }
+
+  function initializeSearchManager() {
+    if (!state.map || !window.FuyaoEmbeddedSearch || typeof window.FuyaoEmbeddedSearch.create !== 'function') {
+      renderSearchResults([]);
+      setSearchStatusText('搜索能力未启用');
+      return;
+    }
+
+    state.searchManager = window.FuyaoEmbeddedSearch.create({
+      map: state.map,
+      manifest: state.manifest || {},
+      searchUrl: state.manifest && state.manifest.searchUrl ? state.manifest.searchUrl : '/api/map/search'
+    });
+    syncSearchInput(state.config && typeof state.config.keyword === 'string' ? state.config.keyword : '');
+    renderSearchResults(state.searchResults);
+    setSearchStatusText('搜索待命');
   }
 
   function applyModeUi(mode) {
@@ -705,6 +960,48 @@
       if (state.layerManager && typeof state.layerManager.hideLayer === 'function') {
         state.layerManager.hideLayer(payload.layer || payload.name || payload.id);
       }
+      return;
+    }
+
+    if (message.type === 'search') {
+      state.manualSearchTriggered = true;
+      void executeSearch({
+        q: payload.q,
+        keyword: payload.keyword || payload.q,
+        types: payload.types || payload.layerTypes || (state.config ? state.config.searchTypes : []),
+        page: payload.page,
+        limit: payload.limit,
+        bbox: payload.bbox,
+        near: payload.near,
+        radius: payload.radius,
+        useViewportBbox: payload.useViewportBbox,
+        autoLocate: payload.autoLocate !== false,
+        highlight: payload.highlight !== false,
+        zoom: payload.zoom,
+        duration: payload.duration,
+        padding: payload.padding
+      }, { reason: 'host-search' });
+      return;
+    }
+
+    if (message.type === 'locate-feature') {
+      state.manualSearchTriggered = true;
+      locateEmbeddedFeature(payload.feature || payload.item || payload, {
+        reason: 'locate-feature',
+        highlight: payload.highlight !== false,
+        zoom: payload.zoom,
+        duration: payload.duration,
+        padding: payload.padding
+      });
+      return;
+    }
+
+    if (message.type === 'highlight-feature') {
+      state.manualSearchTriggered = true;
+      highlightEmbeddedFeature(payload.feature || payload.item || payload, {
+        reason: 'highlight-feature'
+      });
+      return;
     }
   }
 
@@ -793,6 +1090,57 @@
       });
     }
 
+    var searchButton = document.getElementById('embedded-search-button');
+    var searchInput = document.getElementById('embedded-search-input');
+    var clearSearchButton = document.getElementById('embedded-search-clear-button');
+
+    function triggerSearchFromPanel() {
+      var keyword = searchInput && typeof searchInput.value === 'string' ? searchInput.value.trim() : '';
+      if (!state.config) {
+        return;
+      }
+
+      state.config.keyword = keyword;
+      void executeSearch({
+        keyword: keyword,
+        types: state.config.searchTypes,
+        autoLocate: true,
+        highlight: true
+      }, { reason: 'panel-search' });
+    }
+
+    if (searchButton) {
+      searchButton.addEventListener('click', triggerSearchFromPanel);
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          triggerSearchFromPanel();
+        }
+      });
+    }
+
+    if (clearSearchButton) {
+      clearSearchButton.addEventListener('click', function () {
+        if (searchInput) {
+          searchInput.value = '';
+        }
+
+        state.searchResults = [];
+        if (state.config) {
+          state.config.keyword = '';
+        }
+
+        renderSearchResults([]);
+        if (state.searchManager && typeof state.searchManager.clearHighlight === 'function') {
+          state.searchManager.clearHighlight();
+        }
+        setSearchStatusText('搜索已清空');
+      });
+    }
+
     state.uiBound = true;
   }
 
@@ -830,6 +1178,7 @@
 
       setLayerStateText(config.layers);
       initializeBusinessLayers();
+      initializeSearchManager();
 
       emitHostMessage('map-ready', {
         mode: config.mode,
@@ -839,11 +1188,14 @@
         bearing: config.bearing,
         pitch: config.pitch,
         keyword: config.keyword,
+        autoSearch: config.autoSearch,
+        searchTypes: config.searchTypes,
         layers: config.layers,
         manifest: {
           name: manifest.name,
           version: manifest.version
-        }
+        },
+        searchUrl: manifest.searchUrl || '/api/map/search'
       });
 
       if (initialMarkers.length > 0) {
@@ -851,6 +1203,15 @@
       }
 
       drainPendingMessages();
+
+      if (config.keyword && config.autoSearch && !state.manualSearchTriggered) {
+        void executeSearch({
+          keyword: config.keyword,
+          types: config.searchTypes,
+          autoLocate: true,
+          highlight: true
+        }, { reason: 'auto-search' });
+      }
     });
 
     state.map.on('click', handleMapClick);
@@ -891,6 +1252,9 @@
     setStatusText('Loading');
     setCoordinatesText('--');
     setLayerStateText([]);
+    setSearchStatusText('搜索待命');
+    renderSearchResults([]);
+    syncSearchInput('');
     updateActionButtons();
 
     loadManifest(manifestUrl)
@@ -932,6 +1296,15 @@
     setMarker: function (marker) {
       return dispatchCommand('set-marker', marker);
     },
+    search: function (payload) {
+      return dispatchCommand('search', payload);
+    },
+    locateFeature: function (feature) {
+      return dispatchCommand('locate-feature', { feature: feature });
+    },
+    highlightFeature: function (feature) {
+      return dispatchCommand('highlight-feature', { feature: feature });
+    },
     setLayers: function (layers) {
       return dispatchCommand('set-layers', { layers: layers });
     },
@@ -952,6 +1325,15 @@
     },
     getSelection: function () {
       return buildMarkerPayload('current');
+    },
+    getSearchState: function () {
+      return state.searchManager && typeof state.searchManager.getState === 'function'
+        ? state.searchManager.getState()
+        : {
+            lastQuery: '',
+            lastResults: [],
+            currentFeature: null
+          };
     }
   };
 

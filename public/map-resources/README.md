@@ -5,6 +5,7 @@ Fuyao Basemap Map Resources
 - Manifest: /map-resources/manifest.json
 - Style: /map-resources/styles/amap-like.json
 - Tiles: /tiles/city.pmtiles
+- Search: /api/map/search
 - Demo: /map-resources/examples/maplibre-demo.html
 - Docs: /map-resources/README.md
 - Docs Text: /map-resources/README.txt
@@ -37,6 +38,8 @@ new maplibregl.Map({
   - pitch=number
   - marker=lng,lat
   - mode=view|pick
+  - keyword=关键词
+  - autoSearch=true|false
   - layers=shops,areas,pois,places,boundaries
   - style=amap-like
 - pick 模式行为：
@@ -50,17 +53,34 @@ new maplibregl.Map({
 - 对外消息格式：
   { source: 'fuyaomap-embedded', type: 'map-ready', payload: { ... } }
 - 出站消息：
-  map-ready / map-click / marker-updated / marker-click / viewport-change / layers-ready / layers-changed
+  map-ready / map-click / marker-updated / marker-click / viewport-change / layers-ready / layers-changed / search-result / search-results / search-empty / feature-located
 - 入站控制消息：
-  set-center / set-zoom / fly-to / set-marker / clear-marker / set-layers / show-layer / hide-layer
+  set-center / set-zoom / fly-to / set-marker / clear-marker / set-layers / show-layer / hide-layer / search / locate-feature / highlight-feature
 - 页面内全局 API：
-  window.__FUYAO_EMBEDDED_MAP__.setCenter / setZoom / flyTo / setMarker / clearMarker / setLayers / showLayer / hideLayer / getViewport / getSelection / getLayers
+  window.__FUYAO_EMBEDDED_MAP__.setCenter / setZoom / flyTo / setMarker / clearMarker / setLayers / showLayer / hideLayer / search / locateFeature / highlightFeature / getViewport / getSelection / getLayers / getSearchState
+
+统一搜索接口
+------------
+- 接口地址：/api/map/search
+- 主要参数：
+  - q=关键词
+  - types=shops,areas,pois,places,boundaries
+  - limit=10
+  - page=1
+  - bbox=minLng,minLat,maxLng,maxLat
+  - near=lng,lat
+  - radius=number
+- 统一结果字段：
+  - id / type / name / displayName
+  - lng / lat / bbox
+  - address / source / score / aliasNames
+  - geometryGeoJson（有几何时返回）
 
 普通网页 iframe 接入示例
 -----------------------
 <iframe
   id="fuyaoMap"
-  src="/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas"
+  src="/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas&keyword=Fuyao&autoSearch=true"
   style="width:100%;height:480px;border:0"
 ></iframe>
 
@@ -82,9 +102,13 @@ new maplibregl.Map({
   });
 
   iframe.contentWindow?.postMessage({
-    type: 'set-layers',
+    type: 'search',
     payload: {
-      layers: ['shops', 'areas', 'pois']
+      keyword: 'Fuyao',
+      types: ['shops', 'areas', 'pois'],
+      limit: 8,
+      autoLocate: true,
+      highlight: true
     }
   }, '*');
 </script>
@@ -105,7 +129,7 @@ uni-app web-view 接入示例
 export default {
   data() {
     return {
-      embeddedSrc: '/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas'
+      embeddedSrc: '/map-resources/embedded.html?mode=pick&center=113.4445,22.4915&zoom=12&layers=shops,areas&keyword=Fuyao&autoSearch=true'
     };
   },
   methods: {
@@ -124,6 +148,10 @@ export default {
         if (message.type === 'marker-updated') {
           console.log('uni-app marker state:', message.payload);
         }
+
+        if (message.type === 'feature-located') {
+          console.log('uni-app located feature:', message.payload);
+        }
       });
     },
     setMarkerFromHost(lng, lat) {
@@ -134,6 +162,11 @@ export default {
     showPoiLayer() {
       this.$refs.mapView?.evalJS?.(
         `window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.showLayer('pois')`
+      );
+    },
+    searchNearby(keyword) {
+      this.$refs.mapView?.evalJS?.(
+        `window.__FUYAO_EMBEDDED_MAP__ && window.__FUYAO_EMBEDDED_MAP__.search({ keyword: '${keyword}', types: ['shops', 'pois'], autoLocate: true, highlight: true })`
       );
     }
   }

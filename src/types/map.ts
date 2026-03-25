@@ -6,11 +6,21 @@ export type EntityType = 'shop' | 'area' | 'poi' | 'place' | 'boundary';
 export interface MapSearchItem {
   id: EntityId;
   name: string;
+  displayName?: string;
+  type?: EntityType;
+  entityType?: EntityType;
   itemType: EntityType;
   classification?: string | null;
+  address?: string | null;
+  source?: string | null;
+  aliasNames?: string[];
+  score?: number | null;
   status: number;
+  lng?: number | null;
+  lat?: number | null;
   longitude?: number | null;
   latitude?: number | null;
+  bbox?: [number, number, number, number] | null;
   geometryGeoJson?: string | null;
   updateTime: string;
 }
@@ -19,12 +29,16 @@ export interface MapSearchItem {
 export interface MapSearchParams {
   q?: string;
   keyword?: string;
+  types?: string;
   category?: string;
   type?: string;
   status?: number;
   page?: number;
+  limit?: number;
   pageSize?: number;
   bbox?: string;
+  near?: string;
+  radius?: number;
 }
 
 // Toggle state for business layers rendered on the map.

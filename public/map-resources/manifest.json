@@ -6,6 +6,7 @@
     "amap-like": "/map-resources/styles/amap-like.json"
   },
   "tilesUrl": "/tiles/city.pmtiles",
+  "searchUrl": "/api/map/search",
   "demoUrl": "/map-resources/examples/maplibre-demo.html",
   "embeddedUrl": "/map-resources/embedded.html",
   "embeddedDemoUrl": "/map-resources/examples/embedded-demo.html",
@@ -48,7 +49,10 @@
       "clear-marker",
       "set-layers",
       "show-layer",
-      "hide-layer"
+      "hide-layer",
+      "search",
+      "locate-feature",
+      "highlight-feature"
     ],
     "outboundTypes": [
       "map-ready",
@@ -57,7 +61,23 @@
       "marker-click",
       "viewport-change",
       "layers-ready",
-      "layers-changed"
-    ]
+      "layers-changed",
+      "search-result",
+      "search-results",
+      "search-empty",
+      "feature-located"
+    ],
+    "search": {
+      "keywordParam": "keyword",
+      "autoSearchParam": "autoSearch",
+      "searchUrl": "/api/map/search",
+      "defaultTypes": [
+        "shops",
+        "areas",
+        "pois",
+        "places",
+        "boundaries"
+      ]
+    }
   }
 }

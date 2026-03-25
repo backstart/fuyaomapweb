@@ -218,6 +218,10 @@
           Layers
           <input id="layersInput" value="shops,areas" />
         </label>
+        <label>
+          Keyword
+          <input id="initialKeywordInput" value="" />
+        </label>
         <div class="button-row">
           <button id="loadButton">Load Embedded Map</button>
           <button id="reloadButton" class="secondary">Reload Iframe</button>
@@ -241,6 +245,26 @@
         <div class="button-row">
           <button id="hideAreasButton" class="secondary">Hide Areas</button>
           <button id="showBoundariesButton" class="secondary">Show Boundaries</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Search & Locate</div>
+        <label>
+          Keyword
+          <input id="searchKeywordInput" value="Fuyao" />
+        </label>
+        <label>
+          Search Types
+          <input id="searchTypesInput" value="shops,areas,pois,places,boundaries" />
+        </label>
+        <div class="button-row">
+          <button id="searchButton">Search</button>
+          <button id="locateFirstButton" class="secondary">Locate First</button>
+        </div>
+        <div class="button-row">
+          <button id="highlightFirstButton" class="secondary">Highlight First</button>
+          <button id="searchViewportButton" class="secondary">Search In View</button>
         </div>
       </div>
 
@@ -270,6 +294,7 @@
     const iframeSrcText = document.getElementById('iframeSrcText');
     const logEl = document.getElementById('messageLog');
     const selectedPointEl = document.getElementById('selectedPoint');
+    let lastSearchResults = [];
 
     function buildIframeUrl() {
       const params = new URLSearchParams();
@@ -278,12 +303,17 @@
       const marker = document.getElementById('markerInput').value.trim();
       const mode = document.getElementById('modeInput').value;
       const layers = document.getElementById('layersInput').value.trim();
+      const keyword = document.getElementById('initialKeywordInput').value.trim();
 
       if (center) params.set('center', center);
       if (zoom) params.set('zoom', zoom);
       if (marker) params.set('marker', marker);
       if (mode) params.set('mode', mode);
       if (layers) params.set('layers', layers);
+      if (keyword) {
+        params.set('keyword', keyword);
+        params.set('autoSearch', 'true');
+      }
 
       return params.toString() ? `${embeddedBaseUrl}?${params.toString()}` : embeddedBaseUrl;
     }
@@ -334,6 +364,23 @@
       if (message.type === 'layers-ready' || message.type === 'layers-changed') {
         const enabledLayers = Array.isArray(message.payload?.enabledLayers) ? message.payload.enabledLayers.join(', ') : 'none';
         selectedPointEl.textContent = `Layers: ${enabledLayers || 'none'}`;
+        return;
+      }
+
+      if (message.type === 'search-results') {
+        lastSearchResults = Array.isArray(message.payload?.items) ? message.payload.items : [];
+        selectedPointEl.textContent = `Search: ${message.payload?.query || '--'} | Total: ${message.payload?.total ?? 0}`;
+        return;
+      }
+
+      if (message.type === 'feature-located') {
+        selectedPointEl.textContent = `Located: ${message.payload?.item?.displayName || message.payload?.item?.name || '--'} | ${message.payload?.method || '--'}`;
+        return;
+      }
+
+      if (message.type === 'search-empty') {
+        lastSearchResults = [];
+        selectedPointEl.textContent = `Search empty: ${message.payload?.query || '--'}`;
       }
     }
 
@@ -367,6 +414,50 @@
     });
     document.getElementById('showBoundariesButton').addEventListener('click', () => {
       postCommand('show-layer', { layer: 'boundaries' });
+    });
+    document.getElementById('searchButton').addEventListener('click', () => {
+      const keyword = document.getElementById('searchKeywordInput').value.trim();
+      const types = document.getElementById('searchTypesInput').value.trim();
+      postCommand('search', {
+        keyword,
+        types: types ? types.split(',').map((item) => item.trim()).filter(Boolean) : [],
+        limit: 8,
+        autoLocate: true,
+        highlight: true
+      });
+    });
+    document.getElementById('searchViewportButton').addEventListener('click', () => {
+      const keyword = document.getElementById('searchKeywordInput').value.trim();
+      const types = document.getElementById('searchTypesInput').value.trim();
+      postCommand('search', {
+        keyword,
+        types: types ? types.split(',').map((item) => item.trim()).filter(Boolean) : [],
+        limit: 8,
+        useViewportBbox: true,
+        autoLocate: true,
+        highlight: true
+      });
+    });
+    document.getElementById('locateFirstButton').addEventListener('click', () => {
+      if (!lastSearchResults.length) {
+        appendLog({ type: 'host-info', payload: { message: 'No search results cached yet.' } });
+        return;
+      }
+
+      postCommand('locate-feature', {
+        feature: lastSearchResults[0],
+        highlight: true
+      });
+    });
+    document.getElementById('highlightFirstButton').addEventListener('click', () => {
+      if (!lastSearchResults.length) {
+        appendLog({ type: 'host-info', payload: { message: 'No search results cached yet.' } });
+        return;
+      }
+
+      postCommand('highlight-feature', {
+        feature: lastSearchResults[0]
+      });
     });
 
     window.addEventListener('message', (event) => {
