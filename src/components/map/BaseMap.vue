@@ -10,8 +10,9 @@
 
 <script setup lang="ts">
 import { createApp, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { LngLatLike, Map as MapLibreMap, Popup as MapLibrePopup } from 'maplibre-gl';
+import type { LngLatLike, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent, Popup as MapLibrePopup } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
+import { BASEMAP_SOURCE_ID } from '@/map/amapLikeStyle';
 import { useMapLibre } from '@/composables/useMapLibre';
 import {
   ensureBusinessLayers,
@@ -20,6 +21,7 @@ import {
   updateFocusedEntity,
   updateBusinessSources
 } from '@/composables/useMapLayers';
+import { ensureMapLabelLayers, updateMapLabelSources } from '@/composables/useMapLabelLayers';
 import type { AreaFeatureCollection } from '@/types/area';
 import type { BoundaryFeatureCollection } from '@/types/boundary';
 import EntityPopup from '@/components/map/EntityPopup.vue';
@@ -32,12 +34,26 @@ import type {
   PoiFocusTarget,
   ShopFocusTarget
 } from '@/types/map';
+import type { BasemapInspectableFeature, MapLabelFeatureCollection, MapLabelPickMode } from '@/types/mapLabel';
 import type { PlaceFeatureCollection } from '@/types/place';
 import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
+import { resolvePreferredName } from '@/utils/mapLabels';
 import { maplibreglRuntime } from '@/utils/maplibreRuntime';
+
+const INSPECTABLE_BASE_LAYER_IDS = [
+  'road-label',
+  'road-major-fill',
+  'road-primary-fill',
+  'road-secondary-fill',
+  'road-local-fill',
+  'road-path',
+  'building-fill',
+  'poi-label',
+  'place-label'
+] as const;
 
 const props = defineProps<{
   shopData: ShopFeatureCollection;
@@ -45,9 +61,12 @@ const props = defineProps<{
   poiData: PoiFeatureCollection;
   placeData: PlaceFeatureCollection;
   boundaryData: BoundaryFeatureCollection;
+  manualLabelData: MapLabelFeatureCollection;
+  businessLabelData: MapLabelFeatureCollection;
   layerVisibility: LayerVisibility;
   selectedTarget?: MapFocusTarget | null;
   focusTarget?: MapFocusTarget | null;
+  labelPickMode?: MapLabelPickMode;
 }>();
 
 const emit = defineEmits<{
@@ -58,6 +77,8 @@ const emit = defineEmits<{
   'poi-click': [target: PoiFocusTarget];
   'place-click': [target: PlaceFocusTarget];
   'boundary-click': [target: BoundaryFocusTarget];
+  'map-click': [payload: { longitude: number; latitude: number }];
+  'basemap-feature-click': [feature: BasemapInspectableFeature];
 }>();
 
 const { map, initMap, destroyMap } = useMapLibre();
@@ -76,7 +97,9 @@ declare global {
 
 function setupBusinessLayers(instance: MapLibreMap): void {
   ensureBusinessLayers(instance);
+  ensureMapLabelLayers(instance);
   updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
+  updateMapLabelSources(instance, props.manualLabelData, props.businessLabelData);
   setBusinessLayerVisibility(instance, props.layerVisibility);
   updateFocusedEntity(instance, getDisplayTarget());
   registerBusinessLayerEvents(instance, {
@@ -106,6 +129,8 @@ function setupBusinessLayers(instance: MapLibreMap): void {
     window.__FUYAO_MAP_DEBUG__ = instance;
   }
   instance.on('moveend', () => emitViewport(instance));
+  instance.on('click', (event) => handleMapClick(instance, event));
+  syncPickCursor(instance);
 }
 
 function isTargetVisible(target: MapFocusTarget | null | undefined): boolean {
@@ -230,6 +255,128 @@ function focusOnTarget(target: MapFocusTarget): void {
   }
 }
 
+function resolveBasemapFeatureId(feature: MapGeoJSONFeature): string | null {
+  if (feature.id !== undefined && feature.id !== null && String(feature.id).trim()) {
+    return String(feature.id).trim();
+  }
+
+  const properties = feature.properties as Record<string, unknown> | undefined;
+  const candidates = [properties?.source_id, properties?.sourceId, properties?.osm_id, properties?.id];
+  const candidate = candidates.find((value) => value !== undefined && value !== null && String(value).trim());
+  return candidate ? String(candidate).trim() : null;
+}
+
+function resolveBasemapFeatureType(feature: MapGeoJSONFeature): { featureType: string; labelType: string } | null {
+  const layerId = feature.layer.id;
+  if (layerId.startsWith('road-')) {
+    return {
+      featureType: 'road',
+      labelType: 'road'
+    };
+  }
+
+  if (layerId.startsWith('building-')) {
+    return {
+      featureType: 'building',
+      labelType: 'building'
+    };
+  }
+
+  if (layerId === 'poi-label') {
+    return {
+      featureType: 'poi',
+      labelType: 'business'
+    };
+  }
+
+  if (layerId === 'place-label') {
+    return {
+      featureType: 'place',
+      labelType: 'business'
+    };
+  }
+
+  return null;
+}
+
+function resolveBasemapFeaturePoint(feature: MapGeoJSONFeature, fallback: [number, number]): [number, number] {
+  if (feature.geometry.type === 'Point') {
+    return feature.geometry.coordinates as [number, number];
+  }
+
+  if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+    return getGeometryCenter(feature.geometry) ?? fallback;
+  }
+
+  return fallback;
+}
+
+function toInspectableBasemapFeature(feature: MapGeoJSONFeature, fallback: [number, number]): BasemapInspectableFeature | null {
+  if (feature.source !== BASEMAP_SOURCE_ID) {
+    return null;
+  }
+
+  const type = resolveBasemapFeatureType(feature);
+  if (!type) {
+    return null;
+  }
+
+  const properties = feature.properties as Record<string, unknown> | undefined;
+  const originalName = resolvePreferredName({
+    overrideDisplayName: typeof properties?.displayName === 'string' ? properties.displayName : null,
+    nameZh: typeof properties?.['name:zh'] === 'string' ? properties['name:zh'] as string : null,
+    name: typeof properties?.name === 'string' ? properties.name as string : null,
+    nameEn: typeof properties?.name_en === 'string' ? properties.name_en as string : null,
+    ref: typeof properties?.ref === 'string' ? properties.ref as string : null
+  });
+
+  const [pointLongitude, pointLatitude] = resolveBasemapFeaturePoint(feature, fallback);
+
+  return {
+    featureType: type.featureType,
+    labelType: type.labelType,
+    sourceFeatureId: resolveBasemapFeatureId(feature),
+    sourceLayer: feature.sourceLayer || null,
+    originalName: originalName || null,
+    pointLongitude,
+    pointLatitude,
+    geometryGeoJson: JSON.stringify(feature.geometry),
+    source: 'pmtiles'
+  };
+}
+
+function queryInspectableBasemapFeature(mapInstance: MapLibreMap, event: MapMouseEvent): BasemapInspectableFeature | null {
+  const feature = mapInstance.queryRenderedFeatures(event.point, {
+    layers: [...INSPECTABLE_BASE_LAYER_IDS]
+  }).find((item) => item.source === BASEMAP_SOURCE_ID);
+
+  if (!feature) {
+    return null;
+  }
+
+  return toInspectableBasemapFeature(feature, [event.lngLat.lng, event.lngLat.lat]);
+}
+
+function syncPickCursor(instance: MapLibreMap): void {
+  instance.getCanvas().style.cursor = props.labelPickMode ? 'crosshair' : '';
+}
+
+function handleMapClick(instance: MapLibreMap, event: MapMouseEvent): void {
+  emit('map-click', {
+    longitude: event.lngLat.lng,
+    latitude: event.lngLat.lat
+  });
+
+  if (props.labelPickMode !== 'feature') {
+    return;
+  }
+
+  const feature = queryInspectableBasemapFeature(instance, event);
+  if (feature) {
+    emit('basemap-feature-click', feature);
+  }
+}
+
 onMounted(async () => {
   if (!mapContainer.value) {
     return;
@@ -257,6 +404,18 @@ watch(
     }
 
     updateBusinessSources(map.value, shops, areas, pois, places, boundaries);
+  },
+  { deep: true }
+);
+
+watch(
+  () => [props.manualLabelData, props.businessLabelData] as const,
+  ([manualLabels, businessLabels]) => {
+    if (!map.value || !map.value.isStyleLoaded() || !map.value.getSource('map-manual-labels')) {
+      return;
+    }
+
+    updateMapLabelSources(map.value, manualLabels, businessLabels);
   },
   { deep: true }
 );
@@ -303,6 +462,17 @@ watch(
     focusOnTarget(target);
   },
   { deep: true }
+);
+
+watch(
+  () => props.labelPickMode,
+  () => {
+    if (!map.value) {
+      return;
+    }
+
+    syncPickCursor(map.value);
+  }
 );
 
 onBeforeUnmount(() => {

@@ -7,9 +7,12 @@
         :poi-data="poiStore.geoJson"
         :place-data="placeStore.geoJson"
         :boundary-data="boundaryStore.geoJson"
+        :manual-label-data="manualLabelData"
+        :business-label-data="businessLabelData"
         :layer-visibility="mapStore.layerVisibility"
         :selected-target="mapStore.selectedEntity"
         :focus-target="focusTarget"
+        :label-pick-mode="labelPickMode"
         @ready="handleMapReady"
         @viewport-change="handleViewportChange"
         @shop-click="handleEntityClick"
@@ -17,6 +20,8 @@
         @poi-click="handleEntityClick"
         @place-click="handleEntityClick"
         @boundary-click="handleEntityClick"
+        @map-click="handleMapClick"
+        @basemap-feature-click="handleBasemapFeatureClick"
       />
 
       <div class="map-overlay map-overlay-left">
@@ -96,6 +101,141 @@
             :image-size="72"
           />
         </div>
+
+        <div class="shell-card label-editor-card">
+          <div class="card-head">
+            <div class="card-title-row">
+              <h3>标注编辑</h3>
+              <span v-if="labelContextBadge" class="card-meta">{{ labelContextBadge }}</span>
+            </div>
+            <el-button text @click="startManualLabel">手动点位</el-button>
+          </div>
+
+          <div class="label-editor-toolbar">
+            <el-button
+              size="small"
+              :type="labelPickMode === 'feature' ? 'primary' : 'default'"
+              @click="toggleFeaturePickMode"
+            >
+              {{ labelPickMode === 'feature' ? '退出补名模式' : '点击对象补名' }}
+            </el-button>
+            <el-button
+              size="small"
+              :type="labelPickMode === 'point' ? 'primary' : 'default'"
+              @click="togglePointPickMode"
+            >
+              {{ labelPickMode === 'point' ? '等待地图落点' : '拾取标注点' }}
+            </el-button>
+            <el-button size="small" @click="resetLabelDraft" :disabled="!labelDraft">
+              重置
+            </el-button>
+          </div>
+
+          <p class="label-editor-tip">
+            {{ labelEditorTip }}
+          </p>
+
+          <div v-if="labelEditorContext" class="label-context-summary">
+            <strong>{{ labelContextTitle }}</strong>
+            <p>{{ labelContextSubtitle }}</p>
+          </div>
+
+          <el-form v-if="labelDraft" label-position="top" class="label-editor-form" @submit.prevent>
+            <el-form-item label="显示名称" required>
+              <el-input v-model="labelDraft.displayName" placeholder="请输入地图显示名称" />
+            </el-form-item>
+
+            <el-form-item label="别名">
+              <el-input
+                v-model="labelAliasInput"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="多个别名用逗号、顿号或换行分隔"
+              />
+            </el-form-item>
+
+            <div class="label-form-grid">
+              <el-form-item label="要素类型">
+                <el-select v-model="labelDraft.featureType">
+                  <el-option v-for="option in labelFeatureTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="标注类型">
+                <el-select v-model="labelDraft.labelType">
+                  <el-option v-for="option in labelTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+              </el-form-item>
+            </div>
+
+            <div class="label-form-grid">
+              <el-form-item label="经度">
+                <el-input-number v-model="labelDraft.pointLongitude" :step="0.0001" :precision="6" :min="-180" :max="180" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="纬度">
+                <el-input-number v-model="labelDraft.pointLatitude" :step="0.0001" :precision="6" :min="-90" :max="90" controls-position="right" />
+              </el-form-item>
+            </div>
+
+            <div class="label-form-grid">
+              <el-form-item label="最小缩放">
+                <el-input-number v-model="labelDraft.minZoom" :min="0" :max="24" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="最大缩放">
+                <el-input-number v-model="labelDraft.maxZoom" :min="0" :max="24" controls-position="right" />
+              </el-form-item>
+            </div>
+
+            <div class="label-form-grid">
+              <el-form-item label="优先级">
+                <el-input-number v-model="labelDraft.priority" :min="0" :max="100000" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="启用状态">
+                <el-switch v-model="labelDraft.status" :active-value="1" :inactive-value="0" />
+              </el-form-item>
+            </div>
+
+            <div class="label-form-grid">
+              <el-form-item label="文字颜色">
+                <el-input v-model="labelDraft.textColor" placeholder="#314155" />
+              </el-form-item>
+              <el-form-item label="描边颜色">
+                <el-input v-model="labelDraft.haloColor" placeholder="rgba(255,255,255,0.96)" />
+              </el-form-item>
+            </div>
+
+            <el-form-item label="原始名称">
+              <el-input :model-value="labelDraft.originalName || '-'" disabled />
+            </el-form-item>
+
+            <el-form-item label="来源标识">
+              <el-input :model-value="labelSourceSummary" disabled />
+            </el-form-item>
+
+            <el-form-item label="备注">
+              <el-input
+                v-model="labelDraft.remark"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="可填写标注说明或纠偏原因"
+              />
+            </el-form-item>
+
+            <div class="label-editor-actions">
+              <el-button type="primary" :loading="labelSaving" @click="saveLabel">
+                {{ labelDraft.id ? '更新标注' : '保存标注' }}
+              </el-button>
+              <el-button :loading="labelLookupLoading" @click="reloadCurrentLabel">
+                重新加载
+              </el-button>
+            </div>
+          </el-form>
+
+          <el-empty
+            v-else
+            description="点击业务对象、道路或建筑后即可补名"
+            :image-size="72"
+          />
+        </div>
       </div>
     </div>
   </PageContainer>
@@ -106,10 +246,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute } from 'vue-router';
+import { createMapLabel, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
 import PageContainer from '@/components/common/PageContainer.vue';
 import MapSearchBar from '@/components/search/MapSearchBar.vue';
+import { buildBusinessLabelFeatureCollection, buildManualLabelFeatureCollection } from '@/composables/useMapLabelLayers';
 import { searchMap } from '@/api/mapSearchApi';
 import { useAreaStore } from '@/stores/areaStore';
 import { useBoundaryStore } from '@/stores/boundaryStore';
@@ -118,8 +260,26 @@ import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
 import type { EntityId } from '@/types/entity';
+import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 import { boundsToBboxString } from '@/utils/bbox';
+import {
+  DEFAULT_HALO_COLOR,
+  DEFAULT_MANUAL_SOURCE,
+  DEFAULT_TEXT_COLOR,
+  createDraftFromContext,
+  createLabelContextFromBasemapFeature,
+  createLabelContextFromFocusTarget,
+  createManualPointContext,
+  formatAliasNamesInput,
+  getDefaultLabelType,
+  getDefaultMaxZoom,
+  getDefaultMinZoom,
+  getDefaultPriority,
+  isLabelVisibleForLayer,
+  parseAliasNamesInput,
+  sanitizeMapLabelPayload
+} from '@/utils/mapLabels';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 import { getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
 
@@ -134,6 +294,24 @@ const LAYER_MIN_ZOOM: Record<LayerKey, number> = {
   places: 11,
   boundaries: 8
 };
+const LABEL_DEFAULT_CENTER: [number, number] = [121.4737, 31.2304];
+const LABEL_FEATURE_TYPE_OPTIONS: Array<{ value: MapLabelFeatureType; label: string }> = [
+  { value: 'shop', label: '店铺' },
+  { value: 'poi', label: 'POI' },
+  { value: 'place', label: '地名/聚落' },
+  { value: 'area', label: '区域' },
+  { value: 'boundary', label: '边界' },
+  { value: 'road', label: '道路/街巷' },
+  { value: 'building', label: '建筑' },
+  { value: 'house', label: '房屋' },
+  { value: 'courtyard', label: '院落' },
+  { value: 'manual', label: '手动点位' }
+];
+const LABEL_TYPE_OPTIONS: Array<{ value: MapLabelLayerType; label: string }> = [
+  { value: 'business', label: '业务标注' },
+  { value: 'road', label: '道路标注' },
+  { value: 'building', label: '建筑标注' }
+];
 
 type LayerKey = keyof LayerVisibility;
 
@@ -148,6 +326,15 @@ const boundaryStore = useBoundaryStore();
 const searchKeyword = ref('');
 const searchLoading = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
+const manualLabels = ref<MapLabel[]>([]);
+const labelLookupLoading = ref(false);
+const labelRefreshLoading = ref(false);
+const labelSaving = ref(false);
+const labelPickMode = ref<MapLabelPickMode>(null);
+const labelEditorContext = ref<EditableMapLabelContext | null>(null);
+const labelDraft = ref<EditableMapLabelDraft | null>(null);
+const labelAliasInput = ref('');
+const labelContextRequestId = ref(0);
 const refreshTimer = ref<number | null>(null);
 const pendingViewport = ref<MapViewportState | null>(null);
 const pendingRefreshReason = ref('idle');
@@ -158,10 +345,85 @@ const lastRequestedViewportByLayer = ref<Record<LayerKey, MapViewportState | nul
   places: null,
   boundaries: null
 });
+const lastRequestedLabelViewport = ref<MapViewportState | null>(null);
 
 const searchResultCountLabel = computed(() =>
   mapStore.searchResults.length ? `共 ${mapStore.searchResults.length} 条` : ''
 );
+const labelFeatureTypeOptions = LABEL_FEATURE_TYPE_OPTIONS;
+const labelTypeOptions = LABEL_TYPE_OPTIONS;
+const visibleManualLabels = computed(() =>
+  manualLabels.value.filter((label) => isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
+);
+const manualLabelData = computed(() => buildManualLabelFeatureCollection(visibleManualLabels.value));
+const businessLabelData = computed(() => buildBusinessLabelFeatureCollection({
+  shops: shopStore.geoJson,
+  areas: areaStore.geoJson,
+  pois: poiStore.geoJson,
+  places: placeStore.geoJson,
+  boundaries: boundaryStore.geoJson,
+  visibility: mapStore.layerVisibility,
+  manualLabels: visibleManualLabels.value,
+  zoom: mapStore.viewport.zoom ?? 0
+}));
+const labelContextBadge = computed(() => {
+  if (labelRefreshLoading.value) {
+    return '标注图层刷新中';
+  }
+
+  if (labelLookupLoading.value) {
+    return '正在加载标注';
+  }
+
+  return labelDraft.value?.id ? '已存在人工标注' : '';
+});
+const labelContextTitle = computed(() => {
+  if (!labelEditorContext.value) {
+    return '';
+  }
+
+  return labelDraft.value?.displayName?.trim() || labelEditorContext.value.suggestedDisplayName || '未命名标注';
+});
+const labelContextSubtitle = computed(() => {
+  if (!labelEditorContext.value) {
+    return '';
+  }
+
+  const parts = [
+    `类型：${labelEditorContext.value.featureType}`,
+    labelEditorContext.value.sourceLayer ? `图层：${labelEditorContext.value.sourceLayer}` : '',
+    labelEditorContext.value.sourceFeatureId ? `来源ID：${labelEditorContext.value.sourceFeatureId}` : '',
+    labelEditorContext.value.originalName ? `原名：${labelEditorContext.value.originalName}` : ''
+  ].filter(Boolean);
+
+  return parts.join(' · ');
+});
+const labelSourceSummary = computed(() => {
+  if (!labelDraft.value) {
+    return '-';
+  }
+
+  return [labelDraft.value.featureType, labelDraft.value.sourceLayer || '-', labelDraft.value.sourceFeatureId || '-'].join(' / ');
+});
+const labelEditorTip = computed(() => {
+  if (labelPickMode.value === 'feature') {
+    return '补名模式已开启：点击道路、建筑、院落或业务对象即可把当前对象载入编辑器。';
+  }
+
+  if (labelPickMode.value === 'point') {
+    return '正在等待地图点击：下一次点击会把标注点移动到新位置。';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'basemap') {
+    return '当前正在编辑底图要素标注。没有稳定 sourceFeatureId 的道路/建筑也可以保存为人工点位标注。';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'business') {
+    return '当前正在编辑业务对象标注。保存后人工 display_name 会优先于业务名称显示。';
+  }
+
+  return '点击业务对象、进入补名模式点击底图要素，或新建手动点位后即可开始编辑。';
+});
 
 function debugMapRefresh(message: string, detail?: unknown): void {
   if (!import.meta.env.DEV) {
@@ -246,6 +508,100 @@ function getViewportSnapshot(mapInstance: MapLibreMap): MapViewportState {
   };
 }
 
+function getLabelFallbackCenter(): [number, number] {
+  return mapStore.viewport.center ?? LABEL_DEFAULT_CENTER;
+}
+
+function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): void {
+  labelEditorContext.value = context;
+  labelDraft.value = createDraftFromContext(context, existing);
+  labelAliasInput.value = formatAliasNamesInput(existing?.aliasNames);
+}
+
+async function hydrateLabelDraft(context: EditableMapLabelContext): Promise<void> {
+  labelEditorContext.value = context;
+  const currentRequestId = ++labelContextRequestId.value;
+
+  if (!context.sourceFeatureId) {
+    setLabelDraftFromContext(context, null);
+    return;
+  }
+
+  labelLookupLoading.value = true;
+  try {
+    const matched = await queryMapLabels({
+      featureType: context.featureType,
+      sourceFeatureId: context.sourceFeatureId,
+      sourceLayer: context.sourceLayer || undefined
+    });
+
+    if (currentRequestId !== labelContextRequestId.value) {
+      return;
+    }
+
+    setLabelDraftFromContext(context, matched[0] ?? null);
+  } catch (error) {
+    if (currentRequestId !== labelContextRequestId.value) {
+      return;
+    }
+
+    setLabelDraftFromContext(context, null);
+    ElMessage.error(error instanceof Error ? error.message : '加载标注失败');
+  } finally {
+    if (currentRequestId === labelContextRequestId.value) {
+      labelLookupLoading.value = false;
+    }
+  }
+}
+
+function updateDraftPoint(longitude: number, latitude: number): void {
+  if (!labelDraft.value) {
+    const context = createManualPointContext(longitude, latitude);
+    setLabelDraftFromContext(context, null);
+    return;
+  }
+
+  labelDraft.value = {
+    ...labelDraft.value,
+    pointLongitude: longitude,
+    pointLatitude: latitude
+  };
+
+  if (labelEditorContext.value) {
+    labelEditorContext.value = {
+      ...labelEditorContext.value,
+      pointLongitude: longitude,
+      pointLatitude: latitude
+    };
+  }
+}
+
+async function refreshMapLabels(viewport: MapViewportState, force = false): Promise<void> {
+  if (!viewport.bbox) {
+    manualLabels.value = [];
+    lastRequestedLabelViewport.value = null;
+    return;
+  }
+
+  if (!force && isSimilarViewport(viewport, lastRequestedLabelViewport.value)) {
+    return;
+  }
+
+  labelRefreshLoading.value = true;
+  try {
+    manualLabels.value = await queryMapLabels({
+      bbox: viewport.bbox,
+      zoom: viewport.zoom,
+      status: 1
+    });
+    lastRequestedLabelViewport.value = cloneViewport(viewport);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '标注图层加载失败');
+  } finally {
+    labelRefreshLoading.value = false;
+  }
+}
+
 async function refreshLayer(layer: LayerKey, viewport: MapViewportState): Promise<boolean> {
   const bbox = viewport.bbox;
 
@@ -326,9 +682,10 @@ async function flushScheduledRefresh(force = false): Promise<void> {
   const zoomFilteredLayers = enabledLayers.filter((layer) => !isLayerWithinZoomRange(layer, viewport));
   const requestableLayers = enabledLayers.filter((layer) => isLayerWithinZoomRange(layer, viewport));
   if (!enabledLayers.length) {
-    debugMapRefresh('skip refresh because no business layer is enabled');
-    return;
+    debugMapRefresh('skip business refresh because no business layer is enabled');
   }
+
+  await refreshMapLabels(viewport, force);
 
   if (disabledLayers.length) {
     debugMapRefresh('skip disabled layers', disabledLayers);
@@ -437,8 +794,65 @@ function handleViewportChange(payload: { bbox: string; center: [number, number];
 }
 
 function handleEntityClick(target: MapFocusTarget): void {
+  if (labelPickMode.value === 'point') {
+    return;
+  }
+
   focusTarget.value = null;
   mapStore.setSelectedEntity(target);
+}
+
+function handleMapClick(payload: { longitude: number; latitude: number }): void {
+  if (labelPickMode.value !== 'point') {
+    return;
+  }
+
+  updateDraftPoint(payload.longitude, payload.latitude);
+  labelPickMode.value = null;
+  ElMessage.success('标注点已更新');
+}
+
+function handleBasemapFeatureClick(feature: BasemapInspectableFeature): void {
+  focusTarget.value = null;
+  labelPickMode.value = null;
+  void hydrateLabelDraft(createLabelContextFromBasemapFeature(feature));
+}
+
+function toggleFeaturePickMode(): void {
+  labelPickMode.value = labelPickMode.value === 'feature' ? null : 'feature';
+}
+
+function togglePointPickMode(): void {
+  if (!labelDraft.value) {
+    const [longitude, latitude] = getLabelFallbackCenter();
+    setLabelDraftFromContext(createManualPointContext(longitude, latitude), null);
+  }
+
+  labelPickMode.value = labelPickMode.value === 'point' ? null : 'point';
+}
+
+function startManualLabel(): void {
+  const [longitude, latitude] = getLabelFallbackCenter();
+  setLabelDraftFromContext(createManualPointContext(longitude, latitude), null);
+  labelPickMode.value = null;
+}
+
+function resetLabelDraft(): void {
+  if (labelEditorContext.value) {
+    void hydrateLabelDraft(labelEditorContext.value);
+    return;
+  }
+
+  startManualLabel();
+}
+
+async function reloadCurrentLabel(): Promise<void> {
+  if (!labelEditorContext.value) {
+    startManualLabel();
+    return;
+  }
+
+  await hydrateLabelDraft(labelEditorContext.value);
 }
 
 async function handleSearch(): Promise<void> {
@@ -471,6 +885,59 @@ function clearSearchResults(): void {
 function clearSearch(): void {
   searchKeyword.value = '';
   clearSearchResults();
+}
+
+async function saveLabel(): Promise<void> {
+  if (!labelDraft.value) {
+    ElMessage.warning('请先选择要标注的对象');
+    return;
+  }
+
+  labelDraft.value = {
+    ...labelDraft.value,
+    aliasNames: parseAliasNamesInput(labelAliasInput.value),
+    labelType: labelDraft.value.labelType || getDefaultLabelType(labelDraft.value.featureType),
+    minZoom: labelDraft.value.minZoom ?? getDefaultMinZoom(labelDraft.value.featureType),
+    maxZoom: labelDraft.value.maxZoom ?? getDefaultMaxZoom(labelDraft.value.featureType),
+    priority: labelDraft.value.priority ?? getDefaultPriority(labelDraft.value.featureType),
+    source: labelDraft.value.source || DEFAULT_MANUAL_SOURCE,
+    textColor: labelDraft.value.textColor || DEFAULT_TEXT_COLOR,
+    haloColor: labelDraft.value.haloColor || DEFAULT_HALO_COLOR
+  };
+
+  const payload = sanitizeMapLabelPayload(labelDraft.value);
+  if (!payload.displayName) {
+    ElMessage.warning('显示名称不能为空');
+    return;
+  }
+
+  if (payload.minZoom > payload.maxZoom) {
+    ElMessage.warning('最小缩放不能大于最大缩放');
+    return;
+  }
+
+  const isUpdate = Boolean(labelDraft.value.id);
+  labelSaving.value = true;
+  try {
+    const saved = isUpdate && labelDraft.value.id !== null && labelDraft.value.id !== undefined
+      ? await updateMapLabel(labelDraft.value.id, payload)
+      : await createMapLabel(payload);
+
+    labelDraft.value = {
+      ...labelDraft.value,
+      ...saved,
+      id: saved.id,
+      aliasNames: saved.aliasNames
+    };
+    labelAliasInput.value = formatAliasNamesInput(saved.aliasNames);
+
+    await refreshMapLabels(mapStore.viewport, true);
+    ElMessage.success(isUpdate ? '标注已更新' : '标注已保存');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存标注失败');
+  } finally {
+    labelSaving.value = false;
+  }
 }
 
 async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise<MapFocusTarget> {
@@ -704,6 +1171,35 @@ function getInspectorRemark(target: MapFocusTarget): string {
 }
 
 watch(
+  () => mapStore.selectedEntity,
+  (target) => {
+    if (!target) {
+      return;
+    }
+
+    void hydrateLabelDraft(createLabelContextFromFocusTarget(target));
+  },
+  { deep: true }
+);
+
+watch(
+  () => labelDraft.value?.featureType,
+  (featureType) => {
+    if (!labelDraft.value || !featureType) {
+      return;
+    }
+
+    labelDraft.value = {
+      ...labelDraft.value,
+      labelType: labelDraft.value.labelType || getDefaultLabelType(featureType),
+      minZoom: typeof labelDraft.value.minZoom === 'number' ? labelDraft.value.minZoom : getDefaultMinZoom(featureType),
+      maxZoom: typeof labelDraft.value.maxZoom === 'number' ? labelDraft.value.maxZoom : getDefaultMaxZoom(featureType),
+      priority: typeof labelDraft.value.priority === 'number' ? labelDraft.value.priority : getDefaultPriority(featureType)
+    };
+  }
+);
+
+watch(
   () => route.fullPath,
   () => {
     void syncRouteFocus();
@@ -783,7 +1279,8 @@ onBeforeUnmount(() => {
 }
 
 .search-results-card,
-.inspector-card {
+.inspector-card,
+.label-editor-card {
   width: min(360px, calc(100vw - 28px));
   padding: 14px;
   background: rgba(255, 255, 255, 0.94);
@@ -914,6 +1411,69 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
+.label-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.label-editor-tip {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.label-context-summary {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.label-context-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.label-context-summary p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.label-editor-form {
+  display: grid;
+  gap: 4px;
+}
+
+.label-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.label-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.label-editor-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
+.label-editor-form :deep(.el-input-number) {
+  width: 100%;
+ }
+
+.label-editor-form :deep(.el-select) {
+  width: 100%;
+}
+
 @media (max-width: 1024px) {
   .map-page {
     height: auto;
@@ -923,6 +1483,11 @@ onBeforeUnmount(() => {
   .map-overlay {
     position: static;
     margin-top: 12px;
+  }
+
+  .label-form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 }
 </style>
