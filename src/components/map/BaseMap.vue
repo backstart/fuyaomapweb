@@ -1,15 +1,15 @@
 <template>
   <div class="map-shell">
     <div ref="mapContainer" class="map-container"></div>
-    <div v-if="!hasBaseMap" class="shell-card map-notice">
-      <strong>未配置底图</strong>
-      <p>请检查底图地址配置。</p>
+    <div v-if="mapNotice" class="shell-card map-notice">
+      <strong>{{ mapNotice.title }}</strong>
+      <p>{{ mapNotice.message }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { createApp, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, createApp, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { LngLatLike, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent, Popup as MapLibrePopup } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
 import { BASEMAP_SOURCE_ID } from '@/map/amapLikeStyle';
@@ -60,6 +60,7 @@ import { boundsToBboxString } from '@/utils/bbox';
 import { buildPolygonGeometry, buildRectanglePolygonGeometry, dedupeCoordinates } from '@/utils/drawnBuildings';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 import { resolvePreferredName } from '@/utils/mapLabels';
+import { getLastBasemapIssueMessage } from '@/utils/mapStyle';
 import { maplibreglRuntime } from '@/utils/maplibreRuntime';
 
 const INSPECTABLE_BASE_LAYER_IDS = [
@@ -114,11 +115,30 @@ const suppressNextMapClickAction = ref(false);
 const rectangleAnchor = ref<[number, number] | null>(null);
 const polygonVertices = ref<Array<[number, number]>>([]);
 const drawCursorPoint = ref<[number, number] | null>(null);
+const mapErrorMessage = ref('');
 let resizeObserver: ResizeObserver | null = null;
 
 // Popup 使用独立 Vue app 挂载，这样可以直接复用现有 Vue 组件。
 let popup: MapLibrePopup | null = null;
 let popupApp: ReturnType<typeof createApp> | null = null;
+
+const mapNotice = computed(() => {
+  if (!hasBaseMap) {
+    return {
+      title: '未配置底图',
+      message: '请检查 PMTiles 地址配置。'
+    };
+  }
+
+  if (!mapErrorMessage.value) {
+    return null;
+  }
+
+  return {
+    title: '底图加载失败',
+    message: mapErrorMessage.value
+  };
+});
 
 declare global {
   interface Window {
@@ -277,6 +297,17 @@ function setupBusinessLayers(instance: MapLibreMap): void {
   instance.on('mousemove', (event) => handleMapMouseMove(instance, event));
   instance.on('click', (event) => handleMapClick(instance, event));
   instance.on('dblclick', (event) => handleMapDoubleClick(instance, event));
+  instance.on('error', (event) => {
+    const message = event?.error instanceof Error ? event.error.message : String(event?.error ?? '');
+    if (!message) {
+      return;
+    }
+
+    if (message.includes('pmtiles') || message.includes('scheme') || message.includes('/tiles/')) {
+      mapErrorMessage.value = '无法读取 /tiles/city.pmtiles，请检查 PMTiles 协议注册、/tiles/ 映射及 city.pmtiles 文件是否存在。';
+      console.error('[BaseMap] basemap runtime error', event.error);
+    }
+  });
   syncInteractionMode(instance);
   scheduleMapResize(instance);
 }
@@ -636,31 +667,37 @@ onMounted(async () => {
     return;
   }
 
-  const instance = await initMap(mapContainer.value, {
-    persistedViewport: props.initialViewport
-  });
-  scheduleMapResize(instance);
-
-  if (typeof ResizeObserver !== 'undefined') {
-    resizeObserver = new ResizeObserver(() => {
-      if (!map.value) {
-        return;
-      }
-
-      map.value.resize();
+  try {
+    const instance = await initMap(mapContainer.value, {
+      persistedViewport: props.initialViewport
     });
-    resizeObserver.observe(mapContainer.value);
-  }
+    mapErrorMessage.value = getLastBasemapIssueMessage();
+    scheduleMapResize(instance);
 
-  if (instance.isStyleLoaded()) {
-    setupBusinessLayers(instance);
-    return;
-  }
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (!map.value) {
+          return;
+        }
 
-  instance.once('load', () => {
-    // 地图 load 后再创建 source/layer，避免 style 尚未准备好时报错。
-    setupBusinessLayers(instance);
-  });
+        map.value.resize();
+      });
+      resizeObserver.observe(mapContainer.value);
+    }
+
+    if (instance.isStyleLoaded()) {
+      setupBusinessLayers(instance);
+      return;
+    }
+
+    instance.once('load', () => {
+      // 地图 load 后再创建 source/layer，避免 style 尚未准备好时报错。
+      setupBusinessLayers(instance);
+    });
+  } catch (error) {
+    mapErrorMessage.value = error instanceof Error ? error.message : '地图初始化失败，请检查底图样式和 PMTiles 配置。';
+    console.error('[BaseMap] failed to initialize map', error);
+  }
 });
 
 watch(

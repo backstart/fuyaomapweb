@@ -1,7 +1,7 @@
 import type { FilterSpecification, LayerSpecification, StyleSpecification } from 'maplibre-gl';
 import { PMTiles, Protocol } from 'pmtiles';
 import { BASEMAP_SOURCE_ID, buildAmapLikePmtilesStyle } from '@/map/amapLikeStyle';
-import { registerMapLibreProtocol } from '@/utils/maplibreRuntime';
+import { ensureMapLibreRuntime, registerMapLibreProtocol } from '@/utils/maplibreRuntime';
 
 // 这里只关心前端构造 style 需要的最小 PMTiles 元数据。
 interface VectorLayerMetadata {
@@ -21,6 +21,24 @@ const PMTILES_PATTERN = /\.pmtiles(\?.*)?$/i;
 
 let protocolRegistered = false;
 let protocolInstance: Protocol | null = null;
+let lastBasemapIssueMessage = '';
+
+function logBasemapIssue(message: string, detail?: unknown): void {
+  console.warn(`[Basemap] ${message}`, detail);
+}
+
+function setLastBasemapIssue(message: string, detail?: unknown): void {
+  lastBasemapIssueMessage = message;
+  logBasemapIssue(message, detail);
+}
+
+function clearLastBasemapIssue(): void {
+  lastBasemapIssueMessage = '';
+}
+
+export function getLastBasemapIssueMessage(): string {
+  return lastBasemapIssueMessage;
+}
 
 function buildBlankStyle(): StyleSpecification {
   // 未配置底图时仍给地图一个合法 style，方便业务图层正常工作。
@@ -49,6 +67,8 @@ function getVectorLayerIds(metadata: PmtilesMetadata): string[] {
 }
 
 function ensureProtocol(): Protocol {
+  ensureMapLibreRuntime();
+
   if (protocolInstance) {
     return protocolInstance;
   }
@@ -69,6 +89,10 @@ function loadArchive(url: string): PMTiles {
   const archive = new PMTiles(url);
   protocol.add(archive);
   return archive;
+}
+
+function isPmtilesSourceUrl(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().toLowerCase().startsWith('pmtiles://');
 }
 
 function buildPmtilesVectorStyle(url: string, sourceLayers: string[]): StyleSpecification {
@@ -170,13 +194,41 @@ function cloneStyleSpecification(style: StyleSpecification): StyleSpecification 
 
 function rewritePmtilesSourceUrl(style: StyleSpecification, pmtilesUrl: string): StyleSpecification {
   const clonedStyle = cloneStyleSpecification(style);
-  const source = clonedStyle.sources?.[BASEMAP_SOURCE_ID];
+  const rewrittenUrl = `pmtiles://${pmtilesUrl}`;
 
-  if (source && source.type === 'vector') {
-    source.url = `pmtiles://${pmtilesUrl}`;
+  for (const source of Object.values(clonedStyle.sources ?? {})) {
+    if (!source || typeof source !== 'object' || !('url' in source)) {
+      continue;
+    }
+
+    if (isPmtilesSourceUrl(source.url) || source === clonedStyle.sources?.[BASEMAP_SOURCE_ID]) {
+      source.url = rewrittenUrl;
+    }
   }
 
   return clonedStyle;
+}
+
+function styleContainsPmtilesSource(style: StyleSpecification): boolean {
+  return Object.values(style.sources ?? {}).some((source) => {
+    if (!source || typeof source !== 'object' || !('url' in source)) {
+      return false;
+    }
+
+    return isPmtilesSourceUrl(source.url);
+  });
+}
+
+function ensurePmtilesArchiveRegistered(pmtilesUrl: string, reason: string): PMTiles {
+  try {
+    return loadArchive(pmtilesUrl);
+  } catch (error) {
+    logBasemapIssue(`failed to prepare PMTiles runtime for ${reason}`, {
+      pmtilesUrl,
+      error
+    });
+    throw error;
+  }
 }
 
 async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string): Promise<StyleSpecification | null> {
@@ -198,14 +250,23 @@ async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string): Promise
       return null;
     }
 
-    return rewritePmtilesSourceUrl(style, pmtilesUrl);
+    const rewrittenStyle = rewritePmtilesSourceUrl(style, pmtilesUrl);
+    if (styleContainsPmtilesSource(rewrittenStyle)) {
+      ensurePmtilesArchiveRegistered(pmtilesUrl, 'static-style');
+    }
+
+    return rewrittenStyle;
   } catch (error) {
-    console.warn('Failed to load static basemap style, fallback to runtime style builder.', error);
+    logBasemapIssue('failed to load static basemap style, fallback to runtime style builder', {
+      styleUrl: normalizedStyleUrl,
+      error
+    });
     return null;
   }
 }
 
 export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleOptions = {}): Promise<string | StyleSpecification> {
+  clearLastBasemapIssue();
   const normalizedUrl = baseUrl.trim();
 
   if (!normalizedUrl) {
@@ -224,9 +285,9 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
 
   let archive: PMTiles;
   try {
-    archive = loadArchive(normalizedUrl);
+    archive = ensurePmtilesArchiveRegistered(normalizedUrl, 'runtime-style');
   } catch (error) {
-    console.warn('Failed to register PMTiles protocol, fallback to blank style.', error);
+    setLastBasemapIssue('PMTiles 协议注册或档案加载失败，请检查 /tiles/city.pmtiles 是否存在以及 pmtiles 协议是否已注册。', error);
     return buildBlankStyle();
   }
 
@@ -239,7 +300,10 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
       return buildPmtilesVectorStyle(normalizedUrl, sourceLayers);
     }
   } catch (error) {
-    console.warn('Failed to inspect PMTiles metadata, fallback to raster style.', error);
+    logBasemapIssue('failed to inspect PMTiles metadata, fallback to raster style', {
+      pmtilesUrl: normalizedUrl,
+      error
+    });
   }
 
   return buildPmtilesRasterStyle(normalizedUrl);
