@@ -1,6 +1,7 @@
 interface RuntimeAppConfig {
   API_BASE_URL?: string;
   PMTILES_URL?: string;
+  MAP_IP_LOCATE_URL?: string;
 }
 
 function readRuntimeConfig(): RuntimeAppConfig {
@@ -43,5 +44,14 @@ export const appConfig = {
     }
 
     return pickConfigValue(runtimeConfig.PMTILES_URL, import.meta.env.VITE_PMTILES_URL, '/tiles/city.pmtiles');
+  },
+
+  get mapIpLocateUrl(): string {
+    const runtimeConfig = readRuntimeConfig();
+    if (import.meta.env.DEV) {
+      return pickConfigValue(import.meta.env.VITE_MAP_IP_LOCATE_URL, runtimeConfig.MAP_IP_LOCATE_URL, '');
+    }
+
+    return pickConfigValue(runtimeConfig.MAP_IP_LOCATE_URL, import.meta.env.VITE_MAP_IP_LOCATE_URL, '');
   }
 };

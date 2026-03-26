@@ -10,6 +10,7 @@
         :manual-label-data="manualLabelData"
         :business-label-data="businessLabelData"
         :layer-visibility="mapStore.layerVisibility"
+        :initial-viewport="mapStore.viewport"
         :selected-target="mapStore.selectedEntity"
         :focus-target="focusTarget"
         :label-pick-mode="labelPickMode"
@@ -255,6 +256,7 @@ import { buildBusinessLabelFeatureCollection, buildManualLabelFeatureCollection 
 import { searchMap } from '@/api/mapSearchApi';
 import { useAreaStore } from '@/stores/areaStore';
 import { useBoundaryStore } from '@/stores/boundaryStore';
+import { ZHONGSHAN_DEFAULT_CENTER } from '@/map/defaultMapView';
 import { useMapStore } from '@/stores/mapStore';
 import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
@@ -294,7 +296,6 @@ const LAYER_MIN_ZOOM: Record<LayerKey, number> = {
   places: 11,
   boundaries: 8
 };
-const LABEL_DEFAULT_CENTER: [number, number] = [121.4737, 31.2304];
 const LABEL_FEATURE_TYPE_OPTIONS: Array<{ value: MapLabelFeatureType; label: string }> = [
   { value: 'shop', label: '店铺' },
   { value: 'poi', label: 'POI' },
@@ -509,7 +510,7 @@ function getViewportSnapshot(mapInstance: MapLibreMap): MapViewportState {
 }
 
 function getLabelFallbackCenter(): [number, number] {
-  return mapStore.viewport.center ?? LABEL_DEFAULT_CENTER;
+  return mapStore.viewport.center ?? ZHONGSHAN_DEFAULT_CENTER;
 }
 
 function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): void {

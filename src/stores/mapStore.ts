@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from 'vue';
 import { defineStore } from 'pinia';
 import type { Map as MapLibreMap } from 'maplibre-gl';
+import { ZHONGSHAN_DEFAULT_CENTER, ZHONGSHAN_DEFAULT_ZOOM } from '@/map/defaultMapView';
 import type { LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 
 export const useMapStore = defineStore('map', () => {
@@ -19,8 +20,8 @@ export const useMapStore = defineStore('map', () => {
   // 记录当前视口，供 bbox 查询和刷新 GeoJSON 使用。
   const viewport = ref<MapViewportState>({
     bbox: undefined,
-    center: [121.4737, 31.2304],
-    zoom: 10.5
+    center: ZHONGSHAN_DEFAULT_CENTER,
+    zoom: ZHONGSHAN_DEFAULT_ZOOM
   });
 
   const hasSearchResults = computed(() => searchResults.value.length > 0);

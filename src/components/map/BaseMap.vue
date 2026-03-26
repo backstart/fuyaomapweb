@@ -30,6 +30,7 @@ import type {
   BoundaryFocusTarget,
   LayerVisibility,
   MapFocusTarget,
+  MapViewportState,
   PlaceFocusTarget,
   PoiFocusTarget,
   ShopFocusTarget
@@ -64,6 +65,7 @@ const props = defineProps<{
   manualLabelData: MapLabelFeatureCollection;
   businessLabelData: MapLabelFeatureCollection;
   layerVisibility: LayerVisibility;
+  initialViewport?: MapViewportState | null;
   selectedTarget?: MapFocusTarget | null;
   focusTarget?: MapFocusTarget | null;
   labelPickMode?: MapLabelPickMode;
@@ -382,7 +384,9 @@ onMounted(async () => {
     return;
   }
 
-  const instance = await initMap(mapContainer.value);
+  const instance = await initMap(mapContainer.value, {
+    persistedViewport: props.initialViewport
+  });
 
   if (instance.isStyleLoaded()) {
     setupBusinessLayers(instance);
