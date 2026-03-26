@@ -4,6 +4,7 @@ import { getMapAreaById, getMapAreas, getMapAreasGeoJson } from '@/api/mapAreaAp
 import type { PaginationState } from '@/types/api';
 import type { EntityId } from '@/types/entity';
 import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
+import { DRAWN_BUILDING_SOURCE_TYPE } from '@/utils/drawnBuildings';
 import { isRequestCanceled } from '@/utils/request';
 
 function createEmptyFeatureCollection(): AreaFeatureCollection {
@@ -23,6 +24,8 @@ export const useAreaStore = defineStore('areas', () => {
   const filters = reactive<QueryMapAreaParams>({
     keyword: '',
     type: '',
+    sourceType: undefined,
+    excludeSourceType: DRAWN_BUILDING_SOURCE_TYPE,
     status: undefined,
     page: 1,
     pageSize: 10,
@@ -60,6 +63,8 @@ export const useAreaStore = defineStore('areas', () => {
       geoJson.value = await getMapAreasGeoJson({
         keyword: filters.keyword,
         type: filters.type,
+        sourceType: filters.sourceType,
+        excludeSourceType: filters.excludeSourceType,
         status: filters.status,
         bbox: filters.bbox,
         ...overrides
@@ -78,7 +83,8 @@ export const useAreaStore = defineStore('areas', () => {
       const nextGeoJson = await getMapAreasGeoJson(
         {
           bbox: overrides.bbox,
-          keyword: overrides.keyword
+          keyword: overrides.keyword,
+          excludeSourceType: overrides.excludeSourceType ?? filters.excludeSourceType
         },
         {
           signal: controller.signal
@@ -130,6 +136,8 @@ export const useAreaStore = defineStore('areas', () => {
   function resetFilters(): void {
     filters.keyword = '';
     filters.type = '';
+    filters.sourceType = undefined;
+    filters.excludeSourceType = DRAWN_BUILDING_SOURCE_TYPE;
     filters.status = undefined;
     filters.page = 1;
     filters.pageSize = 10;

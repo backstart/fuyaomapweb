@@ -1,8 +1,8 @@
 import type { AxiosRequestConfig } from 'axios';
 import type { PagedResult } from '@/types/api';
 import type { EntityId } from '@/types/entity';
-import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams } from '@/types/area';
-import { getRequest } from '@/api/http';
+import type { AreaFeatureCollection, MapArea, MapAreaListItem, QueryMapAreaParams, SaveMapAreaPayload } from '@/types/area';
+import { deleteRequest, getRequest, postRequest, putRequest } from '@/api/http';
 
 // 区域列表用于表格分页。
 export function getMapAreas(params: QueryMapAreaParams): Promise<PagedResult<MapAreaListItem>> {
@@ -25,4 +25,16 @@ export function getMapAreasGeoJson(
     params,
     ...config
   });
+}
+
+export function createMapArea(payload: SaveMapAreaPayload): Promise<MapArea> {
+  return postRequest('/map/areas', payload);
+}
+
+export function updateMapArea(id: EntityId, payload: SaveMapAreaPayload): Promise<MapArea> {
+  return putRequest(`/map/areas/${id}`, payload);
+}
+
+export function deleteMapArea(id: EntityId): Promise<boolean> {
+  return deleteRequest(`/map/areas/${id}`);
 }

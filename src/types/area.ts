@@ -8,6 +8,8 @@ export interface MapArea {
   type?: string | null;
   remark?: string | null;
   styleJson?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
   status: number;
   geometryGeoJson: string;
   createTime: string;
@@ -34,8 +36,10 @@ export interface AreaGeoJsonProperties {
   styleJson?: string | null;
   status: number;
   businessId?: string | null;
+  sourceType?: string | null;
   sourceId?: string | null;
   geometryGeoJson?: string | null;
+  updateTime?: string | null;
 }
 
 export type AreaFeatureCollection = FeatureCollection<Geometry, AreaGeoJsonProperties>;
@@ -44,8 +48,21 @@ export type AreaFeatureCollection = FeatureCollection<Geometry, AreaGeoJsonPrope
 export interface QueryMapAreaParams {
   keyword?: string;
   type?: string;
+  sourceType?: string;
+  excludeSourceType?: string;
   status?: number;
   page?: number;
   pageSize?: number;
   bbox?: string;
+}
+
+export interface SaveMapAreaPayload {
+  name: string;
+  type?: string | null;
+  remark?: string | null;
+  styleJson?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  status: number;
+  geoJson: string;
 }

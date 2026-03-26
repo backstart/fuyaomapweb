@@ -13,6 +13,16 @@ import { createApp, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { LngLatLike, Map as MapLibreMap, MapGeoJSONFeature, MapMouseEvent, Popup as MapLibrePopup } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
 import { BASEMAP_SOURCE_ID } from '@/map/amapLikeStyle';
+import {
+  buildDrawnBuildingDraftFeatureCollection,
+  DRAWN_BUILDING_AREA_SOURCE_ID,
+  DRAWN_BUILDING_FILL_LAYER_ID,
+  DRAWN_BUILDING_LABEL_LAYER_ID,
+  DRAWN_BUILDING_LABEL_SOURCE_ID,
+  DRAWN_BUILDING_LINE_LAYER_ID,
+  ensureDrawnBuildingLayers,
+  updateDrawnBuildingSources
+} from '@/composables/useDrawnBuildingLayers';
 import { useMapLibre } from '@/composables/useMapLibre';
 import {
   ensureBusinessLayers,
@@ -37,10 +47,17 @@ import type {
   ShopFocusTarget
 } from '@/types/map';
 import type { BasemapInspectableFeature, MapLabelFeatureCollection, MapLabelPickMode } from '@/types/mapLabel';
+import type {
+  BuildingDrawMode,
+  DrawnBuildingAreaFeatureCollection,
+  DrawnBuildingCompletePayload,
+  DrawnBuildingLabelFeatureCollection
+} from '@/types/drawnBuilding';
 import type { PlaceFeatureCollection } from '@/types/place';
 import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
+import { buildPolygonGeometry, buildRectanglePolygonGeometry, dedupeCoordinates } from '@/utils/drawnBuildings';
 import { getGeometryBounds, getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 import { resolvePreferredName } from '@/utils/mapLabels';
 import { maplibreglRuntime } from '@/utils/maplibreRuntime';
@@ -65,11 +82,14 @@ const props = defineProps<{
   boundaryData: BoundaryFeatureCollection;
   manualLabelData: MapLabelFeatureCollection;
   businessLabelData: MapLabelFeatureCollection;
+  drawnBuildingAreaData: DrawnBuildingAreaFeatureCollection;
+  drawnBuildingLabelData: DrawnBuildingLabelFeatureCollection;
   layerVisibility: LayerVisibility;
   initialViewport?: MapViewportState | null;
   selectedTarget?: MapFocusTarget | null;
   focusTarget?: MapFocusTarget | null;
   labelPickMode?: MapLabelPickMode;
+  drawBuildingMode?: BuildingDrawMode;
 }>();
 
 const emit = defineEmits<{
@@ -83,12 +103,17 @@ const emit = defineEmits<{
   'map-click': [payload: { longitude: number; latitude: number }];
   'basemap-feature-click': [feature: BasemapInspectableFeature];
   'manual-label-click': [labelId: EntityId];
+  'drawn-building-click': [areaId: EntityId];
+  'drawn-building-complete': [payload: DrawnBuildingCompletePayload];
 }>();
 
 const { map, initMap, destroyMap } = useMapLibre();
 const mapContainer = ref<HTMLDivElement | null>(null);
 const hasBaseMap = Boolean(appConfig.pmtilesUrl.trim());
 const suppressNextMapClickAction = ref(false);
+const rectangleAnchor = ref<[number, number] | null>(null);
+const polygonVertices = ref<Array<[number, number]>>([]);
+const drawCursorPoint = ref<[number, number] | null>(null);
 
 // Popup 使用独立 Vue app 挂载，这样可以直接复用现有 Vue 组件。
 let popup: MapLibrePopup | null = null;
@@ -100,35 +125,144 @@ declare global {
   }
 }
 
+function getDrawingCursor(): [number, number] | null {
+  return drawCursorPoint.value;
+}
+
+function getDraftGeometryGeoJson(): string | null {
+  if (!props.drawBuildingMode) {
+    return null;
+  }
+
+  if (props.drawBuildingMode === 'rectangle') {
+    if (!rectangleAnchor.value || !getDrawingCursor()) {
+      return null;
+    }
+
+    return JSON.stringify(buildRectanglePolygonGeometry(rectangleAnchor.value, getDrawingCursor()!));
+  }
+
+  const draftPoints = getDrawingCursor() ? [...polygonVertices.value, getDrawingCursor()!] : [...polygonVertices.value];
+  const geometry = buildPolygonGeometry(draftPoints);
+  return geometry ? JSON.stringify(geometry) : null;
+}
+
+function updateDrawnBuildingMapSources(instance: MapLibreMap): void {
+  if (!instance.isStyleLoaded() || !instance.getSource(DRAWN_BUILDING_AREA_SOURCE_ID)) {
+    return;
+  }
+
+  updateDrawnBuildingSources(
+    instance,
+    props.drawnBuildingAreaData,
+    props.drawnBuildingLabelData,
+    buildDrawnBuildingDraftFeatureCollection(getDraftGeometryGeoJson(), props.drawBuildingMode ?? null)
+  );
+}
+
+function resetDrawInteractionState(instance?: MapLibreMap): void {
+  rectangleAnchor.value = null;
+  polygonVertices.value = [];
+  drawCursorPoint.value = null;
+
+  if (instance) {
+    updateDrawnBuildingMapSources(instance);
+  }
+}
+
+function syncInteractionMode(instance: MapLibreMap): void {
+  const interactiveDraw = Boolean(props.drawBuildingMode);
+  if (interactiveDraw) {
+    instance.doubleClickZoom.disable();
+  } else {
+    instance.doubleClickZoom.enable();
+  }
+
+  instance.getCanvas().style.cursor = interactiveDraw || props.labelPickMode ? 'crosshair' : '';
+}
+
+function resolveDrawnBuildingId(feature: MapGeoJSONFeature): EntityId | null {
+  if (feature.source !== DRAWN_BUILDING_AREA_SOURCE_ID && feature.source !== DRAWN_BUILDING_LABEL_SOURCE_ID) {
+    return null;
+  }
+
+  const properties = feature.properties as Record<string, unknown> | undefined;
+  const rawId = properties?.areaId ?? feature.id;
+  if (rawId === undefined || rawId === null || !String(rawId).trim()) {
+    return null;
+  }
+
+  return String(rawId).trim();
+}
+
+function queryDrawnBuildingId(mapInstance: MapLibreMap, event: MapMouseEvent): EntityId | null {
+  const feature = mapInstance.queryRenderedFeatures(event.point, {
+    layers: [DRAWN_BUILDING_FILL_LAYER_ID, DRAWN_BUILDING_LINE_LAYER_ID, DRAWN_BUILDING_LABEL_LAYER_ID]
+  }).find((item) => item.source === DRAWN_BUILDING_AREA_SOURCE_ID || item.source === DRAWN_BUILDING_LABEL_SOURCE_ID);
+
+  return feature ? resolveDrawnBuildingId(feature) : null;
+}
+
+function completeDrawnBuilding(instance: MapLibreMap, geometryGeoJson: string, shapeType: Exclude<BuildingDrawMode, null>, fallback: [number, number]): void {
+  const geometry = parseGeometryGeoJson(geometryGeoJson);
+  const center = geometry ? getGeometryCenter(geometry) : null;
+
+  emit('drawn-building-complete', {
+    geometryGeoJson,
+    labelLongitude: center?.[0] ?? fallback[0],
+    labelLatitude: center?.[1] ?? fallback[1],
+    shapeType
+  });
+
+  resetDrawInteractionState(instance);
+}
+
 function setupBusinessLayers(instance: MapLibreMap): void {
   ensureBusinessLayers(instance);
   ensureMapLabelLayers(instance);
+  ensureDrawnBuildingLayers(instance);
   updateBusinessSources(instance, props.shopData, props.areaData, props.poiData, props.placeData, props.boundaryData);
   updateMapLabelSources(instance, props.manualLabelData, props.businessLabelData);
+  updateDrawnBuildingMapSources(instance);
   setBusinessLayerVisibility(instance, props.layerVisibility);
   updateFocusedEntity(instance, getDisplayTarget());
   registerBusinessLayerEvents(instance, {
     onShopClick: (target) => {
+      if (props.drawBuildingMode) {
+        return;
+      }
       suppressNextMapClickAction.value = true;
       emit('shop-click', target);
       openPopup(target, [target.longitude, target.latitude]);
     },
     onAreaClick: (target, event) => {
+      if (props.drawBuildingMode) {
+        return;
+      }
       suppressNextMapClickAction.value = true;
       emit('area-click', target);
       openPopup(target, event.lngLat);
     },
     onPoiClick: (target) => {
+      if (props.drawBuildingMode) {
+        return;
+      }
       suppressNextMapClickAction.value = true;
       emit('poi-click', target);
       openPopup(target, [target.longitude, target.latitude]);
     },
     onPlaceClick: (target, event) => {
+      if (props.drawBuildingMode) {
+        return;
+      }
       suppressNextMapClickAction.value = true;
       emit('place-click', target);
       openPopup(target, event.lngLat);
     },
     onBoundaryClick: (target, event) => {
+      if (props.drawBuildingMode) {
+        return;
+      }
       suppressNextMapClickAction.value = true;
       emit('boundary-click', target);
       openPopup(target, event.lngLat);
@@ -139,8 +273,10 @@ function setupBusinessLayers(instance: MapLibreMap): void {
     window.__FUYAO_MAP_DEBUG__ = instance;
   }
   instance.on('moveend', () => emitViewport(instance));
+  instance.on('mousemove', (event) => handleMapMouseMove(instance, event));
   instance.on('click', (event) => handleMapClick(instance, event));
-  syncPickCursor(instance);
+  instance.on('dblclick', (event) => handleMapDoubleClick(instance, event));
+  syncInteractionMode(instance);
 }
 
 function isTargetVisible(target: MapFocusTarget | null | undefined): boolean {
@@ -389,11 +525,47 @@ function queryManualLabelId(mapInstance: MapLibreMap, event: MapMouseEvent): Ent
   return feature ? resolveManualLabelId(feature) : null;
 }
 
-function syncPickCursor(instance: MapLibreMap): void {
-  instance.getCanvas().style.cursor = props.labelPickMode ? 'crosshair' : '';
+function handleMapMouseMove(instance: MapLibreMap, event: MapMouseEvent): void {
+  if (!props.drawBuildingMode) {
+    return;
+  }
+
+  drawCursorPoint.value = [event.lngLat.lng, event.lngLat.lat];
+  updateDrawnBuildingMapSources(instance);
 }
 
 function handleMapClick(instance: MapLibreMap, event: MapMouseEvent): void {
+  if (props.drawBuildingMode === 'rectangle') {
+    const nextPoint: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+
+    if (!rectangleAnchor.value) {
+      rectangleAnchor.value = nextPoint;
+      drawCursorPoint.value = nextPoint;
+      updateDrawnBuildingMapSources(instance);
+      return;
+    }
+
+    const geometryGeoJson = JSON.stringify(buildRectanglePolygonGeometry(rectangleAnchor.value, nextPoint));
+    completeDrawnBuilding(instance, geometryGeoJson, 'rectangle', nextPoint);
+    return;
+  }
+
+  if (props.drawBuildingMode === 'polygon') {
+    const nextPoint: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+    polygonVertices.value = dedupeCoordinates([...polygonVertices.value, nextPoint]);
+    drawCursorPoint.value = nextPoint;
+    updateDrawnBuildingMapSources(instance);
+    return;
+  }
+
+  if (props.labelPickMode !== 'point') {
+    const drawnBuildingId = queryDrawnBuildingId(instance, event);
+    if (drawnBuildingId !== null) {
+      emit('drawn-building-click', drawnBuildingId);
+      return;
+    }
+  }
+
   emit('map-click', {
     longitude: event.lngLat.lng,
     latitude: event.lngLat.lat
@@ -420,6 +592,23 @@ function handleMapClick(instance: MapLibreMap, event: MapMouseEvent): void {
   if (feature) {
     emit('basemap-feature-click', feature);
   }
+}
+
+function handleMapDoubleClick(instance: MapLibreMap, event: MapMouseEvent): void {
+  if (props.drawBuildingMode !== 'polygon') {
+    return;
+  }
+
+  event.preventDefault();
+
+  const points = dedupeCoordinates(polygonVertices.value);
+  const geometry = buildPolygonGeometry(points);
+  if (!geometry) {
+    return;
+  }
+
+  const fallback: [number, number] = points[points.length - 1] ?? [event.lngLat.lng, event.lngLat.lat];
+  completeDrawnBuilding(instance, JSON.stringify(geometry), 'polygon', fallback);
 }
 
 onMounted(async () => {
@@ -463,6 +652,18 @@ watch(
     }
 
     updateMapLabelSources(map.value, manualLabels, businessLabels);
+  },
+  { deep: true }
+);
+
+watch(
+  () => [props.drawnBuildingAreaData, props.drawnBuildingLabelData] as const,
+  () => {
+    if (!map.value || !map.value.isStyleLoaded() || !map.value.getSource(DRAWN_BUILDING_AREA_SOURCE_ID)) {
+      return;
+    }
+
+    updateDrawnBuildingMapSources(map.value);
   },
   { deep: true }
 );
@@ -512,18 +713,29 @@ watch(
 );
 
 watch(
-  () => props.labelPickMode,
-  () => {
+  () => [props.labelPickMode, props.drawBuildingMode] as const,
+  ([, drawMode], [, previousDrawMode]) => {
     if (!map.value) {
       return;
     }
 
-    syncPickCursor(map.value);
+    syncInteractionMode(map.value);
+    if (drawMode !== previousDrawMode) {
+      resetDrawInteractionState(map.value);
+    }
+
+    if (!drawMode) {
+      resetDrawInteractionState(map.value);
+      return;
+    }
+
+    updateDrawnBuildingMapSources(map.value);
   }
 );
 
 onBeforeUnmount(() => {
   clearPopup();
+  resetDrawInteractionState(map.value ?? undefined);
   if (import.meta.env.DEV && window.__FUYAO_MAP_DEBUG__ === map.value) {
     delete window.__FUYAO_MAP_DEBUG__;
   }

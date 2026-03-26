@@ -9,11 +9,14 @@
         :boundary-data="boundaryStore.geoJson"
         :manual-label-data="manualLabelData"
         :business-label-data="businessLabelData"
+        :drawn-building-area-data="drawnBuildingAreaData"
+        :drawn-building-label-data="drawnBuildingLabelData"
         :layer-visibility="mapStore.layerVisibility"
         :initial-viewport="mapStore.viewport"
         :selected-target="mapStore.selectedEntity"
         :focus-target="focusTarget"
         :label-pick-mode="labelPickMode"
+        :draw-building-mode="drawnBuildingStore.drawMode"
         @ready="handleMapReady"
         @viewport-change="handleViewportChange"
         @shop-click="handleEntityClick"
@@ -24,6 +27,8 @@
         @map-click="handleMapClick"
         @basemap-feature-click="handleBasemapFeatureClick"
         @manual-label-click="handleManualLabelClick"
+        @drawn-building-click="handleDrawnBuildingClick"
+        @drawn-building-complete="handleDrawnBuildingComplete"
       />
 
       <div class="map-overlay map-overlay-left">
@@ -95,6 +100,47 @@
             </p>
           </el-scrollbar>
         </div>
+
+        <div v-if="showDrawnBuildingListPanel" class="shell-card search-results-card building-list-card">
+          <div class="card-head">
+            <div class="card-title-row">
+              <h3>建筑区域</h3>
+              <span v-if="drawnBuildingListCountLabel" class="card-meta">{{ drawnBuildingListCountLabel }}</span>
+            </div>
+            <el-button text size="small" @click="clearDrawnBuildingFilter">清空</el-button>
+          </div>
+
+          <el-input
+            v-model="drawnBuildingKeyword"
+            placeholder="筛选名称、类型或编号"
+            clearable
+            class="building-list-filter"
+          />
+
+          <el-scrollbar max-height="280px">
+            <div v-if="filteredDrawnBuildingAreas.length" class="result-list">
+              <div
+                v-for="item in filteredDrawnBuildingAreas"
+                :key="String(item.id)"
+                class="result-item result-item--stack"
+                @click="editDrawnBuildingArea(item)"
+              >
+                <div class="result-main">
+                  <strong>{{ item.name }}</strong>
+                  <p>{{ getDrawnBuildingItemSubtitle(item) }}</p>
+                </div>
+                <div class="result-inline-actions">
+                  <el-button size="small" @click.stop="locateDrawnBuildingArea(item)">定位</el-button>
+                  <el-button size="small" type="primary" @click.stop="editDrawnBuildingArea(item)">编辑</el-button>
+                  <el-button size="small" type="danger" plain @click.stop="deleteDrawnBuildingArea(item)">删除</el-button>
+                </div>
+              </div>
+            </div>
+            <p v-else class="search-empty-tip">
+              当前筛选条件下没有建筑区域。
+            </p>
+          </el-scrollbar>
+        </div>
       </div>
 
       <div class="map-overlay map-overlay-right">
@@ -104,24 +150,156 @@
             @update:model-value="mapStore.setLayerVisibility"
           />
 
-          <div v-if="showLabelToolsCard" class="shell-card label-tools-card">
+          <div v-if="showToolCards" class="shell-card label-tools-card map-tools-card">
             <div class="card-head card-head--compact">
-              <h3>地图标注</h3>
+              <div class="card-title-row">
+                <h3>地图工具</h3>
+                <span v-if="drawnBuildingCountLabel" class="card-meta">{{ drawnBuildingCountLabel }}</span>
+              </div>
             </div>
-            <div class="label-editor-toolbar label-editor-toolbar--compact">
-              <el-button
-                size="small"
-                :type="labelPickMode === 'feature' ? 'primary' : 'default'"
-                @click="toggleFeaturePickMode"
-              >
-                {{ labelPickMode === 'feature' ? '退出补名模式' : '点击对象补名' }}
-              </el-button>
-              <el-button size="small" @click="startManualLabel">手动点位</el-button>
+            <div class="tool-group">
+              <span class="tool-group-title">标注</span>
+              <div class="label-editor-toolbar label-editor-toolbar--compact">
+                <el-button
+                  size="small"
+                  :type="labelPickMode === 'feature' ? 'primary' : 'default'"
+                  @click="toggleFeaturePickMode"
+                >
+                  {{ labelPickMode === 'feature' ? '退出补名' : '点击对象补名' }}
+                </el-button>
+                <el-button size="small" @click="startManualLabel">手动点位</el-button>
+              </div>
+            </div>
+            <div class="tool-group">
+              <span class="tool-group-title">建筑区域</span>
+              <div class="label-editor-toolbar label-editor-toolbar--compact">
+                <el-button
+                  size="small"
+                  :type="drawnBuildingStore.drawMode === 'rectangle' ? 'primary' : 'default'"
+                  @click="startDrawBuildingArea('rectangle')"
+                >
+                  绘制矩形
+                </el-button>
+                <el-button
+                  size="small"
+                  :type="drawnBuildingStore.drawMode === 'polygon' ? 'primary' : 'default'"
+                  @click="startDrawBuildingArea('polygon')"
+                >
+                  绘制多边形
+                </el-button>
+                <el-button
+                  v-if="drawnBuildingStore.drawMode"
+                  size="small"
+                  @click="cancelDrawBuildingArea"
+                >
+                  取消绘制
+                </el-button>
+              </div>
             </div>
             <p class="label-editor-tip label-editor-tip--compact">
-              点击地图已有标注可直接再次进入编辑。
+              {{ drawnBuildingEditorTip }}
             </p>
           </div>
+        </div>
+
+        <div v-if="showDrawnBuildingEditorPanel" class="shell-card label-editor-card label-editor-card--drawer building-editor-card">
+          <div class="card-head">
+            <div class="card-title-row">
+              <h3>建筑区域</h3>
+              <span v-if="drawnBuildingEditorBadge" class="card-meta">{{ drawnBuildingEditorBadge }}</span>
+            </div>
+            <div class="card-head-actions">
+              <el-button text size="small" @click="closeDrawnBuildingEditor">收起</el-button>
+            </div>
+          </div>
+
+          <el-scrollbar max-height="calc(100vh - 232px)">
+            <div class="label-editor-body">
+              <p class="label-editor-tip">
+                {{ drawnBuildingEditorTip }}
+              </p>
+
+              <div v-if="drawnBuildingDraft" class="label-context-summary">
+                <strong>{{ drawnBuildingDraft.name || '未命名建筑区域' }}</strong>
+                <p>
+                  {{ getDrawnBuildingShapeLabel(drawnBuildingDraft.shapeType) }}
+                  <template v-if="drawnBuildingDraft.buildingCode">
+                    · 编号：{{ drawnBuildingDraft.buildingCode }}
+                  </template>
+                </p>
+              </div>
+
+              <el-form v-if="drawnBuildingDraft" label-position="top" class="label-editor-form" @submit.prevent>
+                <el-form-item label="建筑名称" required>
+                  <el-input v-model="drawnBuildingDraft.name" placeholder="请输入建筑名称" />
+                </el-form-item>
+
+                <div class="label-form-grid">
+                  <el-form-item label="建筑类型">
+                    <el-input v-model="drawnBuildingDraft.buildingType" placeholder="例如：宿舍楼、办公楼" />
+                  </el-form-item>
+                  <el-form-item label="建筑编号">
+                    <el-input v-model="drawnBuildingDraft.buildingCode" placeholder="例如：A1、1栋" />
+                  </el-form-item>
+                </div>
+
+                <div class="label-form-grid">
+                  <el-form-item label="标注经度">
+                    <el-input-number v-model="drawnBuildingDraft.labelLongitude" :step="0.0001" :precision="6" :min="-180" :max="180" controls-position="right" />
+                  </el-form-item>
+                  <el-form-item label="标注纬度">
+                    <el-input-number v-model="drawnBuildingDraft.labelLatitude" :step="0.0001" :precision="6" :min="-90" :max="90" controls-position="right" />
+                  </el-form-item>
+                </div>
+
+                <div class="label-form-grid">
+                  <el-form-item label="填充颜色">
+                    <el-input v-model="drawnBuildingDraft.fillColor" placeholder="rgba(70, 141, 247, 0.18)" />
+                  </el-form-item>
+                  <el-form-item label="边框颜色">
+                    <el-input v-model="drawnBuildingDraft.lineColor" placeholder="#2f7df6" />
+                  </el-form-item>
+                </div>
+
+                <div class="label-form-grid">
+                  <el-form-item label="边框宽度">
+                    <el-input-number v-model="drawnBuildingDraft.lineWidth" :min="1" :max="12" :step="0.2" controls-position="right" />
+                  </el-form-item>
+                  <el-form-item label="启用状态">
+                    <el-switch v-model="drawnBuildingDraft.status" :active-value="1" :inactive-value="0" />
+                  </el-form-item>
+                </div>
+
+                <el-form-item label="区域形状">
+                  <el-input :model-value="getDrawnBuildingShapeLabel(drawnBuildingDraft.shapeType)" disabled />
+                </el-form-item>
+
+                <el-form-item label="备注">
+                  <el-input
+                    v-model="drawnBuildingDraft.remark"
+                    type="textarea"
+                    :autosize="{ minRows: 2, maxRows: 4 }"
+                    placeholder="可填写建筑用途、楼层说明或补充信息"
+                  />
+                </el-form-item>
+
+                <div class="label-editor-actions">
+                  <el-button type="primary" @click="saveDrawnBuildingArea">
+                    保存建筑区域
+                  </el-button>
+                  <el-button
+                    v-if="drawnBuildingDraft && !drawnBuildingDraft.isDraft"
+                    type="danger"
+                    plain
+                    @click="deleteDrawnBuildingArea(drawnBuildingDraft)"
+                  >
+                    删除
+                  </el-button>
+                  <el-button @click="closeDrawnBuildingEditor">取消</el-button>
+                </div>
+              </el-form>
+            </div>
+          </el-scrollbar>
         </div>
 
         <div v-if="showLabelEditorPanel" class="shell-card label-editor-card label-editor-card--drawer">
@@ -270,26 +448,41 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute } from 'vue-router';
+import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
 import MapSearchBar from '@/components/search/MapSearchBar.vue';
 import { buildBusinessLabelFeatureCollection, buildManualLabelFeatureCollection } from '@/composables/useMapLabelLayers';
+import {
+  buildDrawnBuildingAreaFeatureCollection,
+  buildDrawnBuildingLabelFeatureCollection
+} from '@/composables/useDrawnBuildingLayers';
 import { searchMap } from '@/api/mapSearchApi';
 import { useAreaStore } from '@/stores/areaStore';
 import { useBoundaryStore } from '@/stores/boundaryStore';
 import { ZHONGSHAN_DEFAULT_CENTER } from '@/map/defaultMapView';
+import { useDrawnBuildingStore } from '@/stores/drawnBuildingStore';
 import { useMapStore } from '@/stores/mapStore';
 import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
+import type { BuildingDrawMode, DrawnBuildingArea, DrawnBuildingCompletePayload, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import type { EntityId } from '@/types/entity';
 import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 import { boundsToBboxString } from '@/utils/bbox';
+import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
+import {
+  buildDrawnBuildingSavePayload,
+  createDrawnBuildingDraft,
+  DRAWN_BUILDING_SOURCE_TYPE,
+  parseDrawnBuildingAreaFromFeature,
+  parseDrawnBuildingAreaFromMapArea
+} from '@/utils/drawnBuildings';
 import {
   DEFAULT_HALO_COLOR,
   DEFAULT_MANUAL_SOURCE,
@@ -344,6 +537,7 @@ type LayerKey = keyof LayerVisibility;
 
 const route = useRoute();
 const mapStore = useMapStore();
+const drawnBuildingStore = useDrawnBuildingStore();
 const shopStore = useShopStore();
 const areaStore = useAreaStore();
 const poiStore = usePoiStore();
@@ -351,6 +545,7 @@ const placeStore = usePlaceStore();
 const boundaryStore = useBoundaryStore();
 
 const searchKeyword = ref('');
+const drawnBuildingKeyword = ref('');
 const searchLoading = ref(false);
 const searchPanelMessage = ref('');
 const focusTarget = ref<MapFocusTarget | null>(null);
@@ -361,6 +556,7 @@ const labelSaving = ref(false);
 const labelPickMode = ref<MapLabelPickMode>(null);
 const labelEditorContext = ref<EditableMapLabelContext | null>(null);
 const labelDraft = ref<EditableMapLabelDraft | null>(null);
+const drawnBuildingDraft = ref<EditableDrawnBuildingDraft | null>(null);
 const editingLabelId = ref<EntityId | null>(null);
 const labelAliasInput = ref('');
 const labelContextRequestId = ref(0);
@@ -375,6 +571,7 @@ const lastRequestedViewportByLayer = ref<Record<LayerKey, MapViewportState | nul
   boundaries: null
 });
 const lastRequestedLabelViewport = ref<MapViewportState | null>(null);
+const lastRequestedDrawnBuildingViewport = ref<MapViewportState | null>(null);
 
 const searchResultCountLabel = computed(() =>
   mapStore.searchResults.length ? `共 ${mapStore.searchResults.length} 条` : ''
@@ -398,6 +595,32 @@ const businessLabelData = computed(() => buildBusinessLabelFeatureCollection({
   manualLabels: visibleManualLabels.value,
   zoom: mapStore.viewport.zoom ?? 0
 }));
+const drawnBuildingAreaData = computed(() =>
+  buildDrawnBuildingAreaFeatureCollection(drawnBuildingStore.areas, drawnBuildingStore.selectedAreaId)
+);
+const drawnBuildingLabelData = computed(() =>
+  buildDrawnBuildingLabelFeatureCollection(drawnBuildingStore.areas, drawnBuildingStore.selectedAreaId)
+);
+const filteredDrawnBuildingAreas = computed(() => {
+  const keyword = drawnBuildingKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return drawnBuildingStore.areas;
+  }
+
+  return drawnBuildingStore.areas.filter((item) => {
+    const haystack = [
+      item.name,
+      item.buildingType,
+      item.buildingCode,
+      item.remark
+    ]
+      .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+      .join(' ')
+      .toLowerCase();
+
+    return haystack.includes(keyword);
+  });
+});
 const labelContextBadge = computed(() => {
   if (labelRefreshLoading.value) {
     return '标注图层刷新中';
@@ -409,11 +632,21 @@ const labelContextBadge = computed(() => {
 
   return labelDraft.value?.id ? '已存在人工标注' : '';
 });
+const drawnBuildingCountLabel = computed(() =>
+  drawnBuildingStore.areas.length ? `已绘制 ${drawnBuildingStore.areas.length} 个` : ''
+);
+const showDrawnBuildingListPanel = computed(() =>
+  drawnBuildingStore.areas.length > 0 || Boolean(drawnBuildingKeyword.value.trim())
+);
+const drawnBuildingListCountLabel = computed(() =>
+  filteredDrawnBuildingAreas.value.length ? `共 ${filteredDrawnBuildingAreas.value.length} 个` : ''
+);
 const showLabelEditorPanel = computed(() =>
   Boolean(labelDraft.value || labelEditorContext.value || labelLookupLoading.value || labelSaving.value || labelPickMode.value)
 );
-const showLabelToolsCard = computed(() => !showLabelEditorPanel.value);
-const showInspectorPanel = computed(() => Boolean(mapStore.selectedEntity) && !showLabelEditorPanel.value);
+const showDrawnBuildingEditorPanel = computed(() => Boolean(drawnBuildingDraft.value));
+const showToolCards = computed(() => !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
+const showInspectorPanel = computed(() => Boolean(mapStore.selectedEntity) && !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
 const canResetLabelDraft = computed(() => Boolean(labelDraft.value || labelEditorContext.value || editingLabelId.value !== null));
 const labelContextTitle = computed(() => {
   if (!labelEditorContext.value) {
@@ -461,6 +694,24 @@ const labelEditorTip = computed(() => {
   }
 
   return '点击业务对象、进入补名模式点击底图要素，或新建手动点位后即可开始编辑。';
+});
+const drawnBuildingEditorBadge = computed(() => {
+  if (!drawnBuildingDraft.value) {
+    return '';
+  }
+
+  return drawnBuildingDraft.value.isDraft ? '新绘制区域' : '已选建筑区域';
+});
+const drawnBuildingEditorTip = computed(() => {
+  if (drawnBuildingStore.drawMode === 'rectangle') {
+    return '矩形绘制模式：在地图上点击两个对角点即可完成建筑区域绘制。';
+  }
+
+  if (drawnBuildingStore.drawMode === 'polygon') {
+    return '多边形绘制模式：逐点点击绘制边界，双击地图完成封闭区域。';
+  }
+
+  return '绘制完成后会自动生成建筑名称标注；点击已有建筑区域也可以再次进入编辑。';
 });
 
 function debugMapRefresh(message: string, detail?: unknown): void {
@@ -550,11 +801,30 @@ function getLabelFallbackCenter(): [number, number] {
   return mapStore.viewport.center ?? ZHONGSHAN_DEFAULT_CENTER;
 }
 
+function getDrawnBuildingShapeLabel(shapeType: Exclude<BuildingDrawMode, null>): string {
+  return shapeType === 'rectangle' ? '矩形区域' : '多边形区域';
+}
+
+function getDrawnBuildingItemSubtitle(area: DrawnBuildingArea): string {
+  const parts = [
+    area.buildingType?.trim(),
+    area.buildingCode?.trim(),
+    area.isDraft ? '未保存' : '已保存'
+  ].filter(Boolean);
+
+  return parts.join(' · ');
+}
+
 function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): void {
   labelEditorContext.value = context;
   labelDraft.value = createDraftFromContext(context, existing);
   labelAliasInput.value = formatAliasNamesInput(existing?.aliasNames);
   editingLabelId.value = existing?.id ?? null;
+}
+
+function resetDrawnBuildingEditorState(): void {
+  drawnBuildingStore.clearSelection();
+  drawnBuildingDraft.value = null;
 }
 
 function clearSelectedEntity(): void {
@@ -575,6 +845,8 @@ function editSelectedEntityLabel(): void {
     return;
   }
 
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   labelPickMode.value = null;
   void hydrateLabelDraft(createLabelContextFromFocusTarget(mapStore.selectedEntity));
 }
@@ -585,6 +857,165 @@ function closeLabelEditor(): void {
   labelDraft.value = null;
   labelAliasInput.value = '';
   editingLabelId.value = null;
+}
+
+function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
+  closeLabelEditor();
+  labelPickMode.value = null;
+  focusTarget.value = null;
+  mapStore.setSelectedEntity(null);
+  drawnBuildingStore.cancelDraw();
+  drawnBuildingStore.selectArea(area.id);
+  drawnBuildingDraft.value = createDrawnBuildingDraft(area);
+}
+
+function closeDrawnBuildingEditor(): void {
+  drawnBuildingStore.cancelDraw();
+  resetDrawnBuildingEditorState();
+}
+
+function clearDrawnBuildingFilter(): void {
+  drawnBuildingKeyword.value = '';
+}
+
+function locateDrawnBuildingArea(area: DrawnBuildingArea): void {
+  const mapInstance = mapStore.mapInstance;
+  if (!mapInstance) {
+    return;
+  }
+
+  drawnBuildingStore.selectArea(area.id);
+  const geometry = parseGeometryGeoJson(area.geometryGeoJson);
+  const bounds = geometry ? getGeometryBounds(geometry) : null;
+  if (!bounds) {
+    return;
+  }
+
+  mapInstance.fitBounds(bounds, {
+    padding: 80,
+    maxZoom: 18,
+    duration: 700
+  });
+}
+
+function editDrawnBuildingArea(area: DrawnBuildingArea): void {
+  openDrawnBuildingEditor(area);
+  locateDrawnBuildingArea(area);
+}
+
+function startDrawBuildingArea(mode: Exclude<BuildingDrawMode, null>): void {
+  closeLabelEditor();
+  clearSelectedEntity();
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.startDraw(mode);
+  ElMessage.info(mode === 'rectangle' ? '请在地图上点击两个对角点绘制建筑区域' : '请逐点点击绘制多边形，双击完成');
+}
+
+function cancelDrawBuildingArea(): void {
+  drawnBuildingStore.cancelDraw();
+  ElMessage.info('已取消建筑区域绘制');
+}
+
+function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): void {
+  const area = drawnBuildingStore.createArea(payload);
+  drawnBuildingDraft.value = createDrawnBuildingDraft(area);
+  ElMessage.success('建筑区域已创建，请完善名称和类型');
+}
+
+async function handleDrawnBuildingClick(areaId: EntityId): Promise<void> {
+  const area = drawnBuildingStore.areas.find((item) => String(item.id) === String(areaId));
+  if (area) {
+    openDrawnBuildingEditor(area);
+    return;
+  }
+
+  try {
+    const detail = await getMapAreaById(areaId);
+    const persistedArea = parseDrawnBuildingAreaFromMapArea(detail);
+    if (!persistedArea) {
+      ElMessage.warning('当前区域不是建筑绘制数据');
+      return;
+    }
+
+    drawnBuildingStore.replaceArea(areaId, persistedArea);
+    openDrawnBuildingEditor(persistedArea);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载建筑区域详情失败');
+  }
+}
+
+async function saveDrawnBuildingArea(): Promise<void> {
+  if (!drawnBuildingDraft.value) {
+    return;
+  }
+
+  const currentDraft = drawnBuildingDraft.value;
+  const name = currentDraft.name.trim();
+  if (!name) {
+    ElMessage.warning('建筑名称不能为空');
+    return;
+  }
+
+  try {
+    const payload = buildDrawnBuildingSavePayload(currentDraft, {
+      sourceId: currentDraft.isDraft ? String(currentDraft.id) : undefined
+    });
+
+    const savedArea = currentDraft.isDraft
+      ? await createMapArea(payload)
+      : await updateMapArea(currentDraft.id, payload);
+    const persistedArea = parseDrawnBuildingAreaFromMapArea(savedArea);
+
+    if (!persistedArea) {
+      throw new Error('后端返回的区域数据无法识别为建筑区域');
+    }
+
+    drawnBuildingStore.replaceArea(currentDraft.id, persistedArea);
+    drawnBuildingDraft.value = createDrawnBuildingDraft(persistedArea);
+
+    if (mapStore.viewport.bbox) {
+      await refreshDrawnBuildingAreas(mapStore.viewport, true);
+    }
+
+    ElMessage.success(currentDraft.isDraft ? '建筑区域已保存到后端' : '建筑区域已更新');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存建筑区域失败');
+  }
+}
+
+async function deleteDrawnBuildingArea(area: Pick<DrawnBuildingArea, 'id' | 'name' | 'isDraft'>): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除“${area.name}”吗？`,
+      '删除建筑区域',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      }
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    if (!area.isDraft) {
+      await deleteMapArea(area.id);
+    }
+
+    drawnBuildingStore.removeArea(area.id);
+    if (drawnBuildingDraft.value && String(drawnBuildingDraft.value.id) === String(area.id)) {
+      closeDrawnBuildingEditor();
+    }
+
+    if (mapStore.viewport.bbox && !area.isDraft) {
+      await refreshDrawnBuildingAreas(mapStore.viewport, true);
+    }
+
+    ElMessage.success(area.isDraft ? '未保存建筑区域已删除' : '建筑区域已删除');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '删除建筑区域失败');
+  }
 }
 
 function getCachedManualLabel(labelId: EntityId): MapLabel | null {
@@ -705,6 +1136,35 @@ async function refreshMapLabels(viewport: MapViewportState, force = false): Prom
   }
 }
 
+async function refreshDrawnBuildingAreas(viewport: MapViewportState, force = false): Promise<void> {
+  if (!viewport.bbox) {
+    drawnBuildingStore.replacePersistedAreas([]);
+    lastRequestedDrawnBuildingViewport.value = null;
+    return;
+  }
+
+  if (!force && isSimilarViewport(viewport, lastRequestedDrawnBuildingViewport.value)) {
+    return;
+  }
+
+  try {
+    const featureCollection = await getMapAreasGeoJson({
+      bbox: viewport.bbox,
+      status: 1,
+      sourceType: DRAWN_BUILDING_SOURCE_TYPE
+    });
+
+    const persistedAreas = featureCollection.features
+      .map((feature) => parseDrawnBuildingAreaFromFeature(feature))
+      .filter((item): item is DrawnBuildingArea => Boolean(item));
+
+    drawnBuildingStore.replacePersistedAreas(persistedAreas);
+    lastRequestedDrawnBuildingViewport.value = cloneViewport(viewport);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '建筑区域加载失败');
+  }
+}
+
 async function refreshLayer(layer: LayerKey, viewport: MapViewportState): Promise<boolean> {
   const bbox = viewport.bbox;
 
@@ -788,6 +1248,7 @@ async function flushScheduledRefresh(force = false): Promise<void> {
     debugMapRefresh('skip business refresh because no business layer is enabled');
   }
 
+  await refreshDrawnBuildingAreas(viewport, force);
   await refreshMapLabels(viewport, force);
 
   if (disabledLayers.length) {
@@ -901,6 +1362,9 @@ function handleEntityClick(target: MapFocusTarget): void {
     return;
   }
 
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
+
   if (labelPickMode.value === 'feature') {
     focusTarget.value = target;
     mapStore.setSelectedEntity(null);
@@ -927,6 +1391,8 @@ function handleMapClick(payload: { longitude: number; latitude: number }): void 
 }
 
 function handleBasemapFeatureClick(feature: BasemapInspectableFeature): void {
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   focusTarget.value = null;
   mapStore.setSelectedEntity(null);
   labelPickMode.value = null;
@@ -934,16 +1400,22 @@ function handleBasemapFeatureClick(feature: BasemapInspectableFeature): void {
 }
 
 function handleManualLabelClick(labelId: EntityId): void {
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   clearSelectedEntity();
   labelPickMode.value = null;
   void loadManualLabelDetail(labelId);
 }
 
 function toggleFeaturePickMode(): void {
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   labelPickMode.value = labelPickMode.value === 'feature' ? null : 'feature';
 }
 
 function togglePointPickMode(): void {
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   if (!labelDraft.value) {
     const [longitude, latitude] = getLabelFallbackCenter();
     setLabelDraftFromContext(createManualPointContext(longitude, latitude), null);
@@ -953,6 +1425,8 @@ function togglePointPickMode(): void {
 }
 
 function startManualLabel(): void {
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
   const [longitude, latitude] = getLabelFallbackCenter();
   clearSelectedEntity();
   setLabelDraftFromContext(createManualPointContext(longitude, latitude), null);
@@ -1231,6 +1705,8 @@ function buildFocusTargetFromQuery(entityType: EntityType, id: EntityId): MapFoc
 
 async function locateSearchResult(item: MapSearchItem): Promise<void> {
   try {
+    resetDrawnBuildingEditorState();
+    drawnBuildingStore.cancelDraw();
     const target = await resolveFocusTarget(item.itemType, item.id);
     focusTarget.value = target;
     mapStore.setSelectedEntity(target);
@@ -1367,6 +1843,8 @@ onBeforeUnmount(() => {
   (['shops', 'areas', 'pois', 'places', 'boundaries'] as LayerKey[]).forEach((layer) => {
     cancelLayerRequest(layer, 'map-view-unmount');
   });
+  drawnBuildingStore.cancelDraw();
+  drawnBuildingStore.clearSelection();
   mapStore.setMap(null);
 });
 </script>
@@ -1434,6 +1912,10 @@ onBeforeUnmount(() => {
   padding: 12px;
 }
 
+.map-tools-card {
+  width: 248px;
+}
+
 .label-editor-card {
   max-height: calc(100% - 52px);
   overflow: hidden;
@@ -1490,6 +1972,10 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
 }
 
+.building-list-filter {
+  margin-bottom: 12px;
+}
+
 .result-list {
   display: grid;
   gap: 8px;
@@ -1524,6 +2010,21 @@ onBeforeUnmount(() => {
   margin: 4px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.result-item--stack {
+  display: grid;
+  gap: 10px;
+}
+
+.result-main {
+  min-width: 0;
+}
+
+.result-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .search-empty-tip,
@@ -1665,6 +2166,24 @@ onBeforeUnmount(() => {
 
 .label-editor-toolbar--compact {
   margin-bottom: 0;
+}
+
+.tool-group {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-group + .tool-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.tool-group-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .label-editor-tip {
