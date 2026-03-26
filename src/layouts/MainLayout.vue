@@ -42,9 +42,9 @@
 
     </aside>
 
-    <main class="layout-main">
-      <header class="layout-topbar shell-card">
-        <h2>{{ pageTitle }}</h2>
+    <main :class="['layout-main', { 'layout-main--map': isMapRoute }]">
+      <header :class="['layout-topbar shell-card', { 'layout-topbar--map': isMapRoute }]">
+        <h2 v-if="!isMapRoute">{{ pageTitle }}</h2>
         <div class="topbar-meta">
           <div class="user-chip">
             <span>{{ authStore.displayName }}</span>
@@ -54,7 +54,7 @@
         </div>
       </header>
 
-      <section class="layout-content">
+      <section :class="['layout-content', { 'layout-content--map': isMapRoute }]">
         <RouterView />
       </section>
     </main>
@@ -73,6 +73,7 @@ const authStore = useAuthStore();
 
 // Route segments already map cleanly to menu indexes, so no separate menu config is needed for V1.
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
+const isMapRoute = computed(() => activeMenu.value === '/map');
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
 
 async function handleLogout(): Promise<void> {
@@ -118,12 +119,23 @@ async function handleLogout(): Promise<void> {
   gap: 14px;
 }
 
+.layout-main--map {
+  gap: 10px;
+}
+
 .layout-topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
+}
+
+.layout-topbar--map {
+  justify-content: flex-end;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
 }
 
 .layout-topbar h2 {
@@ -165,6 +177,10 @@ async function handleLogout(): Promise<void> {
   flex: 1;
 }
 
+.layout-content--map {
+  display: flex;
+}
+
 @media (max-width: 1100px) {
   .layout-root {
     grid-template-columns: 1fr;
@@ -187,8 +203,18 @@ async function handleLogout(): Promise<void> {
     align-items: flex-start;
   }
 
+  .layout-topbar--map {
+    padding: 12px 14px;
+    align-items: flex-end;
+  }
+
   .topbar-meta {
     justify-content: flex-start;
+  }
+
+  .layout-topbar--map .topbar-meta {
+    justify-content: flex-end;
+    width: 100%;
   }
 }
 </style>

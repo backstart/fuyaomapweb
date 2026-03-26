@@ -71,20 +71,23 @@ function onBoundariesChange(value: string | number | boolean): void {
 
 <style scoped>
 .switcher-card {
-  width: 204px;
-  padding: 10px 11px;
-  background: rgba(255, 255, 255, 0.94);
+  width: 212px;
+  padding: 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
 }
 
 .switcher-title h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .switcher-list {
-  margin-top: 8px;
+  margin-top: 10px;
   display: grid;
   gap: 8px;
 }
@@ -96,6 +99,7 @@ function onBoundariesChange(value: string | number | boolean): void {
   gap: 10px;
   font-size: 13px;
   line-height: 1.3;
+  padding: 4px 0;
 }
 
 .switcher-item :deep(.el-switch) {

@@ -34,6 +34,35 @@
           @clear="clearSearch"
         />
 
+        <div v-if="showInspectorPanel" class="shell-card inspector-card inspector-card--amap">
+          <div class="inspector-cover">
+            <div class="inspector-cover-badge">当前选中</div>
+            <button class="inspector-close" type="button" @click="clearSelectedEntity">
+              关闭
+            </button>
+          </div>
+          <div class="inspector-body">
+            <div class="inspector-title-block">
+              <strong>{{ mapStore.selectedEntity?.name }}</strong>
+              <span class="inspector-subtitle">
+                {{ mapStore.selectedEntity ? getFocusTargetSubtitle(mapStore.selectedEntity) : '' }}
+              </span>
+            </div>
+            <div class="inspector-info-list">
+              <p class="inspector-detail">
+                {{ mapStore.selectedEntity ? getInspectorDetail(mapStore.selectedEntity) : '' }}
+              </p>
+              <p class="inspector-remark">
+                {{ mapStore.selectedEntity ? getInspectorRemark(mapStore.selectedEntity) : '' }}
+              </p>
+            </div>
+            <div class="inspector-actions">
+              <el-button size="small" @click="focusSelectedEntity">定位到此</el-button>
+              <el-button size="small" type="primary" @click="editSelectedEntityLabel">补充标注</el-button>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showSearchResultsPanel" class="shell-card search-results-card">
           <div class="card-head">
             <div class="card-title-row">
@@ -69,55 +98,33 @@
       </div>
 
       <div class="map-overlay map-overlay-right">
-        <LayerSwitcher
-          :model-value="mapStore.layerVisibility"
-          @update:model-value="mapStore.setLayerVisibility"
-        />
+        <div class="map-control-stack">
+          <LayerSwitcher
+            :model-value="mapStore.layerVisibility"
+            @update:model-value="mapStore.setLayerVisibility"
+          />
 
-        <div v-if="showInspectorPanel" class="shell-card inspector-card">
-          <div class="card-head">
-            <h3>当前选中</h3>
-            <el-button text size="small" @click="clearSelectedEntity">关闭</el-button>
-          </div>
-          <div class="inspector-body">
-            <div class="inspector-title-row">
-              <strong>{{ mapStore.selectedEntity?.name }}</strong>
-              <span :class="['result-status', `result-status--${getStatusTagType(mapStore.selectedEntity?.status ?? 0)}`]">
-                {{ getStatusLabel(mapStore.selectedEntity?.status ?? 0) }}
-              </span>
+          <div v-if="showLabelToolsCard" class="shell-card label-tools-card">
+            <div class="card-head card-head--compact">
+              <h3>地图标注</h3>
             </div>
-            <p class="inspector-meta">
-              {{ mapStore.selectedEntity ? getFocusTargetSubtitle(mapStore.selectedEntity) : '' }}
-            </p>
-            <p class="inspector-detail">
-              {{ mapStore.selectedEntity ? getInspectorDetail(mapStore.selectedEntity) : '' }}
-            </p>
-            <p class="inspector-remark">
-              {{ mapStore.selectedEntity ? getInspectorRemark(mapStore.selectedEntity) : '' }}
+            <div class="label-editor-toolbar label-editor-toolbar--compact">
+              <el-button
+                size="small"
+                :type="labelPickMode === 'feature' ? 'primary' : 'default'"
+                @click="toggleFeaturePickMode"
+              >
+                {{ labelPickMode === 'feature' ? '退出补名模式' : '点击对象补名' }}
+              </el-button>
+              <el-button size="small" @click="startManualLabel">手动点位</el-button>
+            </div>
+            <p class="label-editor-tip label-editor-tip--compact">
+              点击地图已有标注可直接再次进入编辑。
             </p>
           </div>
         </div>
 
-        <div v-if="showLabelToolsCard" class="shell-card label-tools-card">
-          <div class="card-head card-head--compact">
-            <h3>标注工具</h3>
-          </div>
-          <div class="label-editor-toolbar label-editor-toolbar--compact">
-            <el-button
-              size="small"
-              :type="labelPickMode === 'feature' ? 'primary' : 'default'"
-              @click="toggleFeaturePickMode"
-            >
-              {{ labelPickMode === 'feature' ? '退出补名模式' : '点击对象补名' }}
-            </el-button>
-            <el-button size="small" @click="startManualLabel">手动点位</el-button>
-          </div>
-          <p class="label-editor-tip label-editor-tip--compact">
-            点击已有标注可再次进入编辑，默认状态下不再常驻显示空表单。
-          </p>
-        </div>
-
-        <div v-if="showLabelEditorPanel" class="shell-card label-editor-card">
+        <div v-if="showLabelEditorPanel" class="shell-card label-editor-card label-editor-card--drawer">
           <div class="card-head">
             <div class="card-title-row">
               <h3>标注编辑</h3>
@@ -555,6 +562,23 @@ function clearSelectedEntity(): void {
   mapStore.setSelectedEntity(null);
 }
 
+function focusSelectedEntity(): void {
+  if (!mapStore.selectedEntity) {
+    return;
+  }
+
+  focusTarget.value = mapStore.selectedEntity;
+}
+
+function editSelectedEntityLabel(): void {
+  if (!mapStore.selectedEntity) {
+    return;
+  }
+
+  labelPickMode.value = null;
+  void hydrateLabelDraft(createLabelContextFromFocusTarget(mapStore.selectedEntity));
+}
+
 function closeLabelEditor(): void {
   labelPickMode.value = null;
   labelEditorContext.value = null;
@@ -563,7 +587,17 @@ function closeLabelEditor(): void {
   editingLabelId.value = null;
 }
 
+function getCachedManualLabel(labelId: EntityId): MapLabel | null {
+  return manualLabels.value.find((label) => String(label.id) === String(labelId)) ?? null;
+}
+
 async function loadManualLabelDetail(labelId: EntityId): Promise<void> {
+  const cached = getCachedManualLabel(labelId);
+  if (cached) {
+    setLabelDraftFromContext(createLabelContextFromManualLabel(cached), cached);
+    return;
+  }
+
   const currentRequestId = ++labelContextRequestId.value;
   labelLookupLoading.value = true;
 
@@ -881,6 +915,9 @@ function handleEntityClick(target: MapFocusTarget): void {
 
 function handleMapClick(payload: { longitude: number; latitude: number }): void {
   if (labelPickMode.value !== 'point') {
+    if (showInspectorPanel.value) {
+      clearSelectedEntity();
+    }
     return;
   }
 
@@ -1350,17 +1387,25 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 2;
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .map-overlay-left {
-  top: 14px;
-  left: 14px;
+  top: 16px;
+  left: 16px;
+  align-content: start;
 }
 
 .map-overlay-right {
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
+  justify-items: end;
+  align-content: start;
+}
+
+.map-control-stack {
+  display: grid;
+  gap: 10px;
   justify-items: end;
 }
 
@@ -1368,20 +1413,37 @@ onBeforeUnmount(() => {
 .inspector-card,
 .label-tools-card,
 .label-editor-card {
-  width: min(332px, calc(100vw - 28px));
-  padding: 12px;
+  border-radius: 22px;
+  padding: 14px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.search-results-card,
+.inspector-card {
+  width: min(388px, calc(100vw - 32px));
 }
 
 .label-tools-card {
-  padding-bottom: 10px;
+  width: 220px;
+}
+
+.label-tools-card {
+  padding: 12px;
 }
 
 .label-editor-card {
   max-height: calc(100% - 52px);
   overflow: hidden;
+}
+
+.label-editor-card--drawer {
+  width: min(390px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 24px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
 }
 
 .label-editor-body {
@@ -1416,11 +1478,16 @@ onBeforeUnmount(() => {
 .card-head h3 {
   margin: 0;
   font-size: 15px;
+  font-weight: 700;
 }
 
 .card-meta {
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.search-results-card .card-head {
+  margin-bottom: 12px;
 }
 
 .result-list {
@@ -1434,9 +1501,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 12px;
+  padding: 12px 13px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #ffffff;
   cursor: pointer;
   text-align: left;
@@ -1462,10 +1529,50 @@ onBeforeUnmount(() => {
 .search-empty-tip,
 .label-editor-empty-tip {
   margin: 0;
-  padding: 8px 2px 2px;
+  padding: 8px 4px 2px;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.inspector-card--amap {
+  overflow: hidden;
+  padding: 0;
+}
+
+.inspector-cover {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  background:
+    linear-gradient(135deg, rgba(41, 121, 255, 0.14), rgba(255, 255, 255, 0.05)),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.95), rgba(255, 255, 255, 0.88));
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.inspector-cover-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inspector-close {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inspector-close:hover {
+  color: #0f172a;
 }
 
 .result-status {
@@ -1509,25 +1616,44 @@ onBeforeUnmount(() => {
 
 .inspector-body {
   display: grid;
-  gap: 8px;
-}
-
-.inspector-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: 12px;
+  padding: 16px;
 }
 
-.inspector-title-row strong {
-  font-size: 17px;
+.inspector-title-block {
+  display: grid;
+  gap: 4px;
 }
 
-.inspector-meta,
+.inspector-title-block strong {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.inspector-subtitle,
+.inspector-info-list,
 .inspector-remark,
 .inspector-detail {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.inspector-info-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.inspector-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.inspector-actions :deep(.el-button) {
+  flex: 1;
 }
 
 .label-editor-toolbar {
@@ -1554,8 +1680,8 @@ onBeforeUnmount(() => {
 
 .label-context-summary {
   margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 12px 13px;
+  border-radius: 16px;
   background: rgba(248, 250, 252, 0.88);
   border: 1px solid rgba(148, 163, 184, 0.16);
 }
@@ -1613,6 +1739,10 @@ onBeforeUnmount(() => {
   }
 
   .map-overlay-right {
+    justify-items: stretch;
+  }
+
+  .map-control-stack {
     justify-items: stretch;
   }
 

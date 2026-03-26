@@ -1,20 +1,36 @@
 import { getRequest, postRequest, putRequest } from '@/api/http';
 import type { MapLabel, QueryMapLabelParams, SaveMapLabelPayload } from '@/types/mapLabel';
 
-export function queryMapLabels(params: QueryMapLabelParams): Promise<MapLabel[]> {
-  return getRequest('/map/labels', {
+type MapLabelResponse = Omit<MapLabel, 'id'> & {
+  id: string | number;
+};
+
+function normalizeMapLabel(item: MapLabelResponse): MapLabel {
+  return {
+    ...item,
+    id: String(item.id)
+  };
+}
+
+export async function queryMapLabels(params: QueryMapLabelParams): Promise<MapLabel[]> {
+  const items = await getRequest<MapLabelResponse[]>('/map/labels', {
     params
   });
+
+  return items.map(normalizeMapLabel);
 }
 
-export function getMapLabelDetail(id: string | number): Promise<MapLabel> {
-  return getRequest(`/map/labels/${id}`);
+export async function getMapLabelDetail(id: string | number): Promise<MapLabel> {
+  const item = await getRequest<MapLabelResponse>(`/map/labels/${id}`);
+  return normalizeMapLabel(item);
 }
 
-export function createMapLabel(payload: SaveMapLabelPayload): Promise<MapLabel> {
-  return postRequest('/map/labels', payload);
+export async function createMapLabel(payload: SaveMapLabelPayload): Promise<MapLabel> {
+  const item = await postRequest<MapLabelResponse, SaveMapLabelPayload>('/map/labels', payload);
+  return normalizeMapLabel(item);
 }
 
-export function updateMapLabel(id: string | number, payload: SaveMapLabelPayload): Promise<MapLabel> {
-  return putRequest(`/map/labels/${id}`, payload);
+export async function updateMapLabel(id: string | number, payload: SaveMapLabelPayload): Promise<MapLabel> {
+  const item = await putRequest<MapLabelResponse, SaveMapLabelPayload>(`/map/labels/${id}`, payload);
+  return normalizeMapLabel(item);
 }

@@ -1,26 +1,42 @@
 <template>
-  <!-- Search UI is intentionally dumb: actual API calls and result handling stay in the map view/store. -->
   <div class="shell-card search-card">
-    <div class="search-header">
-      <h3>地图搜索</h3>
-      <el-button text @click="$emit('clear')">清空</el-button>
+    <div class="search-row">
+      <el-input
+        :model-value="modelValue"
+        class="search-input"
+        placeholder="搜索门店、POI、地名、道路"
+        clearable
+        @update:model-value="handleUpdate"
+        @keyup.enter="$emit('submit')"
+        @clear="$emit('clear')"
+      >
+        <template #prefix>
+          <el-icon class="search-input-icon"><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-button
+        v-if="modelValue"
+        text
+        class="search-clear"
+        @click="$emit('clear')"
+      >
+        清空
+      </el-button>
+      <el-button
+        class="search-submit"
+        :loading="loading"
+        circle
+        @click="$emit('submit')"
+      >
+        <el-icon><Search /></el-icon>
+      </el-button>
     </div>
-    <el-input
-      :model-value="modelValue"
-      placeholder="输入关键字"
-      clearable
-      @update:model-value="handleUpdate"
-      @keyup.enter="$emit('submit')"
-      @clear="$emit('clear')"
-    >
-      <template #append>
-        <el-button :loading="loading" @click="$emit('submit')">搜索</el-button>
-      </template>
-    </el-input>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Search } from '@element-plus/icons-vue';
+
 defineProps<{
   modelValue: string;
   loading?: boolean;
@@ -40,23 +56,60 @@ function handleUpdate(value: string | number): void {
 
 <style scoped>
 .search-card {
-  width: min(360px, calc(100vw - 28px));
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.94);
+  width: min(420px, calc(100vw - 28px));
+  padding: 8px 10px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
 }
 
-.search-header {
+.search-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 8px;
 }
 
-.search-header h3 {
-  margin: 0;
+.search-input {
+  flex: 1;
+}
+
+.search-input-icon {
+  color: #64748b;
   font-size: 16px;
+}
+
+.search-input :deep(.el-input__wrapper) {
+  box-shadow: none;
+  border-radius: 14px;
+  background: transparent;
+}
+
+.search-clear {
+  padding-inline: 6px;
+  color: #64748b;
+}
+
+.search-submit {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1f8cff, #2979ff);
+  box-shadow: 0 8px 18px rgba(41, 121, 255, 0.28);
+}
+
+.search-submit:hover,
+.search-submit:focus {
+  color: #ffffff;
+  background: linear-gradient(135deg, #177ef2, #206ef5);
+}
+
+@media (max-width: 768px) {
+  .search-card {
+    width: min(100%, calc(100vw - 28px));
+  }
 }
 </style>
