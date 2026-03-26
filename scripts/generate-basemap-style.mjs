@@ -862,6 +862,7 @@ async function main() {
     pmtilesUrl: basemapPmtilesUrl,
     buildTimePmtilesFile: basemapPmtilesFile,
     usedBuildTimeMetadata,
+    vectorLayers: sourceLayers,
     generatedAt: new Date().toISOString()
   };
 

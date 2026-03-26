@@ -1354,6 +1354,24 @@
     "pmtilesUrl": "/tiles/city.pmtiles",
     "buildTimePmtilesFile": "D:\\Code\\Dev\\fuyaomapweb\\public\\tiles\\city.pmtiles",
     "usedBuildTimeMetadata": true,
-    "generatedAt": "2026-03-26T15:32:10.227Z"
+    "vectorLayers": [
+      "aerodrome_label",
+      "aeroway",
+      "boundary",
+      "building",
+      "housenumber",
+      "landcover",
+      "landuse",
+      "mountain_peak",
+      "park",
+      "place",
+      "poi",
+      "transportation",
+      "transportation_name",
+      "water",
+      "water_name",
+      "waterway"
+    ],
+    "generatedAt": "2026-03-26T15:47:05.445Z"
   }
 }

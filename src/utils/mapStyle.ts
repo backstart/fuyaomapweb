@@ -17,6 +17,11 @@ interface ResolveMapStyleOptions {
   staticStyleUrl?: string;
 }
 
+interface StaticStyleValidationResult {
+  referencedSourceLayers: string[];
+  missingSourceLayers: string[];
+}
+
 const PMTILES_PATTERN = /\.pmtiles(\?.*)?$/i;
 
 let protocolRegistered = false;
@@ -95,6 +100,36 @@ function isPmtilesSourceUrl(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toLowerCase().startsWith('pmtiles://');
 }
 
+function getStyleSourceLayers(style: StyleSpecification): string[] {
+  const sourceLayers = style.layers
+    .map((layer) => {
+      if (!layer || typeof layer !== 'object' || !('source' in layer) || !('source-layer' in layer)) {
+        return null;
+      }
+
+      if (layer.source !== BASEMAP_SOURCE_ID) {
+        return null;
+      }
+
+      const sourceLayer = layer['source-layer'];
+      return typeof sourceLayer === 'string' && sourceLayer.trim() ? sourceLayer.trim() : null;
+    })
+    .filter((sourceLayer): sourceLayer is string => Boolean(sourceLayer));
+
+  return Array.from(new Set(sourceLayers));
+}
+
+function validateStaticStyle(style: StyleSpecification, sourceLayers: string[]): StaticStyleValidationResult {
+  const referencedSourceLayers = getStyleSourceLayers(style);
+  const sourceLayerSet = new Set(sourceLayers);
+  const missingSourceLayers = referencedSourceLayers.filter((sourceLayer) => !sourceLayerSet.has(sourceLayer));
+
+  return {
+    referencedSourceLayers,
+    missingSourceLayers
+  };
+}
+
 function buildPmtilesVectorStyle(url: string, sourceLayers: string[]): StyleSpecification {
   // 后台运行时样式与 /map-resources/styles/amap-like.json 共用同一套 builder，
   // 避免内部地图与对外导出底图逐步演化成两套视觉配置。
@@ -102,6 +137,11 @@ function buildPmtilesVectorStyle(url: string, sourceLayers: string[]): StyleSpec
   if (amapLikeStyle) {
     return amapLikeStyle;
   }
+
+  logBasemapIssue('dynamic AMap-like style builder did not match current vector_layers, fallback to generic vector style', {
+    pmtilesUrl: url,
+    vectorLayers: sourceLayers
+  });
 
   // 如果 PMTiles 自带矢量图层，就即时生成一个轻量 style，而不是依赖额外 style.json。
   const layers: LayerSpecification[] = [
@@ -231,7 +271,7 @@ function ensurePmtilesArchiveRegistered(pmtilesUrl: string, reason: string): PMT
   }
 }
 
-async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string): Promise<StyleSpecification | null> {
+async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string, sourceLayers: string[]): Promise<StyleSpecification | null> {
   const normalizedStyleUrl = styleUrl.trim();
   if (!normalizedStyleUrl) {
     return null;
@@ -253,6 +293,17 @@ async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string): Promise
     const rewrittenStyle = rewritePmtilesSourceUrl(style, pmtilesUrl);
     if (styleContainsPmtilesSource(rewrittenStyle)) {
       ensurePmtilesArchiveRegistered(pmtilesUrl, 'static-style');
+    }
+
+    const validation = validateStaticStyle(rewrittenStyle, sourceLayers);
+    if (validation.missingSourceLayers.length > 0) {
+      logBasemapIssue('static basemap style does not match current PMTiles vector_layers, fallback to runtime style builder', {
+        styleUrl: normalizedStyleUrl,
+        styleSourceLayers: validation.referencedSourceLayers,
+        pmtilesVectorLayers: sourceLayers,
+        missingSourceLayers: validation.missingSourceLayers
+      });
+      return null;
     }
 
     return rewrittenStyle;
@@ -278,11 +329,6 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
     return normalizedUrl;
   }
 
-  const staticStyle = await tryLoadStaticStyle(options.staticStyleUrl ?? '', normalizedUrl);
-  if (staticStyle) {
-    return staticStyle;
-  }
-
   let archive: PMTiles;
   try {
     archive = ensurePmtilesArchiveRegistered(normalizedUrl, 'runtime-style');
@@ -297,10 +343,20 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
     // 标签层也会按常见名称字段 name:zh / name / name_en / ref 做前端兜底。
     const sourceLayers = getVectorLayerIds(metadata);
     if (sourceLayers.length > 0) {
+      const staticStyle = await tryLoadStaticStyle(options.staticStyleUrl ?? '', normalizedUrl, sourceLayers);
+      if (staticStyle) {
+        return staticStyle;
+      }
+
       return buildPmtilesVectorStyle(normalizedUrl, sourceLayers);
     }
+
+    logBasemapIssue('PMTiles metadata did not expose vector_layers, fallback to raster style', {
+      pmtilesUrl: normalizedUrl,
+      metadata
+    });
   } catch (error) {
-    logBasemapIssue('failed to inspect PMTiles metadata, fallback to raster style', {
+    setLastBasemapIssue('PMTiles metadata 读取失败，无法判断当前底图图层结构，请检查 PMTiles 文件完整性。', {
       pmtilesUrl: normalizedUrl,
       error
     });
