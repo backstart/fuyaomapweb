@@ -120,7 +120,9 @@ async function handleLogout(): Promise<void> {
 }
 
 .layout-main--map {
-  gap: 10px;
+  position: relative;
+  gap: 0;
+  min-height: calc(100vh - 32px);
 }
 
 .layout-topbar {
@@ -132,10 +134,17 @@ async function handleLogout(): Promise<void> {
 }
 
 .layout-topbar--map {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 8;
   justify-content: flex-end;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(10px);
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
 }
 
 .layout-topbar h2 {
@@ -179,6 +188,12 @@ async function handleLogout(): Promise<void> {
 
 .layout-content--map {
   display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.layout-topbar--map .topbar-meta {
+  pointer-events: auto;
 }
 
 @media (max-width: 1100px) {

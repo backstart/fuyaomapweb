@@ -31,7 +31,9 @@ export function useMapLibre() {
     const { persistedViewport, ...mapOptions } = options;
     ensureMapLibreRuntime();
     const initialViewResolution = resolveInitialMapView({ persistedViewport });
-    const style = await resolveMapStyle(pmtilesUrl);
+    const style = await resolveMapStyle(pmtilesUrl, {
+      staticStyleUrl: appConfig.mapStyleUrl
+    });
     const initToken = ++initSequence;
     const initialView = initialViewResolution.initialView;
 

@@ -194,6 +194,13 @@
                 >
                   取消绘制
                 </el-button>
+                <el-button
+                  v-if="drawnBuildingStore.areas.length"
+                  size="small"
+                  @click="toggleDrawnBuildingListPanel"
+                >
+                  {{ showDrawnBuildingListPanel ? '收起列表' : '建筑列表' }}
+                </el-button>
               </div>
             </div>
             <p class="label-editor-tip label-editor-tip--compact">
@@ -548,6 +555,7 @@ const searchKeyword = ref('');
 const drawnBuildingKeyword = ref('');
 const searchLoading = ref(false);
 const searchPanelMessage = ref('');
+const showDrawnBuildingList = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
 const manualLabels = ref<MapLabel[]>([]);
 const labelLookupLoading = ref(false);
@@ -636,7 +644,7 @@ const drawnBuildingCountLabel = computed(() =>
   drawnBuildingStore.areas.length ? `已绘制 ${drawnBuildingStore.areas.length} 个` : ''
 );
 const showDrawnBuildingListPanel = computed(() =>
-  drawnBuildingStore.areas.length > 0 || Boolean(drawnBuildingKeyword.value.trim())
+  showDrawnBuildingList.value && (drawnBuildingStore.areas.length > 0 || Boolean(drawnBuildingKeyword.value.trim()))
 );
 const drawnBuildingListCountLabel = computed(() =>
   filteredDrawnBuildingAreas.value.length ? `共 ${filteredDrawnBuildingAreas.value.length} 个` : ''
@@ -876,6 +884,13 @@ function closeDrawnBuildingEditor(): void {
 
 function clearDrawnBuildingFilter(): void {
   drawnBuildingKeyword.value = '';
+  if (!drawnBuildingStore.areas.length) {
+    showDrawnBuildingList.value = false;
+  }
+}
+
+function toggleDrawnBuildingListPanel(): void {
+  showDrawnBuildingList.value = !showDrawnBuildingList.value;
 }
 
 function locateDrawnBuildingArea(area: DrawnBuildingArea): void {
@@ -899,6 +914,7 @@ function locateDrawnBuildingArea(area: DrawnBuildingArea): void {
 }
 
 function editDrawnBuildingArea(area: DrawnBuildingArea): void {
+  showDrawnBuildingList.value = true;
   openDrawnBuildingEditor(area);
   locateDrawnBuildingArea(area);
 }
@@ -918,6 +934,7 @@ function cancelDrawBuildingArea(): void {
 
 function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): void {
   const area = drawnBuildingStore.createArea(payload);
+  showDrawnBuildingList.value = true;
   drawnBuildingDraft.value = createDrawnBuildingDraft(area);
   ElMessage.success('建筑区域已创建，请完善名称和类型');
 }
@@ -1010,6 +1027,11 @@ async function deleteDrawnBuildingArea(area: Pick<DrawnBuildingArea, 'id' | 'nam
 
     if (mapStore.viewport.bbox && !area.isDraft) {
       await refreshDrawnBuildingAreas(mapStore.viewport, true);
+    }
+
+    if (!drawnBuildingStore.areas.length) {
+      showDrawnBuildingList.value = false;
+      drawnBuildingKeyword.value = '';
     }
 
     ElMessage.success(area.isDraft ? '未保存建筑区域已删除' : '建筑区域已删除');
@@ -1858,7 +1880,7 @@ onBeforeUnmount(() => {
 .map-page {
   position: relative;
   height: 100%;
-  min-height: 680px;
+  min-height: calc(100vh - 32px);
 }
 
 .map-overlay {
@@ -1869,14 +1891,14 @@ onBeforeUnmount(() => {
 }
 
 .map-overlay-left {
-  top: 16px;
-  left: 16px;
+  top: 18px;
+  left: 18px;
   align-content: start;
 }
 
 .map-overlay-right {
-  top: 16px;
-  right: 16px;
+  top: 18px;
+  right: 18px;
   justify-items: end;
   align-content: start;
 }
@@ -1901,19 +1923,19 @@ onBeforeUnmount(() => {
 
 .search-results-card,
 .inspector-card {
-  width: min(388px, calc(100vw - 32px));
+  width: min(360px, calc(100vw - 32px));
 }
 
 .label-tools-card {
-  width: 220px;
+  width: 212px;
 }
 
 .label-tools-card {
-  padding: 12px;
+  padding: 11px;
 }
 
 .map-tools-card {
-  width: 248px;
+  width: 232px;
 }
 
 .label-editor-card {

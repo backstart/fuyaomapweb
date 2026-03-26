@@ -13,6 +13,10 @@ interface PmtilesMetadata {
   vector_layers?: VectorLayerMetadata[];
 }
 
+interface ResolveMapStyleOptions {
+  staticStyleUrl?: string;
+}
+
 const PMTILES_PATTERN = /\.pmtiles(\?.*)?$/i;
 
 let protocolRegistered = false;
@@ -160,7 +164,48 @@ function buildPmtilesRasterStyle(url: string): StyleSpecification {
   };
 }
 
-export async function resolveMapStyle(baseUrl: string): Promise<string | StyleSpecification> {
+function cloneStyleSpecification(style: StyleSpecification): StyleSpecification {
+  return JSON.parse(JSON.stringify(style)) as StyleSpecification;
+}
+
+function rewritePmtilesSourceUrl(style: StyleSpecification, pmtilesUrl: string): StyleSpecification {
+  const clonedStyle = cloneStyleSpecification(style);
+  const source = clonedStyle.sources?.[BASEMAP_SOURCE_ID];
+
+  if (source && source.type === 'vector') {
+    source.url = `pmtiles://${pmtilesUrl}`;
+  }
+
+  return clonedStyle;
+}
+
+async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string): Promise<StyleSpecification | null> {
+  const normalizedStyleUrl = styleUrl.trim();
+  if (!normalizedStyleUrl) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(normalizedStyleUrl, {
+      credentials: 'same-origin'
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const style = await response.json() as StyleSpecification;
+    if (!style || typeof style !== 'object' || style.version !== 8 || !style.sources || !Array.isArray(style.layers)) {
+      return null;
+    }
+
+    return rewritePmtilesSourceUrl(style, pmtilesUrl);
+  } catch (error) {
+    console.warn('Failed to load static basemap style, fallback to runtime style builder.', error);
+    return null;
+  }
+}
+
+export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleOptions = {}): Promise<string | StyleSpecification> {
   const normalizedUrl = baseUrl.trim();
 
   if (!normalizedUrl) {
@@ -170,6 +215,11 @@ export async function resolveMapStyle(baseUrl: string): Promise<string | StyleSp
   // 非 pmtiles 地址按“现成 style url”处理，便于以后切换外部底图服务。
   if (!PMTILES_PATTERN.test(normalizedUrl)) {
     return normalizedUrl;
+  }
+
+  const staticStyle = await tryLoadStaticStyle(options.staticStyleUrl ?? '', normalizedUrl);
+  if (staticStyle) {
+    return staticStyle;
   }
 
   let archive: PMTiles;

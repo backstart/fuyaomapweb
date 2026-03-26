@@ -1,5 +1,5 @@
 <template>
-  <div class="map-shell soft-grid">
+  <div class="map-shell">
     <div ref="mapContainer" class="map-container"></div>
     <div v-if="!hasBaseMap" class="shell-card map-notice">
       <strong>未配置底图</strong>
@@ -114,6 +114,7 @@ const suppressNextMapClickAction = ref(false);
 const rectangleAnchor = ref<[number, number] | null>(null);
 const polygonVertices = ref<Array<[number, number]>>([]);
 const drawCursorPoint = ref<[number, number] | null>(null);
+let resizeObserver: ResizeObserver | null = null;
 
 // Popup 使用独立 Vue app 挂载，这样可以直接复用现有 Vue 组件。
 let popup: MapLibrePopup | null = null;
@@ -277,6 +278,7 @@ function setupBusinessLayers(instance: MapLibreMap): void {
   instance.on('click', (event) => handleMapClick(instance, event));
   instance.on('dblclick', (event) => handleMapDoubleClick(instance, event));
   syncInteractionMode(instance);
+  scheduleMapResize(instance);
 }
 
 function isTargetVisible(target: MapFocusTarget | null | undefined): boolean {
@@ -611,6 +613,24 @@ function handleMapDoubleClick(instance: MapLibreMap, event: MapMouseEvent): void
   completeDrawnBuilding(instance, JSON.stringify(geometry), 'polygon', fallback);
 }
 
+function scheduleMapResize(instance: MapLibreMap): void {
+  window.requestAnimationFrame(() => {
+    if (map.value !== instance) {
+      return;
+    }
+
+    instance.resize();
+  });
+
+  window.setTimeout(() => {
+    if (map.value !== instance) {
+      return;
+    }
+
+    instance.resize();
+  }, 160);
+}
+
 onMounted(async () => {
   if (!mapContainer.value) {
     return;
@@ -619,6 +639,18 @@ onMounted(async () => {
   const instance = await initMap(mapContainer.value, {
     persistedViewport: props.initialViewport
   });
+  scheduleMapResize(instance);
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      if (!map.value) {
+        return;
+      }
+
+      map.value.resize();
+    });
+    resizeObserver.observe(mapContainer.value);
+  }
 
   if (instance.isStyleLoaded()) {
     setupBusinessLayers(instance);
@@ -734,6 +766,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   clearPopup();
   resetDrawInteractionState(map.value ?? undefined);
   if (import.meta.env.DEV && window.__FUYAO_MAP_DEBUG__ === map.value) {
