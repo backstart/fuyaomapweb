@@ -1,13 +1,25 @@
 <template>
-  <div class="layout-root">
-    <aside class="layout-sidebar shell-card">
+  <div :class="['layout-root', { 'layout-root--collapsed': isSidebarCollapsed }]">
+    <aside :class="['layout-sidebar shell-card', { 'layout-sidebar--collapsed': isSidebarCollapsed }]">
       <div class="brand-block">
-        <h1>地图平台</h1>
+        <div class="brand-title">
+          <h1 v-if="!isSidebarCollapsed">地图平台</h1>
+          <span v-else class="brand-mark">地</span>
+        </div>
+        <el-button
+          circle
+          class="sidebar-toggle"
+          @click="toggleSidebar"
+        >
+          <el-icon><component :is="isSidebarCollapsed ? Expand : Fold" /></el-icon>
+        </el-button>
       </div>
 
       <el-menu
         class="sidebar-menu"
         :default-active="activeMenu"
+        :collapse="isSidebarCollapsed"
+        :collapse-transition="false"
         router
       >
         <el-menu-item index="/map">
@@ -62,19 +74,41 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Connection, DataLine, Guide, Location, Place, Shop, UploadFilled } from '@element-plus/icons-vue';
+import { Connection, DataLine, Expand, Fold, Guide, Location, Place, Shop, UploadFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/authStore';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const SIDEBAR_STORAGE_KEY = 'fuyaomap.sidebar.collapsed';
+const isSidebarCollapsed = ref(false);
 
 // Route segments already map cleanly to menu indexes, so no separate menu config is needed for V1.
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
 const isMapRoute = computed(() => activeMenu.value === '/map');
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
+
+onMounted(() => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  isSidebarCollapsed.value = window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1';
+});
+
+watch(isSidebarCollapsed, (value) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(SIDEBAR_STORAGE_KEY, value ? '1' : '0');
+});
+
+function toggleSidebar(): void {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+}
 
 async function handleLogout(): Promise<void> {
   await authStore.signOut();
@@ -84,36 +118,95 @@ async function handleLogout(): Promise<void> {
 
 <style scoped>
 .layout-root {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   gap: 16px;
   padding: 16px;
+  overflow: hidden;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.layout-root--collapsed {
+  grid-template-columns: 84px minmax(0, 1fr);
 }
 
 .layout-sidebar {
   display: flex;
   flex-direction: column;
   padding: 14px;
+  min-height: 0;
+  overflow: hidden;
+  transition: padding 0.22s ease;
+}
+
+.layout-sidebar--collapsed {
+  padding: 14px 10px;
 }
 
 .brand-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 10px 16px;
 }
 
-.brand-block h1 {
+.layout-sidebar--collapsed .brand-block {
+  flex-direction: column;
+  gap: 10px;
+  padding-inline: 0;
+}
+
+.brand-title {
+  min-width: 0;
+}
+
+.brand-block h1,
+.brand-mark {
   margin: 0;
   font-size: 28px;
   line-height: 1.1;
 }
 
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(22, 100, 216, 0.08);
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.sidebar-toggle {
+  flex: none;
+}
+
 .sidebar-menu {
   flex: 1;
   background: transparent;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.layout-sidebar--collapsed :deep(.el-menu) {
+  border-right: none;
+}
+
+.layout-sidebar--collapsed :deep(.el-menu-item) {
+  justify-content: center;
+  padding-inline: 0 !important;
+}
+
+.layout-sidebar--collapsed :deep(.el-menu-item .el-icon) {
+  margin-right: 0;
 }
 
 .layout-main {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -121,8 +214,9 @@ async function handleLogout(): Promise<void> {
 
 .layout-main--map {
   position: relative;
+  height: calc(100vh - 32px);
   gap: 0;
-  min-height: calc(100vh - 32px);
+  min-height: 0;
 }
 
 .layout-topbar {
@@ -184,11 +278,14 @@ async function handleLogout(): Promise<void> {
 .layout-content {
   min-height: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .layout-content--map {
   display: flex;
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
 }
 
@@ -198,7 +295,9 @@ async function handleLogout(): Promise<void> {
 
 @media (max-width: 1100px) {
   .layout-root {
+    height: auto;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .layout-sidebar {
@@ -221,6 +320,10 @@ async function handleLogout(): Promise<void> {
   .layout-topbar--map {
     padding: 12px 14px;
     align-items: flex-end;
+  }
+
+  .layout-main--map {
+    height: auto;
   }
 
   .topbar-meta {

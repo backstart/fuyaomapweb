@@ -68,6 +68,35 @@
           </div>
         </div>
 
+        <div v-if="showSelectedDrawnBuildingPanel" class="shell-card inspector-card inspector-card--building">
+          <div class="inspector-cover">
+            <div class="inspector-cover-badge">已选建筑</div>
+            <button class="inspector-close" type="button" @click="clearDrawnBuildingSelection">
+              关闭
+            </button>
+          </div>
+          <div class="inspector-body">
+            <div class="inspector-title-block">
+              <strong>{{ selectedDrawnBuildingArea?.name }}</strong>
+              <span class="inspector-subtitle">
+                {{ selectedDrawnBuildingArea ? getDrawnBuildingItemSubtitle(selectedDrawnBuildingArea) : '' }}
+              </span>
+            </div>
+            <div class="inspector-info-list">
+              <p class="inspector-detail">
+                {{ selectedDrawnBuildingArea ? `标注点：${selectedDrawnBuildingArea.labelLongitude.toFixed(6)}, ${selectedDrawnBuildingArea.labelLatitude.toFixed(6)}` : '' }}
+              </p>
+              <p class="inspector-remark">
+                {{ selectedDrawnBuildingArea?.remark?.trim() || '点击“进入编辑”后可修改名称、类型、样式与备注。' }}
+              </p>
+            </div>
+            <div class="inspector-actions">
+              <el-button size="small" @click="selectedDrawnBuildingArea && locateDrawnBuildingArea(selectedDrawnBuildingArea)">定位到此</el-button>
+              <el-button size="small" type="primary" @click="editSelectedDrawnBuilding">进入编辑</el-button>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showSearchResultsPanel" class="shell-card search-results-card">
           <div class="card-head">
             <div class="card-title-row">
@@ -123,7 +152,7 @@
                 v-for="item in filteredDrawnBuildingAreas"
                 :key="String(item.id)"
                 class="result-item result-item--stack"
-                @click="editDrawnBuildingArea(item)"
+                @click="previewDrawnBuildingArea(item)"
               >
                 <div class="result-main">
                   <strong>{{ item.name }}</strong>
@@ -203,6 +232,21 @@
                 </el-button>
               </div>
             </div>
+            <div v-if="selectedDrawnBuildingArea" class="tool-group">
+              <span class="tool-group-title">编辑入口</span>
+              <div class="tool-group-selection">
+                <strong>{{ selectedDrawnBuildingArea.name }}</strong>
+                <span>{{ getDrawnBuildingItemSubtitle(selectedDrawnBuildingArea) }}</span>
+              </div>
+              <div class="label-editor-toolbar label-editor-toolbar--compact">
+                <el-button size="small" type="primary" @click="editSelectedDrawnBuilding">
+                  编辑已选建筑
+                </el-button>
+                <el-button size="small" @click="clearDrawnBuildingSelection">
+                  取消选中
+                </el-button>
+              </div>
+            </div>
             <p class="label-editor-tip label-editor-tip--compact">
               {{ drawnBuildingEditorTip }}
             </p>
@@ -220,7 +264,7 @@
             </div>
           </div>
 
-          <el-scrollbar max-height="calc(100vh - 232px)">
+          <el-scrollbar class="editor-scrollbar" max-height="calc(100vh - 220px)">
             <div class="label-editor-body">
               <p class="label-editor-tip">
                 {{ drawnBuildingEditorTip }}
@@ -321,7 +365,7 @@
             </div>
           </div>
 
-          <el-scrollbar max-height="calc(100vh - 232px)">
+          <el-scrollbar class="editor-scrollbar" max-height="calc(100vh - 220px)">
             <div class="label-editor-body">
               <div class="label-editor-toolbar">
                 <el-button
@@ -592,6 +636,7 @@ const labelTypeOptions = LABEL_TYPE_OPTIONS;
 const visibleManualLabels = computed(() =>
   manualLabels.value.filter((label) => isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
 );
+const selectedDrawnBuildingArea = computed(() => drawnBuildingStore.selectedArea);
 const manualLabelData = computed(() => buildManualLabelFeatureCollection(visibleManualLabels.value));
 const businessLabelData = computed(() => buildBusinessLabelFeatureCollection({
   shops: shopStore.geoJson,
@@ -655,6 +700,9 @@ const showLabelEditorPanel = computed(() =>
 const showDrawnBuildingEditorPanel = computed(() => Boolean(drawnBuildingDraft.value));
 const showToolCards = computed(() => !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
 const showInspectorPanel = computed(() => Boolean(mapStore.selectedEntity) && !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
+const showSelectedDrawnBuildingPanel = computed(() =>
+  Boolean(selectedDrawnBuildingArea.value) && !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value
+);
 const canResetLabelDraft = computed(() => Boolean(labelDraft.value || labelEditorContext.value || editingLabelId.value !== null));
 const labelContextTitle = computed(() => {
   if (!labelEditorContext.value) {
@@ -830,14 +878,21 @@ function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: M
   editingLabelId.value = existing?.id ?? null;
 }
 
-function resetDrawnBuildingEditorState(): void {
-  drawnBuildingStore.clearSelection();
+function resetDrawnBuildingEditorState(options?: { preserveSelection?: boolean }): void {
+  if (!options?.preserveSelection) {
+    drawnBuildingStore.clearSelection();
+  }
   drawnBuildingDraft.value = null;
 }
 
 function clearSelectedEntity(): void {
   focusTarget.value = null;
   mapStore.setSelectedEntity(null);
+}
+
+function clearDrawnBuildingSelection(): void {
+  drawnBuildingStore.clearSelection();
+  drawnBuildingDraft.value = null;
 }
 
 function focusSelectedEntity(): void {
@@ -879,7 +934,7 @@ function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
 
 function closeDrawnBuildingEditor(): void {
   drawnBuildingStore.cancelDraw();
-  resetDrawnBuildingEditorState();
+  resetDrawnBuildingEditorState({ preserveSelection: true });
 }
 
 function clearDrawnBuildingFilter(): void {
@@ -919,6 +974,24 @@ function editDrawnBuildingArea(area: DrawnBuildingArea): void {
   locateDrawnBuildingArea(area);
 }
 
+function previewDrawnBuildingArea(area: DrawnBuildingArea): void {
+  showDrawnBuildingList.value = true;
+  closeLabelEditor();
+  clearSelectedEntity();
+  drawnBuildingStore.cancelDraw();
+  resetDrawnBuildingEditorState({ preserveSelection: true });
+  drawnBuildingStore.selectArea(area.id);
+  locateDrawnBuildingArea(area);
+}
+
+function editSelectedDrawnBuilding(): void {
+  if (!selectedDrawnBuildingArea.value) {
+    return;
+  }
+
+  openDrawnBuildingEditor(selectedDrawnBuildingArea.value);
+}
+
 function startDrawBuildingArea(mode: Exclude<BuildingDrawMode, null>): void {
   closeLabelEditor();
   clearSelectedEntity();
@@ -942,7 +1015,11 @@ function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): voi
 async function handleDrawnBuildingClick(areaId: EntityId): Promise<void> {
   const area = drawnBuildingStore.areas.find((item) => String(item.id) === String(areaId));
   if (area) {
-    openDrawnBuildingEditor(area);
+    closeLabelEditor();
+    clearSelectedEntity();
+    drawnBuildingStore.cancelDraw();
+    resetDrawnBuildingEditorState({ preserveSelection: true });
+    drawnBuildingStore.selectArea(area.id);
     return;
   }
 
@@ -955,7 +1032,11 @@ async function handleDrawnBuildingClick(areaId: EntityId): Promise<void> {
     }
 
     drawnBuildingStore.replaceArea(areaId, persistedArea);
-    openDrawnBuildingEditor(persistedArea);
+    closeLabelEditor();
+    clearSelectedEntity();
+    drawnBuildingStore.cancelDraw();
+    resetDrawnBuildingEditorState({ preserveSelection: true });
+    drawnBuildingStore.selectArea(persistedArea.id);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载建筑区域详情失败');
   }
@@ -988,12 +1069,14 @@ async function saveDrawnBuildingArea(): Promise<void> {
     }
 
     drawnBuildingStore.replaceArea(currentDraft.id, persistedArea);
+    drawnBuildingStore.selectArea(persistedArea.id);
     drawnBuildingDraft.value = createDrawnBuildingDraft(persistedArea);
 
     if (mapStore.viewport.bbox) {
       await refreshDrawnBuildingAreas(mapStore.viewport, true);
     }
 
+    closeDrawnBuildingEditor();
     ElMessage.success(currentDraft.isDraft ? '建筑区域已保存到后端' : '建筑区域已更新');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存建筑区域失败');
@@ -1873,18 +1956,23 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .map-page-view {
+  display: flex;
   flex: 1;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .map-page {
   position: relative;
+  flex: 1;
   width: 100%;
   height: 100%;
-  min-height: calc(100vh - 32px);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .map-overlay {
@@ -1901,7 +1989,7 @@ onBeforeUnmount(() => {
 }
 
 .map-overlay-right {
-  top: 18px;
+  top: 78px;
   right: 18px;
   justify-items: end;
   align-content: start;
@@ -1909,7 +1997,7 @@ onBeforeUnmount(() => {
 
 .map-control-stack {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   justify-items: end;
 }
 
@@ -1943,7 +2031,7 @@ onBeforeUnmount(() => {
 }
 
 .label-editor-card {
-  max-height: calc(100% - 52px);
+  max-height: calc(100vh - 116px);
   overflow: hidden;
 }
 
@@ -1955,7 +2043,13 @@ onBeforeUnmount(() => {
 }
 
 .label-editor-body {
+  display: grid;
+  gap: 12px;
   padding-right: 2px;
+}
+
+.editor-scrollbar {
+  max-height: calc(100vh - 220px);
 }
 
 .card-head {
@@ -2258,6 +2352,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  position: sticky;
+  bottom: -1px;
+  padding-top: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 24px);
+  z-index: 1;
 }
 
 .label-editor-form :deep(.el-form-item) {
@@ -2276,6 +2375,7 @@ onBeforeUnmount(() => {
   .map-page {
     height: auto;
     min-height: 860px;
+    overflow: visible;
   }
 
   .map-overlay {
@@ -2284,6 +2384,7 @@ onBeforeUnmount(() => {
   }
 
   .map-overlay-right {
+    top: auto;
     justify-items: stretch;
   }
 
@@ -2299,6 +2400,10 @@ onBeforeUnmount(() => {
   }
 
   .label-editor-card {
+    max-height: none;
+  }
+
+  .editor-scrollbar {
     max-height: none;
   }
 
