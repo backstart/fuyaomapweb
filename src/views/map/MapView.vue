@@ -264,7 +264,7 @@
             </div>
           </div>
 
-          <el-scrollbar class="editor-scrollbar" max-height="calc(100vh - 220px)">
+          <el-scrollbar class="editor-scrollbar">
             <div class="label-editor-body">
               <p class="label-editor-tip">
                 {{ drawnBuildingEditorTip }}
@@ -333,24 +333,23 @@
                     placeholder="可填写建筑用途、楼层说明或补充信息"
                   />
                 </el-form-item>
-
-                <div class="label-editor-actions">
-                  <el-button type="primary" @click="saveDrawnBuildingArea">
-                    保存建筑区域
-                  </el-button>
-                  <el-button
-                    v-if="drawnBuildingDraft && !drawnBuildingDraft.isDraft"
-                    type="danger"
-                    plain
-                    @click="deleteDrawnBuildingArea(drawnBuildingDraft)"
-                  >
-                    删除
-                  </el-button>
-                  <el-button @click="closeDrawnBuildingEditor">取消</el-button>
-                </div>
               </el-form>
             </div>
           </el-scrollbar>
+          <div v-if="drawnBuildingDraft" class="editor-footer">
+            <el-button type="primary" @click="saveDrawnBuildingArea">
+              保存建筑区域
+            </el-button>
+            <el-button
+              v-if="!drawnBuildingDraft.isDraft"
+              type="danger"
+              plain
+              @click="deleteDrawnBuildingArea(drawnBuildingDraft)"
+            >
+              删除
+            </el-button>
+            <el-button @click="closeDrawnBuildingEditor">取消</el-button>
+          </div>
         </div>
 
         <div v-if="showLabelEditorPanel" class="shell-card label-editor-card label-editor-card--drawer">
@@ -365,7 +364,7 @@
             </div>
           </div>
 
-          <el-scrollbar class="editor-scrollbar" max-height="calc(100vh - 220px)">
+          <el-scrollbar class="editor-scrollbar">
             <div class="label-editor-body">
               <div class="label-editor-toolbar">
                 <el-button
@@ -476,14 +475,6 @@
                   />
                 </el-form-item>
 
-                <div class="label-editor-actions">
-                  <el-button type="primary" :loading="labelSaving" @click="saveLabel">
-                    {{ labelDraft.id ? '更新标注' : '保存标注' }}
-                  </el-button>
-                  <el-button :loading="labelLookupLoading" :disabled="!canResetLabelDraft" @click="reloadCurrentLabel">
-                    重新加载
-                  </el-button>
-                </div>
               </el-form>
 
               <p v-else class="label-editor-empty-tip">
@@ -491,6 +482,14 @@
               </p>
             </div>
           </el-scrollbar>
+          <div v-if="labelDraft" class="editor-footer">
+            <el-button type="primary" :loading="labelSaving" @click="saveLabel">
+              {{ labelDraft.id ? '更新标注' : '保存标注' }}
+            </el-button>
+            <el-button :loading="labelLookupLoading" :disabled="!canResetLabelDraft" @click="reloadCurrentLabel">
+              重新加载
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -1991,6 +1990,7 @@ onBeforeUnmount(() => {
 .map-overlay-right {
   top: 78px;
   right: 18px;
+  bottom: 18px;
   justify-items: end;
   align-content: start;
 }
@@ -2031,13 +2031,16 @@ onBeforeUnmount(() => {
 }
 
 .label-editor-card {
-  max-height: calc(100vh - 116px);
+  max-height: calc(100vh - 112px);
   overflow: hidden;
 }
 
 .label-editor-card--drawer {
   width: min(390px, calc(100vw - 32px));
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: min(calc(100vh - 112px), 100%);
+  padding: 16px 16px 0;
   border-radius: 24px;
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
 }
@@ -2045,11 +2048,13 @@ onBeforeUnmount(() => {
 .label-editor-body {
   display: grid;
   gap: 12px;
-  padding-right: 2px;
+  padding-right: 4px;
+  padding-bottom: 4px;
 }
 
 .editor-scrollbar {
-  max-height: calc(100vh - 220px);
+  flex: 1;
+  min-height: 0;
 }
 
 .card-head {
@@ -2348,14 +2353,14 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.label-editor-actions {
+.editor-footer {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  position: sticky;
-  bottom: -1px;
-  padding-top: 10px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 24px);
+  padding: 14px 0 16px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.98);
   z-index: 1;
 }
 
@@ -2403,8 +2408,9 @@ onBeforeUnmount(() => {
     max-height: none;
   }
 
-  .editor-scrollbar {
-    max-height: none;
+  .label-editor-card--drawer {
+    height: auto;
+    padding-bottom: 16px;
   }
 
   .label-form-grid {

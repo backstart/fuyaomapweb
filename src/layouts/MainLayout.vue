@@ -1,6 +1,6 @@
 <template>
-  <div :class="['layout-root', { 'layout-root--collapsed': isSidebarCollapsed }]">
-    <aside :class="['layout-sidebar shell-card', { 'layout-sidebar--collapsed': isSidebarCollapsed }]">
+  <div :class="['layout-root', { 'layout-root--collapsed': isSidebarCollapsed, 'layout-root--map': isMapRoute }]">
+    <aside :class="['layout-sidebar', isMapRoute ? 'layout-sidebar--map' : 'shell-card', { 'layout-sidebar--collapsed': isSidebarCollapsed }]">
       <div class="brand-block">
         <div class="brand-title">
           <h1 v-if="!isSidebarCollapsed">地图平台</h1>
@@ -55,7 +55,7 @@
     </aside>
 
     <main :class="['layout-main', { 'layout-main--map': isMapRoute }]">
-      <header :class="['layout-topbar shell-card', { 'layout-topbar--map': isMapRoute }]">
+      <header :class="['layout-topbar', isMapRoute ? 'layout-topbar--map' : 'shell-card']">
         <h2 v-if="!isMapRoute">{{ pageTitle }}</h2>
         <div class="topbar-meta">
           <div class="user-chip">
@@ -131,6 +131,16 @@ async function handleLogout(): Promise<void> {
   grid-template-columns: 84px minmax(0, 1fr);
 }
 
+.layout-root--map {
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
+.layout-root--map.layout-root--collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
 .layout-sidebar {
   display: flex;
   flex-direction: column;
@@ -144,11 +154,27 @@ async function handleLogout(): Promise<void> {
   padding: 14px 10px;
 }
 
+.layout-sidebar--map {
+  padding: 18px 12px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.layout-sidebar--map.layout-sidebar--collapsed {
+  padding: 18px 8px 14px;
+}
+
 .brand-block {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 10px 16px;
+}
+
+.layout-sidebar--map .brand-block {
+  padding: 8px 8px 14px;
 }
 
 .layout-sidebar--collapsed .brand-block {
@@ -214,7 +240,7 @@ async function handleLogout(): Promise<void> {
 
 .layout-main--map {
   position: relative;
-  height: calc(100vh - 32px);
+  height: 100vh;
   gap: 0;
   min-height: 0;
 }
@@ -287,6 +313,10 @@ async function handleLogout(): Promise<void> {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.layout-root--map .layout-content--map {
+  height: 100vh;
 }
 
 .layout-topbar--map .topbar-meta {
