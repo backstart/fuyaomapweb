@@ -71,8 +71,8 @@ function onBoundariesChange(value: string | number | boolean): void {
 
 <style scoped>
 .switcher-card {
-  width: 240px;
-  padding: 14px;
+  width: 204px;
+  padding: 10px 11px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
@@ -80,19 +80,25 @@ function onBoundariesChange(value: string | number | boolean): void {
 
 .switcher-title h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .switcher-list {
-  margin-top: 12px;
+  margin-top: 8px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .switcher-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.switcher-item :deep(.el-switch) {
+  flex: none;
 }
 </style>

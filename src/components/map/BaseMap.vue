@@ -21,10 +21,11 @@ import {
   updateFocusedEntity,
   updateBusinessSources
 } from '@/composables/useMapLayers';
-import { ensureMapLabelLayers, updateMapLabelSources } from '@/composables/useMapLabelLayers';
+import { ensureMapLabelLayers, MANUAL_LABEL_LAYER_IDS, MANUAL_LABEL_SOURCE_ID, updateMapLabelSources } from '@/composables/useMapLabelLayers';
 import type { AreaFeatureCollection } from '@/types/area';
 import type { BoundaryFeatureCollection } from '@/types/boundary';
 import EntityPopup from '@/components/map/EntityPopup.vue';
+import type { EntityId } from '@/types/entity';
 import type {
   AreaFocusTarget,
   BoundaryFocusTarget,
@@ -81,11 +82,13 @@ const emit = defineEmits<{
   'boundary-click': [target: BoundaryFocusTarget];
   'map-click': [payload: { longitude: number; latitude: number }];
   'basemap-feature-click': [feature: BasemapInspectableFeature];
+  'manual-label-click': [labelId: EntityId];
 }>();
 
 const { map, initMap, destroyMap } = useMapLibre();
 const mapContainer = ref<HTMLDivElement | null>(null);
 const hasBaseMap = Boolean(appConfig.pmtilesUrl.trim());
+const suppressNextMapClickAction = ref(false);
 
 // Popup 使用独立 Vue app 挂载，这样可以直接复用现有 Vue 组件。
 let popup: MapLibrePopup | null = null;
@@ -106,22 +109,27 @@ function setupBusinessLayers(instance: MapLibreMap): void {
   updateFocusedEntity(instance, getDisplayTarget());
   registerBusinessLayerEvents(instance, {
     onShopClick: (target) => {
+      suppressNextMapClickAction.value = true;
       emit('shop-click', target);
       openPopup(target, [target.longitude, target.latitude]);
     },
     onAreaClick: (target, event) => {
+      suppressNextMapClickAction.value = true;
       emit('area-click', target);
       openPopup(target, event.lngLat);
     },
     onPoiClick: (target) => {
+      suppressNextMapClickAction.value = true;
       emit('poi-click', target);
       openPopup(target, [target.longitude, target.latitude]);
     },
     onPlaceClick: (target, event) => {
+      suppressNextMapClickAction.value = true;
       emit('place-click', target);
       openPopup(target, event.lngLat);
     },
     onBoundaryClick: (target, event) => {
+      suppressNextMapClickAction.value = true;
       emit('boundary-click', target);
       openPopup(target, event.lngLat);
     }
@@ -359,6 +367,28 @@ function queryInspectableBasemapFeature(mapInstance: MapLibreMap, event: MapMous
   return toInspectableBasemapFeature(feature, [event.lngLat.lng, event.lngLat.lat]);
 }
 
+function resolveManualLabelId(feature: MapGeoJSONFeature): EntityId | null {
+  if (feature.source !== MANUAL_LABEL_SOURCE_ID) {
+    return null;
+  }
+
+  const properties = feature.properties as Record<string, unknown> | undefined;
+  const rawId = properties?.labelId ?? feature.id;
+  if (rawId === undefined || rawId === null || !String(rawId).trim()) {
+    return null;
+  }
+
+  return typeof rawId === 'number' ? rawId : String(rawId).trim();
+}
+
+function queryManualLabelId(mapInstance: MapLibreMap, event: MapMouseEvent): EntityId | null {
+  const feature = mapInstance.queryRenderedFeatures(event.point, {
+    layers: [...MANUAL_LABEL_LAYER_IDS]
+  }).find((item) => item.source === MANUAL_LABEL_SOURCE_ID);
+
+  return feature ? resolveManualLabelId(feature) : null;
+}
+
 function syncPickCursor(instance: MapLibreMap): void {
   instance.getCanvas().style.cursor = props.labelPickMode ? 'crosshair' : '';
 }
@@ -368,6 +398,19 @@ function handleMapClick(instance: MapLibreMap, event: MapMouseEvent): void {
     longitude: event.lngLat.lng,
     latitude: event.lngLat.lat
   });
+
+  if (suppressNextMapClickAction.value) {
+    suppressNextMapClickAction.value = false;
+    return;
+  }
+
+  if (props.labelPickMode !== 'point') {
+    const manualLabelId = queryManualLabelId(instance, event);
+    if (manualLabelId !== null) {
+      emit('manual-label-click', manualLabelId);
+      return;
+    }
+  }
 
   if (props.labelPickMode !== 'feature') {
     return;

@@ -20,7 +20,7 @@ import {
   getLabelTextFromFeatureProperties
 } from '@/utils/mapLabels';
 
-const MANUAL_LABEL_SOURCE_ID = 'map-manual-labels';
+export const MANUAL_LABEL_SOURCE_ID = 'map-manual-labels';
 const BUSINESS_LABEL_SOURCE_ID = 'map-business-labels';
 const MANUAL_ROAD_LAYER_ID = 'map-manual-road-labels';
 const MANUAL_BUILDING_LAYER_ID = 'map-manual-building-labels';
@@ -28,6 +28,12 @@ const MANUAL_BUSINESS_LAYER_ID = 'map-manual-business-labels';
 const BUSINESS_POINT_LAYER_ID = 'map-business-point-labels';
 const BUSINESS_SURFACE_LAYER_ID = 'map-business-surface-labels';
 const FOCUS_FILL_LAYER_ID = 'business-focus-fill';
+
+export const MANUAL_LABEL_LAYER_IDS = [
+  MANUAL_ROAD_LAYER_ID,
+  MANUAL_BUILDING_LAYER_ID,
+  MANUAL_BUSINESS_LAYER_ID
+] as const;
 
 const ROAD_FEATURE_TYPES = ['road'];
 const BUILDING_FEATURE_TYPES = ['building', 'house', 'courtyard'];

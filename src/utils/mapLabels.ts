@@ -171,6 +171,20 @@ export function createManualPointContext(longitude: number, latitude: number): E
   };
 }
 
+export function createLabelContextFromManualLabel(label: MapLabel): EditableMapLabelContext {
+  return {
+    sourceKind: 'manual',
+    featureType: normalizeFeatureType(label.featureType),
+    labelType: (label.labelType || getDefaultLabelType(label.featureType)) as MapLabelLayerType,
+    sourceFeatureId: label.sourceFeatureId ?? null,
+    sourceLayer: label.sourceLayer ?? null,
+    originalName: label.originalName ?? null,
+    suggestedDisplayName: label.displayName,
+    pointLongitude: label.pointLongitude,
+    pointLatitude: label.pointLatitude
+  };
+}
+
 export function createLabelContextFromBasemapFeature(feature: BasemapInspectableFeature): EditableMapLabelContext {
   return {
     sourceKind: 'basemap',
