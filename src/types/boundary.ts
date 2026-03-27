@@ -6,6 +6,12 @@ export interface MapBoundary {
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   status: number;
@@ -21,6 +27,12 @@ export interface MapBoundaryListItem {
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   status: number;
   styleJson?: string | null;
   updateTime: string;
@@ -30,6 +42,12 @@ export interface BoundaryGeoJsonProperties {
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   status: number;

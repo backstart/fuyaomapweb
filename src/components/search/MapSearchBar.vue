@@ -1,6 +1,28 @@
 <template>
   <div class="shell-card search-card">
     <div class="search-row">
+      <el-select
+        v-if="semanticTypeGroups?.length"
+        :model-value="semanticTypeValue"
+        class="search-type-select"
+        clearable
+        filterable
+        :placeholder="semanticTypePlaceholder || '全部类型'"
+        @update:model-value="$emit('update:semanticTypeValue', $event ?? '')"
+      >
+        <el-option-group
+          v-for="group in semanticTypeGroups"
+          :key="group.categoryCode"
+          :label="group.categoryName"
+        >
+          <el-option
+            v-for="option in group.options"
+            :key="option.typeCode"
+            :label="option.typeName"
+            :value="option.typeCode"
+          />
+        </el-option-group>
+      </el-select>
       <el-input
         :model-value="modelValue"
         class="search-input"
@@ -36,14 +58,19 @@
 
 <script setup lang="ts">
 import { Search } from '@element-plus/icons-vue';
+import type { FeatureTypeOptionGroup } from '@/utils/mapFeatureTypes';
 
 defineProps<{
   modelValue: string;
   loading?: boolean;
+  semanticTypeValue?: string;
+  semanticTypePlaceholder?: string;
+  semanticTypeGroups?: FeatureTypeOptionGroup[];
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: string];
+  'update:semanticTypeValue': [value: string];
   submit: [];
   clear: [];
 }>();
@@ -73,6 +100,11 @@ function handleUpdate(value: string | number): void {
 
 .search-input {
   flex: 1;
+}
+
+.search-type-select {
+  width: 168px;
+  flex: none;
 }
 
 .search-input-icon {
@@ -110,6 +142,14 @@ function handleUpdate(value: string | number): void {
 @media (max-width: 768px) {
   .search-card {
     width: min(100%, calc(100vw - 28px));
+  }
+
+  .search-row {
+    flex-wrap: wrap;
+  }
+
+  .search-type-select {
+    width: 100%;
   }
 }
 </style>

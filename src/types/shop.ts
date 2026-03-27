@@ -6,6 +6,12 @@ export interface MapShop {
   id: EntityId;
   name: string;
   category?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   status: number;
@@ -22,6 +28,12 @@ export interface MapShopListItem {
   id: EntityId;
   name: string;
   category?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   icon?: string | null;
   status: number;
   longitude: number;
@@ -33,6 +45,12 @@ export interface MapShopListItem {
 export interface ShopGeoJsonProperties {
   name: string;
   category?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   businessId?: string | null;

@@ -6,6 +6,12 @@ export interface MapPoi {
   name: string;
   category?: string | null;
   subcategory?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   status: number;
@@ -24,6 +30,12 @@ export interface MapPoiListItem {
   name: string;
   category?: string | null;
   subcategory?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   icon?: string | null;
   status: number;
   longitude: number;
@@ -35,6 +47,12 @@ export interface PoiGeoJsonProperties {
   name: string;
   category?: string | null;
   subcategory?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   address?: string | null;
@@ -50,6 +68,8 @@ export interface QueryMapPoiParams {
   keyword?: string;
   category?: string;
   subcategory?: string;
+  categoryCode?: string;
+  typeCode?: string;
   status?: number;
   page?: number;
   pageSize?: number;
@@ -60,6 +80,9 @@ export interface SaveMapPoiPayload {
   name: string;
   category?: string;
   subcategory?: string;
+  categoryCode?: string | null;
+  typeCode?: string | null;
+  renderType?: string | null;
   remark?: string;
   icon?: string;
   status: number;

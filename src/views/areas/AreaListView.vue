@@ -23,6 +23,28 @@
               @keyup.enter="search"
             />
           </el-form-item>
+          <el-form-item label="语义类型">
+            <el-select
+              v-model="areaStore.filters.typeCode"
+              clearable
+              filterable
+              placeholder="全部类型"
+              style="width: 220px"
+            >
+              <el-option-group
+                v-for="group in areaTypeGroups"
+                :key="group.categoryCode"
+                :label="group.categoryName"
+              >
+                <el-option
+                  v-for="option in group.options"
+                  :key="option.typeCode"
+                  :label="option.typeName"
+                  :value="option.typeCode"
+                />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="areaStore.filters.status" placeholder="全部状态" clearable style="width: 140px">
               <el-option label="启用" :value="1" />
@@ -46,6 +68,11 @@
         >
           <el-table-column prop="name" label="区域名称" min-width="180" />
           <el-table-column prop="type" label="类型" min-width="150" />
+          <el-table-column label="语义类型" min-width="170">
+            <template #default="{ row }">
+              {{ row.typeName || row.categoryName || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
               <el-tag :type="getStatusTagType(row.status)" effect="light">
@@ -84,17 +111,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
 import { useAreaStore } from '@/stores/areaStore';
+import { useMapFeatureCatalogStore } from '@/stores/mapFeatureCatalogStore';
 import type { MapAreaListItem } from '@/types/area';
 import { formatDateTime } from '@/utils/format';
+import { groupFeatureTypes } from '@/utils/mapFeatureTypes';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 
 const router = useRouter();
 const areaStore = useAreaStore();
+const mapFeatureCatalogStore = useMapFeatureCatalogStore();
+const areaTypeGroups = computed(() =>
+  groupFeatureTypes(mapFeatureCatalogStore.schema, (item) => item.geometryType === 'polygon' && item.sourceTypes.includes('area'))
+);
 
 async function search(): Promise<void> {
   try {
@@ -146,6 +179,7 @@ function openOnMap(row: MapAreaListItem): void {
 }
 
 onMounted(() => {
+  void mapFeatureCatalogStore.ensureLoaded().catch(() => undefined);
   // 进入列表页即自动加载一次，保持页面行为确定。
   void search();
 });

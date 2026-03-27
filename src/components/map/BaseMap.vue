@@ -328,6 +328,8 @@ function isTargetVisible(target: MapFocusTarget | null | undefined): boolean {
       return props.layerVisibility.places;
     case 'boundary':
       return props.layerVisibility.boundaries;
+    case 'label':
+      return true;
     default:
       return false;
   }
@@ -391,7 +393,7 @@ function focusOnTarget(target: MapFocusTarget): void {
 
   updateFocusedEntity(map.value, target);
 
-  if (target.entityType === 'shop' || target.entityType === 'poi') {
+  if (target.entityType === 'shop' || target.entityType === 'poi' || target.entityType === 'label') {
     const center: [number, number] = [target.longitude, target.latitude];
     map.value.flyTo({
       center,

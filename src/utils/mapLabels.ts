@@ -222,20 +222,25 @@ export function createLabelContextFromBasemapFeature(feature: BasemapInspectable
 }
 
 export function createLabelContextFromFocusTarget(target: MapFocusTarget): EditableMapLabelContext {
-  const featureType = target.entityType;
+  const featureType = target.entityType === 'label' ? 'manual' : target.entityType;
   const center = getFocusTargetCenter(target);
+  const overrideDisplayName = 'displayName' in target ? target.displayName : undefined;
   return {
     sourceKind: 'business',
-    entityType: target.entityType,
+    entityType: target.entityType === 'label' ? undefined : target.entityType,
     entityId: target.id,
     featureType,
     labelType: getDefaultLabelType(featureType),
-    typeCode: getDefaultTypeCodeForLabelFeature(featureType),
-    geometryType: 'point',
+    categoryCode: 'categoryCode' in target ? target.categoryCode ?? null : null,
+    categoryName: 'categoryName' in target ? target.categoryName ?? null : null,
+    typeCode: 'typeCode' in target ? target.typeCode ?? getDefaultTypeCodeForLabelFeature(featureType) : getDefaultTypeCodeForLabelFeature(featureType),
+    typeName: 'typeName' in target ? target.typeName ?? null : null,
+    renderType: 'renderType' in target ? target.renderType ?? null : null,
+    geometryType: 'geometryType' in target ? target.geometryType ?? 'point' : 'point',
     sourceFeatureId: String(target.id),
-    sourceLayer: getBusinessLabelSourceLayer(featureType),
+    sourceLayer: target.entityType === 'label' ? null : getBusinessLabelSourceLayer(featureType),
     originalName: resolvePreferredName({
-      overrideDisplayName: 'displayName' in target ? (target as Record<string, unknown>).displayName as string | undefined : undefined,
+      overrideDisplayName,
       businessDisplayName: target.name
     }),
     suggestedDisplayName: target.name,
@@ -246,7 +251,7 @@ export function createLabelContextFromFocusTarget(target: MapFocusTarget): Edita
 }
 
 export function getFocusTargetCenter(target: MapFocusTarget): [number, number] | null {
-  if (target.entityType === 'shop' || target.entityType === 'poi') {
+  if (target.entityType === 'shop' || target.entityType === 'poi' || target.entityType === 'label') {
     return [target.longitude, target.latitude];
   }
 

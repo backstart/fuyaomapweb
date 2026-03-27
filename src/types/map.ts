@@ -1,6 +1,6 @@
 import type { EntityId } from '@/types/entity';
 
-export type EntityType = 'shop' | 'area' | 'poi' | 'place' | 'boundary';
+export type EntityType = 'shop' | 'area' | 'poi' | 'place' | 'boundary' | 'label';
 
 // Unified search rows returned by `/search`, later expanded into map focus targets when needed.
 export interface MapSearchItem {
@@ -11,6 +11,14 @@ export interface MapSearchItem {
   entityType?: EntityType;
   itemType: EntityType;
   classification?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   address?: string | null;
   source?: string | null;
   aliasNames?: string[];
@@ -32,6 +40,8 @@ export interface MapSearchParams {
   types?: string;
   category?: string;
   type?: string;
+  categoryCode?: string;
+  typeCode?: string;
   status?: number;
   page?: number;
   limit?: number;
@@ -63,6 +73,12 @@ export interface ShopFocusTarget {
   id: EntityId;
   name: string;
   category?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   status: number;
@@ -76,6 +92,12 @@ export interface PoiFocusTarget {
   name: string;
   category?: string | null;
   subcategory?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   icon?: string | null;
   address?: string | null;
@@ -91,6 +113,12 @@ export interface AreaFocusTarget {
   id: EntityId;
   name: string;
   type?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   status: number;
@@ -103,6 +131,12 @@ export interface PlaceFocusTarget {
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   status: number;
   geometryGeoJson?: string | null;
@@ -116,10 +150,36 @@ export interface BoundaryFocusTarget {
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   status: number;
   geometryGeoJson: string;
+}
+
+export interface LabelFocusTarget {
+  entityType: 'label';
+  id: EntityId;
+  name: string;
+  displayName?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
+  source?: string | null;
+  classification?: string | null;
+  status: number;
+  longitude: number;
+  latitude: number;
 }
 
 // Discriminated union used throughout the map flow to branch between flyTo and fitBounds.
@@ -128,4 +188,5 @@ export type MapFocusTarget =
   | AreaFocusTarget
   | PoiFocusTarget
   | PlaceFocusTarget
-  | BoundaryFocusTarget;
+  | BoundaryFocusTarget
+  | LabelFocusTarget;

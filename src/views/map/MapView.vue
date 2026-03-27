@@ -2,11 +2,11 @@
   <div class="map-page-view">
     <div class="map-page">
       <BaseMap
-        :shop-data="shopStore.geoJson"
-        :area-data="areaStore.geoJson"
-        :poi-data="poiStore.geoJson"
-        :place-data="placeStore.geoJson"
-        :boundary-data="boundaryStore.geoJson"
+        :shop-data="filteredShopData"
+        :area-data="filteredAreaData"
+        :poi-data="filteredPoiData"
+        :place-data="filteredPlaceData"
+        :boundary-data="filteredBoundaryData"
         :manual-label-data="manualLabelData"
         :business-label-data="businessLabelData"
         :drawn-building-area-data="drawnBuildingAreaData"
@@ -34,7 +34,11 @@
       <div class="map-overlay map-overlay-left">
         <MapSearchBar
           v-model="searchKeyword"
+          :semantic-type-value="searchTypeCode"
+          :semantic-type-groups="searchSemanticTypeGroups"
+          semantic-type-placeholder="全部语义类型"
           :loading="searchLoading"
+          @update:semantic-type-value="searchTypeCode = $event"
           @submit="handleSearch"
           @clear="clearSearch"
         />
@@ -63,7 +67,14 @@
             </div>
             <div class="inspector-actions">
               <el-button size="small" @click="focusSelectedEntity">定位到此</el-button>
-              <el-button size="small" type="primary" @click="editSelectedEntityLabel">补充标注</el-button>
+              <el-button
+                v-if="mapStore.selectedEntity?.entityType !== 'label'"
+                size="small"
+                type="primary"
+                @click="editSelectedEntityLabel"
+              >
+                补充标注
+              </el-button>
             </div>
           </div>
         </div>
@@ -119,9 +130,19 @@
                   <strong>{{ item.name }}</strong>
                   <p>{{ getSearchItemSubtitle(item) }}</p>
                 </div>
-                <span :class="['result-status', `result-status--${getStatusTagType(item.status)}`]">
-                  {{ getStatusLabel(item.status) }}
-                </span>
+                <div class="result-item-side">
+                  <el-tag
+                    v-if="item.typeName || item.categoryName"
+                    size="small"
+                    effect="plain"
+                    type="info"
+                  >
+                    {{ item.typeName || item.categoryName }}
+                  </el-tag>
+                  <span :class="['result-status', `result-status--${getStatusTagType(item.status)}`]">
+                    {{ getStatusLabel(item.status) }}
+                  </span>
+                </div>
               </button>
             </div>
             <p v-else class="search-empty-tip">
@@ -185,6 +206,29 @@
                 <h3>地图工具</h3>
                 <span v-if="drawnBuildingCountLabel" class="card-meta">{{ drawnBuildingCountLabel }}</span>
               </div>
+            </div>
+            <div class="tool-group">
+              <span class="tool-group-title">语义过滤</span>
+              <el-select
+                v-model="mapSemanticTypeCode"
+                clearable
+                filterable
+                placeholder="全部语义类型"
+                class="tool-filter-select"
+              >
+                <el-option-group
+                  v-for="group in mapSemanticTypeGroups"
+                  :key="group.categoryCode"
+                  :label="group.categoryName"
+                >
+                  <el-option
+                    v-for="option in group.options"
+                    :key="option.typeCode"
+                    :label="option.typeName"
+                    :value="option.typeCode"
+                  />
+                </el-option-group>
+              </el-select>
             </div>
             <div class="tool-group">
               <span class="tool-group-title">标注</span>
@@ -548,7 +592,6 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute } from 'vue-router';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
-import { getMapFeatureSchema } from '@/api/mapFeatureTypeApi';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
@@ -563,13 +606,14 @@ import { useAreaStore } from '@/stores/areaStore';
 import { useBoundaryStore } from '@/stores/boundaryStore';
 import { ZHONGSHAN_DEFAULT_CENTER } from '@/map/defaultMapView';
 import { useDrawnBuildingStore } from '@/stores/drawnBuildingStore';
+import { useMapFeatureCatalogStore } from '@/stores/mapFeatureCatalogStore';
 import { useMapStore } from '@/stores/mapStore';
 import { usePlaceStore } from '@/stores/placeStore';
 import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
 import type { BuildingDrawMode, DrawnBuildingArea, DrawnBuildingCompletePayload, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import type { EntityId } from '@/types/entity';
-import type { MapFeatureSchema, MapFeatureTypeDefinition } from '@/types/mapFeatureType';
+import type { MapFeatureTypeDefinition } from '@/types/mapFeatureType';
 import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 import { boundsToBboxString } from '@/utils/bbox';
@@ -606,6 +650,11 @@ import {
   parseAliasNamesInput,
   sanitizeMapLabelPayload
 } from '@/utils/mapLabels';
+import {
+  filterDrawnBuildingAreasBySemanticType,
+  filterFeatureCollectionBySemanticType,
+  filterLabelsBySemanticType
+} from '@/utils/mapSemanticFilter';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 import { getFocusTargetSubtitle, getSearchItemSubtitle } from '@/utils/mapEntities';
 
@@ -620,6 +669,8 @@ const LAYER_MIN_ZOOM: Record<LayerKey, number> = {
   places: 11,
   boundaries: 8
 };
+const MAP_SEARCH_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label'] as const;
+const MAP_FILTER_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label', DRAWN_BUILDING_SOURCE_TYPE] as const;
 const LABEL_FEATURE_TYPE_OPTIONS: Array<{ value: MapLabelFeatureType; label: string }> = [
   { value: 'shop', label: '店铺' },
   { value: 'poi', label: 'POI' },
@@ -648,15 +699,18 @@ const areaStore = useAreaStore();
 const poiStore = usePoiStore();
 const placeStore = usePlaceStore();
 const boundaryStore = useBoundaryStore();
+const mapFeatureCatalogStore = useMapFeatureCatalogStore();
 
 const searchKeyword = ref('');
+const searchTypeCode = ref('');
+const mapSemanticTypeCode = ref('');
 const drawnBuildingKeyword = ref('');
 const searchLoading = ref(false);
 const searchPanelMessage = ref('');
 const showDrawnBuildingList = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
 const manualLabels = ref<MapLabel[]>([]);
-const mapFeatureSchema = ref<MapFeatureSchema | null>(null);
+const mapFeatureSchema = computed(() => mapFeatureCatalogStore.schema);
 const labelLookupLoading = ref(false);
 const labelRefreshLoading = ref(false);
 const labelSaving = ref(false);
@@ -686,6 +740,18 @@ const searchResultCountLabel = computed(() =>
 const showSearchResultsPanel = computed(() =>
   searchLoading.value || mapStore.searchResults.length > 0 || Boolean(searchPanelMessage.value)
 );
+const searchSemanticTypeGroups = computed(() =>
+  groupFeatureTypes(
+    mapFeatureSchema.value,
+    (item) => item.sourceTypes.some((sourceType) => MAP_SEARCH_SOURCE_TYPES.includes(sourceType as typeof MAP_SEARCH_SOURCE_TYPES[number]))
+  )
+);
+const mapSemanticTypeGroups = computed(() =>
+  groupFeatureTypes(
+    mapFeatureSchema.value,
+    (item) => item.sourceTypes.some((sourceType) => MAP_FILTER_SOURCE_TYPES.includes(sourceType as typeof MAP_FILTER_SOURCE_TYPES[number]))
+  )
+);
 const labelFeatureTypeOptions = LABEL_FEATURE_TYPE_OPTIONS;
 const labelTypeOptions = LABEL_TYPE_OPTIONS;
 const labelSemanticTypeGroups = computed(() =>
@@ -698,25 +764,44 @@ const drawnBuildingTypeGroups = computed(() =>
   )
 );
 const visibleManualLabels = computed(() =>
-  manualLabels.value.filter((label) => isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
+  filterLabelsBySemanticType(manualLabels.value, mapSemanticTypeCode.value).filter((label) =>
+    isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
 );
 const selectedDrawnBuildingArea = computed(() => drawnBuildingStore.selectedArea);
+const filteredShopData = computed(() =>
+  filterFeatureCollectionBySemanticType(shopStore.geoJson, mapSemanticTypeCode.value)
+);
+const filteredAreaData = computed(() =>
+  filterFeatureCollectionBySemanticType(areaStore.geoJson, mapSemanticTypeCode.value)
+);
+const filteredPoiData = computed(() =>
+  filterFeatureCollectionBySemanticType(poiStore.geoJson, mapSemanticTypeCode.value)
+);
+const filteredPlaceData = computed(() =>
+  filterFeatureCollectionBySemanticType(placeStore.geoJson, mapSemanticTypeCode.value)
+);
+const filteredBoundaryData = computed(() =>
+  filterFeatureCollectionBySemanticType(boundaryStore.geoJson, mapSemanticTypeCode.value)
+);
+const filteredDrawnBuildingAreasForMap = computed(() =>
+  filterDrawnBuildingAreasBySemanticType(drawnBuildingStore.areas, mapSemanticTypeCode.value)
+);
 const manualLabelData = computed(() => buildManualLabelFeatureCollection(visibleManualLabels.value));
 const businessLabelData = computed(() => buildBusinessLabelFeatureCollection({
-  shops: shopStore.geoJson,
-  areas: areaStore.geoJson,
-  pois: poiStore.geoJson,
-  places: placeStore.geoJson,
-  boundaries: boundaryStore.geoJson,
+  shops: filteredShopData.value,
+  areas: filteredAreaData.value,
+  pois: filteredPoiData.value,
+  places: filteredPlaceData.value,
+  boundaries: filteredBoundaryData.value,
   visibility: mapStore.layerVisibility,
   manualLabels: visibleManualLabels.value,
   zoom: mapStore.viewport.zoom ?? 0
 }));
 const drawnBuildingAreaData = computed(() =>
-  buildDrawnBuildingAreaFeatureCollection(drawnBuildingStore.areas, drawnBuildingStore.selectedAreaId)
+  buildDrawnBuildingAreaFeatureCollection(filteredDrawnBuildingAreasForMap.value, drawnBuildingStore.selectedAreaId)
 );
 const drawnBuildingLabelData = computed(() =>
-  buildDrawnBuildingLabelFeatureCollection(drawnBuildingStore.areas, drawnBuildingStore.selectedAreaId)
+  buildDrawnBuildingLabelFeatureCollection(filteredDrawnBuildingAreasForMap.value, drawnBuildingStore.selectedAreaId)
 );
 const filteredDrawnBuildingAreas = computed(() => {
   const keyword = drawnBuildingKeyword.value.trim().toLowerCase();
@@ -941,6 +1026,18 @@ function getFeatureTypeDefinition(typeCode: string | null | undefined): MapFeatu
   return findFeatureTypeDefinition(mapFeatureSchema.value, typeCode);
 }
 
+function getSearchTypeRequestTypes(typeCode: string | null | undefined): string | undefined {
+  const definition = getFeatureTypeDefinition(typeCode);
+  if (!definition) {
+    return 'shop,area,poi,place,boundary';
+  }
+
+  const sourceTypes = definition.sourceTypes
+    .filter((sourceType) => MAP_SEARCH_SOURCE_TYPES.includes(sourceType as typeof MAP_SEARCH_SOURCE_TYPES[number]));
+
+  return sourceTypes.length ? sourceTypes.join(',') : 'shop,area,poi,place,boundary';
+}
+
 function applyLabelSemanticType(typeCode: string | null | undefined, options?: { applyDefaults?: boolean }): void {
   if (!labelDraft.value) {
     return;
@@ -1026,7 +1123,7 @@ function applyDrawnBuildingSemanticType(typeCode: string | null | undefined): vo
 
 async function loadFeatureSchema(): Promise<void> {
   try {
-    mapFeatureSchema.value = await getMapFeatureSchema();
+    await mapFeatureCatalogStore.ensureLoaded();
 
     if (labelDraft.value?.typeCode) {
       applyLabelSemanticType(labelDraft.value.typeCode);
@@ -1739,14 +1836,20 @@ async function handleSearch(): Promise<void> {
   searchPanelMessage.value = '';
   searchLoading.value = true;
   try {
+    const selectedType = getFeatureTypeDefinition(searchTypeCode.value);
     const result = await searchMap({
       q: keyword,
+      types: getSearchTypeRequestTypes(searchTypeCode.value),
+      categoryCode: selectedType?.categoryCode,
+      typeCode: searchTypeCode.value || undefined,
       page: 1,
       pageSize: 10,
       bbox: mapStore.viewport.bbox
     });
     mapStore.setSearchResults(result.items);
-    searchPanelMessage.value = result.items.length ? '' : `未找到“${keyword}”相关结果`;
+    searchPanelMessage.value = result.items.length
+      ? ''
+      : `未找到“${keyword}”${selectedType ? `的${selectedType.typeName}` : ''}相关结果`;
   } catch (error) {
     searchPanelMessage.value = '';
     ElMessage.error(error instanceof Error ? error.message : '搜索失败');
@@ -1762,7 +1865,36 @@ function clearSearchResults(): void {
 
 function clearSearch(): void {
   searchKeyword.value = '';
+  searchTypeCode.value = '';
   clearSearchResults();
+}
+
+function buildLabelFocusTarget(item: MapSearchItem): MapFocusTarget | null {
+  const longitude = item.longitude ?? item.lng;
+  const latitude = item.latitude ?? item.lat;
+  if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+    return null;
+  }
+
+  return {
+    entityType: 'label',
+    id: item.id,
+    name: item.displayName || item.name,
+    displayName: item.displayName || item.name,
+    sourceType: item.sourceType ?? item.source ?? null,
+    sourceId: item.sourceId ?? null,
+    categoryCode: item.categoryCode ?? null,
+    categoryName: item.categoryName ?? null,
+    typeCode: item.typeCode ?? null,
+    typeName: item.typeName ?? null,
+    renderType: item.renderType ?? null,
+    geometryType: item.geometryType ?? 'point',
+    source: item.source ?? null,
+    classification: item.classification ?? null,
+    status: item.status,
+    longitude,
+    latitude
+  };
 }
 
 async function saveLabel(): Promise<void> {
@@ -1829,6 +1961,12 @@ async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise
         id: detail.id,
         name: detail.name,
         category: detail.category,
+        categoryCode: detail.categoryCode,
+        categoryName: detail.categoryName,
+        typeCode: detail.typeCode,
+        typeName: detail.typeName,
+        renderType: detail.renderType,
+        geometryType: detail.geometryType,
         remark: detail.remark,
         icon: detail.icon,
         status: detail.status,
@@ -1843,6 +1981,12 @@ async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise
         id: detail.id,
         name: detail.name,
         type: detail.type,
+        categoryCode: detail.categoryCode,
+        categoryName: detail.categoryName,
+        typeCode: detail.typeCode,
+        typeName: detail.typeName,
+        renderType: detail.renderType,
+        geometryType: detail.geometryType,
         remark: detail.remark,
         styleJson: detail.styleJson,
         status: detail.status,
@@ -1857,6 +2001,12 @@ async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise
         name: detail.name,
         category: detail.category,
         subcategory: detail.subcategory,
+        categoryCode: detail.categoryCode,
+        categoryName: detail.categoryName,
+        typeCode: detail.typeCode,
+        typeName: detail.typeName,
+        renderType: detail.renderType,
+        geometryType: detail.geometryType,
         remark: detail.remark,
         icon: detail.icon,
         address: detail.address,
@@ -1874,6 +2024,12 @@ async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise
         name: detail.name,
         placeType: detail.placeType,
         adminLevel: detail.adminLevel,
+        categoryCode: detail.categoryCode,
+        categoryName: detail.categoryName,
+        typeCode: detail.typeCode,
+        typeName: detail.typeName,
+        renderType: detail.renderType,
+        geometryType: detail.geometryType,
         remark: detail.remark,
         status: detail.status,
         geometryGeoJson: detail.geometryGeoJson,
@@ -1889,12 +2045,20 @@ async function resolveFocusTarget(entityType: EntityType, id: EntityId): Promise
         name: detail.name,
         boundaryType: detail.boundaryType,
         adminLevel: detail.adminLevel,
+        categoryCode: detail.categoryCode,
+        categoryName: detail.categoryName,
+        typeCode: detail.typeCode,
+        typeName: detail.typeName,
+        renderType: detail.renderType,
+        geometryType: detail.geometryType,
         remark: detail.remark,
         styleJson: detail.styleJson,
         status: detail.status,
         geometryGeoJson: detail.geometryGeoJson
       };
     }
+    case 'label':
+      throw new Error('标注搜索结果不支持详情接口，请使用搜索结果直接定位');
     default:
       throw new Error(`未知实体类型：${entityType}`);
   }
@@ -1985,7 +2149,14 @@ async function locateSearchResult(item: MapSearchItem): Promise<void> {
   try {
     resetDrawnBuildingEditorState();
     drawnBuildingStore.cancelDraw();
-    const target = await resolveFocusTarget(item.itemType, item.id);
+    const target = item.itemType === 'label'
+      ? buildLabelFocusTarget(item)
+      : await resolveFocusTarget(item.itemType, item.id);
+
+    if (!target) {
+      throw new Error('搜索结果缺少可定位坐标');
+    }
+
     focusTarget.value = target;
     mapStore.setSelectedEntity(target);
   } catch (error) {
@@ -2025,17 +2196,18 @@ function getInspectorDetail(target: MapFocusTarget): string {
   switch (target.entityType) {
     case 'shop':
     case 'poi':
+    case 'label':
       return `坐标：${target.longitude.toFixed(6)}, ${target.latitude.toFixed(6)}`;
     case 'area':
-      return `类型：${target.type || '未分类'}`;
+      return `语义类型：${target.typeName || target.categoryName || target.type || '未分类'}`;
     case 'place':
-      return `行政级别：${target.adminLevel ?? '-'} · 中心点：${
+      return `语义类型：${target.typeName || target.categoryName || target.placeType || '未分类'} · 行政级别：${target.adminLevel ?? '-'} · 中心点：${
         typeof target.centerLongitude === 'number' && typeof target.centerLatitude === 'number'
           ? `${target.centerLongitude.toFixed(6)}, ${target.centerLatitude.toFixed(6)}`
           : '-'
       }`;
     case 'boundary':
-      return `行政级别：${target.adminLevel ?? '-'} · 样式：${target.styleJson || '-'}`;
+      return `语义类型：${target.typeName || target.categoryName || target.boundaryType || '未分类'} · 行政级别：${target.adminLevel ?? '-'} · 样式：${target.styleJson || '-'}`;
   }
 }
 
@@ -2047,6 +2219,8 @@ function getInspectorRemark(target: MapFocusTarget): string {
     case 'place':
     case 'boundary':
       return target.remark || '暂无备注信息。';
+    case 'label':
+      return `来源：${target.source || target.sourceType || '-'} · 分类：${target.typeName || target.categoryName || target.classification || '未分类'}`;
     default:
       return '暂无备注信息。';
   }
@@ -2327,6 +2501,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.result-item-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex: none;
+}
+
 .result-inline-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2490,6 +2671,10 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.tool-filter-select {
+  width: 100%;
 }
 
 .label-editor-tip {

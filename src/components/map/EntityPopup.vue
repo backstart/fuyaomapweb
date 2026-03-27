@@ -90,6 +90,21 @@
         </div>
       </template>
 
+      <template v-else-if="entity.entityType === 'label'">
+        <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.classification || '-' }}</dd>
+        </div>
+        <div>
+          <dt>来源</dt>
+          <dd>{{ entity.source || entity.sourceType || '-' }}</dd>
+        </div>
+        <div>
+          <dt>经纬度</dt>
+          <dd>{{ formatLonLat(entity.longitude, entity.latitude) }}</dd>
+        </div>
+      </template>
+
       <template v-else>
         <div>
           <dt>类型</dt>

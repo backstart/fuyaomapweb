@@ -6,6 +6,12 @@ export interface MapPlace {
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   status: number;
   geometryGeoJson?: string | null;
@@ -22,6 +28,12 @@ export interface MapPlaceListItem {
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   status: number;
   centerLongitude?: number | null;
   centerLatitude?: number | null;
@@ -32,6 +44,12 @@ export interface PlaceGeoJsonProperties {
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   status: number;
   businessId?: string | null;
@@ -46,6 +64,8 @@ export type PlaceFeatureCollection = FeatureCollection<Geometry, PlaceGeoJsonPro
 export interface QueryMapPlaceParams {
   keyword?: string;
   placeType?: string;
+  categoryCode?: string;
+  typeCode?: string;
   adminLevel?: number;
   status?: number;
   page?: number;
@@ -56,6 +76,9 @@ export interface QueryMapPlaceParams {
 export interface SaveMapPlacePayload {
   name: string;
   placeType?: string;
+  categoryCode?: string | null;
+  typeCode?: string | null;
+  renderType?: string | null;
   adminLevel?: number | null;
   remark?: string;
   status: number;

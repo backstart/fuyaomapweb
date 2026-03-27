@@ -407,7 +407,7 @@ function createFocusFeatureCollection(target: MapFocusTarget | null | undefined)
     return createEmptyGeometryFeatureCollection();
   }
 
-  if (target.entityType === 'shop' || target.entityType === 'poi') {
+  if (target.entityType === 'shop' || target.entityType === 'poi' || target.entityType === 'label') {
     const feature: Feature<Point> = {
       type: 'Feature',
       properties: {},

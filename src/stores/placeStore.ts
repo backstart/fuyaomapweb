@@ -29,6 +29,8 @@ export const usePlaceStore = defineStore('places', () => {
   const filters = reactive<QueryMapPlaceParams>({
     keyword: '',
     placeType: '',
+    categoryCode: undefined,
+    typeCode: undefined,
     adminLevel: undefined,
     status: undefined,
     page: 1,
@@ -67,6 +69,8 @@ export const usePlaceStore = defineStore('places', () => {
       geoJson.value = await getMapPlacesGeoJson({
         keyword: filters.keyword,
         placeType: filters.placeType,
+        categoryCode: filters.categoryCode,
+        typeCode: filters.typeCode,
         adminLevel: filters.adminLevel,
         status: filters.status,
         bbox: filters.bbox,
@@ -86,7 +90,9 @@ export const usePlaceStore = defineStore('places', () => {
       const nextGeoJson = await getMapPlacesGeoJson(
         {
           bbox: overrides.bbox,
-          keyword: overrides.keyword
+          keyword: overrides.keyword,
+          categoryCode: overrides.categoryCode ?? filters.categoryCode,
+          typeCode: overrides.typeCode ?? filters.typeCode
         },
         {
           signal: controller.signal
@@ -138,6 +144,8 @@ export const usePlaceStore = defineStore('places', () => {
   function resetFilters(): void {
     filters.keyword = '';
     filters.placeType = '';
+    filters.categoryCode = undefined;
+    filters.typeCode = undefined;
     filters.adminLevel = undefined;
     filters.status = undefined;
     filters.page = 1;

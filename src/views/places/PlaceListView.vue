@@ -27,6 +27,28 @@
               @keyup.enter="search"
             />
           </el-form-item>
+          <el-form-item label="语义类型">
+            <el-select
+              v-model="placeStore.filters.typeCode"
+              clearable
+              filterable
+              placeholder="全部类型"
+              style="width: 220px"
+            >
+              <el-option-group
+                v-for="group in placeTypeGroups"
+                :key="group.categoryCode"
+                :label="group.categoryName"
+              >
+                <el-option
+                  v-for="option in group.options"
+                  :key="option.typeCode"
+                  :label="option.typeName"
+                  :value="option.typeCode"
+                />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
           <el-form-item label="行政级别">
             <el-input-number
               v-model="placeStore.filters.adminLevel"
@@ -58,6 +80,11 @@
         >
           <el-table-column prop="name" label="地名" min-width="180" />
           <el-table-column prop="placeType" label="类型" min-width="150" />
+          <el-table-column label="语义类型" min-width="170">
+            <template #default="{ row }">
+              {{ row.typeName || row.categoryName || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="adminLevel" label="行政级别" width="110" />
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
@@ -161,14 +188,17 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
+import { useMapFeatureCatalogStore } from '@/stores/mapFeatureCatalogStore';
 import { usePlaceStore } from '@/stores/placeStore';
 import type { EntityId } from '@/types/entity';
 import type { MapPlace, MapPlaceListItem, SaveMapPlacePayload } from '@/types/place';
 import { formatDateTime } from '@/utils/format';
+import { groupFeatureTypes } from '@/utils/mapFeatureTypes';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 
 const router = useRouter();
 const placeStore = usePlaceStore();
+const mapFeatureCatalogStore = useMapFeatureCatalogStore();
 
 const dialogVisible = ref(false);
 const saving = ref(false);
@@ -185,6 +215,9 @@ const form = reactive<SaveMapPlacePayload>({
 });
 
 const dialogTitle = computed(() => (editingId.value ? '编辑地名' : '新增地名'));
+const placeTypeGroups = computed(() =>
+  groupFeatureTypes(mapFeatureCatalogStore.schema, (item) => item.sourceTypes.includes('place'))
+);
 
 function fillForm(detail?: MapPlace | null): void {
   form.name = detail?.name ?? '';
@@ -321,6 +354,7 @@ async function removeItem(id: EntityId): Promise<void> {
 }
 
 onMounted(() => {
+  void mapFeatureCatalogStore.ensureLoaded().catch(() => undefined);
   void search();
 });
 </script>

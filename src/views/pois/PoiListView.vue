@@ -35,6 +35,28 @@
               @keyup.enter="search"
             />
           </el-form-item>
+          <el-form-item label="语义类型">
+            <el-select
+              v-model="poiStore.filters.typeCode"
+              clearable
+              filterable
+              placeholder="全部类型"
+              style="width: 220px"
+            >
+              <el-option-group
+                v-for="group in poiTypeGroups"
+                :key="group.categoryCode"
+                :label="group.categoryName"
+              >
+                <el-option
+                  v-for="option in group.options"
+                  :key="option.typeCode"
+                  :label="option.typeName"
+                  :value="option.typeCode"
+                />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="poiStore.filters.status" placeholder="全部状态" clearable style="width: 140px">
               <el-option label="启用" :value="1" />
@@ -59,6 +81,11 @@
           <el-table-column prop="name" label="POI 名称" min-width="180" />
           <el-table-column prop="category" label="分类" min-width="140" />
           <el-table-column prop="subcategory" label="子类" min-width="150" />
+          <el-table-column label="语义类型" min-width="170">
+            <template #default="{ row }">
+              {{ row.typeName || row.categoryName || '-' }}
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
               <el-tag :type="getStatusTagType(row.status)" effect="light">
@@ -165,14 +192,17 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import PageContainer from '@/components/common/PageContainer.vue';
+import { useMapFeatureCatalogStore } from '@/stores/mapFeatureCatalogStore';
 import { usePoiStore } from '@/stores/poiStore';
 import type { EntityId } from '@/types/entity';
 import type { MapPoi, MapPoiListItem, SaveMapPoiPayload } from '@/types/poi';
 import { formatDateTime } from '@/utils/format';
+import { groupFeatureTypes } from '@/utils/mapFeatureTypes';
 import { getStatusLabel, getStatusTagType } from '@/utils/status';
 
 const router = useRouter();
 const poiStore = usePoiStore();
+const mapFeatureCatalogStore = useMapFeatureCatalogStore();
 
 const dialogVisible = ref(false);
 const saving = ref(false);
@@ -191,6 +221,9 @@ const form = reactive<SaveMapPoiPayload>({
 });
 
 const dialogTitle = computed(() => (editingId.value ? '编辑 POI' : '新增 POI'));
+const poiTypeGroups = computed(() =>
+  groupFeatureTypes(mapFeatureCatalogStore.schema, (item) => item.sourceTypes.includes('poi'))
+);
 
 function fillForm(detail?: MapPoi | null): void {
   form.name = detail?.name ?? '';
@@ -324,6 +357,7 @@ async function removeItem(id: EntityId): Promise<void> {
 }
 
 onMounted(() => {
+  void mapFeatureCatalogStore.ensureLoaded().catch(() => undefined);
   void search();
 });
 </script>

@@ -63,6 +63,9 @@ export const useAreaStore = defineStore('areas', () => {
       geoJson.value = await getMapAreasGeoJson({
         keyword: filters.keyword,
         type: filters.type,
+        categoryCode: filters.categoryCode,
+        typeCode: filters.typeCode,
+        renderType: filters.renderType,
         sourceType: filters.sourceType,
         excludeSourceType: filters.excludeSourceType,
         status: filters.status,
@@ -83,6 +86,9 @@ export const useAreaStore = defineStore('areas', () => {
       const nextGeoJson = await getMapAreasGeoJson(
         {
           bbox: overrides.bbox,
+          categoryCode: overrides.categoryCode ?? filters.categoryCode,
+          typeCode: overrides.typeCode ?? filters.typeCode,
+          renderType: overrides.renderType ?? filters.renderType,
           keyword: overrides.keyword,
           excludeSourceType: overrides.excludeSourceType ?? filters.excludeSourceType
         },
@@ -136,6 +142,9 @@ export const useAreaStore = defineStore('areas', () => {
   function resetFilters(): void {
     filters.keyword = '';
     filters.type = '';
+    filters.categoryCode = undefined;
+    filters.typeCode = undefined;
+    filters.renderType = undefined;
     filters.sourceType = undefined;
     filters.excludeSourceType = DRAWN_BUILDING_SOURCE_TYPE;
     filters.status = undefined;

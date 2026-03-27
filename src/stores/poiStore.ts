@@ -30,6 +30,8 @@ export const usePoiStore = defineStore('pois', () => {
     keyword: '',
     category: '',
     subcategory: '',
+    categoryCode: undefined,
+    typeCode: undefined,
     status: undefined,
     page: 1,
     pageSize: 10,
@@ -68,6 +70,8 @@ export const usePoiStore = defineStore('pois', () => {
         keyword: filters.keyword,
         category: filters.category,
         subcategory: filters.subcategory,
+        categoryCode: filters.categoryCode,
+        typeCode: filters.typeCode,
         status: filters.status,
         bbox: filters.bbox,
         ...overrides
@@ -86,7 +90,9 @@ export const usePoiStore = defineStore('pois', () => {
       const nextGeoJson = await getMapPoisGeoJson(
         {
           bbox: overrides.bbox,
-          keyword: overrides.keyword
+          keyword: overrides.keyword,
+          categoryCode: overrides.categoryCode ?? filters.categoryCode,
+          typeCode: overrides.typeCode ?? filters.typeCode
         },
         {
           signal: controller.signal
@@ -139,6 +145,8 @@ export const usePoiStore = defineStore('pois', () => {
     filters.keyword = '';
     filters.category = '';
     filters.subcategory = '';
+    filters.categoryCode = undefined;
+    filters.typeCode = undefined;
     filters.status = undefined;
     filters.page = 1;
     filters.pageSize = 10;
