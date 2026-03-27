@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 export interface MapBoundary {
   id: EntityId;
@@ -38,7 +39,7 @@ export interface MapBoundaryListItem {
   updateTime: string;
 }
 
-export interface BoundaryGeoJsonProperties {
+export interface BoundaryGeoJsonProperties extends Partial<SemanticRenderProperties> {
   name: string;
   boundaryType?: string | null;
   adminLevel?: number | null;

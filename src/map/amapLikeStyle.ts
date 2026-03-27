@@ -150,6 +150,13 @@ function buildRoadLabelFilter(): FilterSpecification {
   );
 }
 
+function buildNamedLineFilter(): FilterSpecification {
+  return allFilters(
+    geometryFilter('LineString'),
+    hasAnyPropertyFilter(LABEL_NAME_FIELDS)
+  );
+}
+
 function selectBasemapLayers(sourceLayers: string[]): BasemapLayerSelection {
   return {
     waterLayer: pickSourceLayer(sourceLayers, ['water', 'water_polygon']),
@@ -589,6 +596,71 @@ function appendLabelLayers(layers: LayerSpecification[], layerSelection: Basemap
     }));
   }
 
+  if (layerSelection.waterwayLayer) {
+    layers.push(createSymbolLayer({
+      id: 'water-label-line',
+      sourceLayer: layerSelection.waterwayLayer,
+      filter: buildNamedLineFilter(),
+      minzoom: 10,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 420,
+        'text-field': buildLabelTextField(LABEL_NAME_FIELDS),
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          10, 10.6,
+          13, 11.4,
+          16, 12.4
+        ],
+        'text-letter-spacing': 0.03,
+        'text-padding': 2,
+        'text-max-angle': 30,
+        'text-keep-upright': true,
+        'text-optional': true,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#4e83bb',
+        'text-halo-color': 'rgba(255, 255, 255, 0.95)',
+        'text-halo-width': 1.45,
+        'text-halo-blur': 0.45
+      }
+    }));
+  } else if (layerSelection.waterLayer) {
+    layers.push(createSymbolLayer({
+      id: 'water-label-surface',
+      sourceLayer: layerSelection.waterLayer,
+      filter: buildNamedSurfaceFilter(),
+      minzoom: 9,
+      layout: {
+        'text-field': buildLabelTextField(LABEL_NAME_FIELDS),
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          9, 10.8,
+          12, 11.8,
+          15, 12.8
+        ],
+        'text-max-width': 8,
+        'text-letter-spacing': 0.03,
+        'text-padding': 4,
+        'text-variable-anchor': ['center', 'top', 'bottom'],
+        'text-radial-offset': 0.18,
+        'text-optional': true,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#4e83bb',
+        'text-halo-color': 'rgba(255, 255, 255, 0.95)',
+        'text-halo-width': 1.4,
+        'text-halo-blur': 0.5
+      }
+    }));
+  }
+
   if (layerSelection.poiLayer) {
     layers.push(createSymbolLayer({
       id: 'poi-label',
@@ -617,6 +689,39 @@ function appendLabelLayers(layers: LayerSpecification[], layerSelection: Basemap
         'text-color': '#495768',
         'text-halo-color': 'rgba(255, 255, 255, 0.96)',
         'text-halo-width': 1.35,
+        'text-halo-blur': 0.5
+      }
+    }));
+  }
+
+  if (layerSelection.buildingLayer) {
+    layers.push(createSymbolLayer({
+      id: 'building-label',
+      sourceLayer: layerSelection.buildingLayer,
+      filter: buildNamedSurfaceFilter(),
+      minzoom: 15,
+      layout: {
+        'text-field': buildLabelTextField(LABEL_NAME_FIELDS),
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          15, 10.8,
+          17, 11.8,
+          19, 13
+        ],
+        'text-max-width': 8,
+        'text-padding': 4,
+        'text-letter-spacing': 0.01,
+        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+        'text-radial-offset': 0.38,
+        'text-optional': true,
+        'text-allow-overlap': false
+      },
+      paint: {
+        'text-color': '#38475b',
+        'text-halo-color': 'rgba(246, 244, 239, 0.96)',
+        'text-halo-width': 1.45,
         'text-halo-blur': 0.5
       }
     }));

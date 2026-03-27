@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 export interface MapPlace {
   id: EntityId;
@@ -40,7 +41,7 @@ export interface MapPlaceListItem {
   updateTime: string;
 }
 
-export interface PlaceGeoJsonProperties {
+export interface PlaceGeoJsonProperties extends Partial<SemanticRenderProperties> {
   name: string;
   placeType?: string | null;
   adminLevel?: number | null;

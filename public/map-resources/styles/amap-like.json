@@ -1246,6 +1246,93 @@
       }
     },
     {
+      "id": "water-label-line",
+      "type": "symbol",
+      "source": "pmtiles-basemap",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "LineString"
+        ],
+        [
+          "any",
+          [
+            "has",
+            "name:zh"
+          ],
+          [
+            "has",
+            "name"
+          ],
+          [
+            "has",
+            "name_en"
+          ],
+          [
+            "has",
+            "ref"
+          ]
+        ]
+      ],
+      "minzoom": 10,
+      "layout": {
+        "symbol-placement": "line",
+        "symbol-spacing": 420,
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "name:zh"
+          ],
+          [
+            "get",
+            "name"
+          ],
+          [
+            "get",
+            "name_en"
+          ],
+          [
+            "get",
+            "ref"
+          ],
+          ""
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          10,
+          10.6,
+          13,
+          11.4,
+          16,
+          12.4
+        ],
+        "text-letter-spacing": 0.03,
+        "text-padding": 2,
+        "text-max-angle": 30,
+        "text-keep-upright": true,
+        "text-optional": true,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#4e83bb",
+        "text-halo-color": "rgba(255, 255, 255, 0.95)",
+        "text-halo-width": 1.45,
+        "text-halo-blur": 0.45
+      }
+    },
+    {
       "id": "poi-label",
       "type": "symbol",
       "source": "pmtiles-basemap",
@@ -1340,6 +1427,102 @@
         "text-halo-width": 1.35,
         "text-halo-blur": 0.5
       }
+    },
+    {
+      "id": "building-label",
+      "type": "symbol",
+      "source": "pmtiles-basemap",
+      "source-layer": "building",
+      "filter": [
+        "all",
+        [
+          "match",
+          [
+            "geometry-type"
+          ],
+          [
+            "Point",
+            "Polygon"
+          ],
+          true,
+          false
+        ],
+        [
+          "any",
+          [
+            "has",
+            "name:zh"
+          ],
+          [
+            "has",
+            "name"
+          ],
+          [
+            "has",
+            "name_en"
+          ],
+          [
+            "has",
+            "ref"
+          ]
+        ]
+      ],
+      "minzoom": 15,
+      "layout": {
+        "text-field": [
+          "coalesce",
+          [
+            "get",
+            "name:zh"
+          ],
+          [
+            "get",
+            "name"
+          ],
+          [
+            "get",
+            "name_en"
+          ],
+          [
+            "get",
+            "ref"
+          ],
+          ""
+        ],
+        "text-size": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          15,
+          10.8,
+          17,
+          11.8,
+          19,
+          13
+        ],
+        "text-max-width": 8,
+        "text-padding": 4,
+        "text-letter-spacing": 0.01,
+        "text-variable-anchor": [
+          "top",
+          "bottom",
+          "left",
+          "right"
+        ],
+        "text-radial-offset": 0.38,
+        "text-optional": true,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#38475b",
+        "text-halo-color": "rgba(246, 244, 239, 0.96)",
+        "text-halo-width": 1.45,
+        "text-halo-blur": 0.5
+      }
     }
   ],
   "center": [
@@ -1372,6 +1555,6 @@
       "water_name",
       "waterway"
     ],
-    "generatedAt": "2026-03-27T16:14:19.963Z"
+    "generatedAt": "2026-03-27T16:57:04.912Z"
   }
 }

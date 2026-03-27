@@ -1,6 +1,7 @@
 import type { FeatureCollection, Point } from 'geojson';
 import type { EntityId } from '@/types/entity';
 import type { EntityType } from '@/types/map';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 export type MapLabelFeatureType = EntityType | 'road' | 'building' | 'house' | 'courtyard' | 'manual';
 export type MapLabelLayerType = 'road' | 'building' | 'business';
@@ -76,7 +77,7 @@ export interface SaveMapLabelPayload {
   remark?: string | null;
 }
 
-export interface MapLabelGeoJsonProperties {
+export interface MapLabelGeoJsonProperties extends Partial<SemanticRenderProperties> {
   labelId?: string;
   displayName: string;
   featureType: string;

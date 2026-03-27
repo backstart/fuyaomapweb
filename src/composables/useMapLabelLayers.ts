@@ -1,8 +1,10 @@
 import type { Feature, Point } from 'geojson';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { resolveFeatureRenderProperties, resolveLabelRenderProperties } from '@/map/semanticRenderConfig';
 import type { AreaFeatureCollection, AreaGeoJsonProperties } from '@/types/area';
 import type { BoundaryFeatureCollection, BoundaryGeoJsonProperties } from '@/types/boundary';
 import type { LayerVisibility } from '@/types/map';
+import type { MapFeatureSchema } from '@/types/mapFeatureType';
 import type { MapLabel, MapLabelFeatureCollection, MapLabelGeoJsonProperties } from '@/types/mapLabel';
 import type { PlaceFeatureCollection, PlaceGeoJsonProperties } from '@/types/place';
 import type { PoiFeatureCollection, PoiGeoJsonProperties } from '@/types/poi';
@@ -87,6 +89,22 @@ function addSymbolLayer(map: MapLibreMap, layer: Record<string, unknown>): void 
   map.addLayer(layer as never, beforeId);
 }
 
+function buildTextSizeExpression(fallback: number): any {
+  return ['coalesce', ['get', 'textSize'], fallback];
+}
+
+function buildTextLetterSpacingExpression(fallback: number): any {
+  return ['coalesce', ['get', 'textLetterSpacing'], fallback];
+}
+
+function buildTextRadialOffsetExpression(fallback: number): any {
+  return ['coalesce', ['get', 'textRadialOffset'], fallback];
+}
+
+function buildSortKeyExpression(fallback = -160): any {
+  return ['coalesce', ['get', 'sortKey'], fallback];
+}
+
 export function ensureMapLabelLayers(map: MapLibreMap): void {
   addGeoJsonSource(map, MANUAL_LABEL_SOURCE_ID);
   addGeoJsonSource(map, BUSINESS_LABEL_SOURCE_ID);
@@ -99,15 +117,15 @@ export function ensureMapLabelLayers(map: MapLibreMap): void {
       filter: ['match', ['get', 'featureType'], ROAD_FEATURE_TYPES, true, false],
       layout: {
         'text-field': ['get', 'displayName'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 14, 12.6, 18, 14],
-        'text-letter-spacing': 0.02,
+        'text-size': buildTextSizeExpression(11.2),
+        'text-letter-spacing': buildTextLetterSpacingExpression(0.02),
         'text-max-width': 12,
         'text-padding': 3,
-        'text-radial-offset': 0.15,
+        'text-radial-offset': buildTextRadialOffsetExpression(0.15),
         'text-variable-anchor': ['center', 'top', 'bottom'],
         'text-optional': true,
         'text-allow-overlap': false,
-        'symbol-sort-key': ['get', 'sortKey']
+        'symbol-sort-key': buildSortKeyExpression(-220)
       },
       paint: {
         'text-color': ['coalesce', ['get', 'textColor'], '#5b6778'],
@@ -126,14 +144,15 @@ export function ensureMapLabelLayers(map: MapLibreMap): void {
       filter: ['match', ['get', 'featureType'], BUILDING_FEATURE_TYPES, true, false],
       layout: {
         'text-field': ['get', 'displayName'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 15, 10.8, 18, 12.8],
+        'text-size': buildTextSizeExpression(11.6),
+        'text-letter-spacing': buildTextLetterSpacingExpression(0.01),
         'text-max-width': 9,
         'text-padding': 5,
         'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': 0.4,
+        'text-radial-offset': buildTextRadialOffsetExpression(0.4),
         'text-optional': true,
         'text-allow-overlap': false,
-        'symbol-sort-key': ['get', 'sortKey']
+        'symbol-sort-key': buildSortKeyExpression(-240)
       },
       paint: {
         'text-color': ['coalesce', ['get', 'textColor'], '#3f4b57'],
@@ -156,14 +175,15 @@ export function ensureMapLabelLayers(map: MapLibreMap): void {
       ],
       layout: {
         'text-field': ['get', 'displayName'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 11, 14, 12.2, 18, 13.4],
+        'text-size': buildTextSizeExpression(11.4),
+        'text-letter-spacing': buildTextLetterSpacingExpression(0),
         'text-max-width': 10,
         'text-padding': 6,
         'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': 0.55,
+        'text-radial-offset': buildTextRadialOffsetExpression(0.55),
         'text-optional': true,
         'text-allow-overlap': false,
-        'symbol-sort-key': ['get', 'sortKey']
+        'symbol-sort-key': buildSortKeyExpression(-180)
       },
       paint: {
         'text-color': ['coalesce', ['get', 'textColor'], DEFAULT_TEXT_COLOR],
@@ -182,18 +202,19 @@ export function ensureMapLabelLayers(map: MapLibreMap): void {
       filter: ['match', ['get', 'featureType'], BUSINESS_POINT_FEATURE_TYPES, true, false],
       layout: {
         'text-field': ['get', 'displayName'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 13, 10.4, 16, 11.8],
+        'text-size': buildTextSizeExpression(11.2),
+        'text-letter-spacing': buildTextLetterSpacingExpression(0),
         'text-padding': 6,
         'text-max-width': 10,
         'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': 0.55,
+        'text-radial-offset': buildTextRadialOffsetExpression(0.55),
         'text-optional': true,
         'text-allow-overlap': false,
-        'symbol-sort-key': ['get', 'sortKey']
+        'symbol-sort-key': buildSortKeyExpression(-180)
       },
       paint: {
-        'text-color': '#364152',
-        'text-halo-color': 'rgba(255, 255, 255, 0.96)',
+        'text-color': ['coalesce', ['get', 'textColor'], '#364152'],
+        'text-halo-color': ['coalesce', ['get', 'haloColor'], 'rgba(255, 255, 255, 0.96)'],
         'text-halo-width': 1.35,
         'text-halo-blur': 0.5
       }
@@ -208,18 +229,19 @@ export function ensureMapLabelLayers(map: MapLibreMap): void {
       filter: ['match', ['get', 'featureType'], BUSINESS_SURFACE_FEATURE_TYPES, true, false],
       layout: {
         'text-field': ['get', 'displayName'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10.8, 15, 12.6],
+        'text-size': buildTextSizeExpression(12.2),
+        'text-letter-spacing': buildTextLetterSpacingExpression(0.015),
         'text-padding': 5,
         'text-max-width': 9,
         'text-variable-anchor': ['center', 'top', 'bottom'],
-        'text-radial-offset': 0.25,
+        'text-radial-offset': buildTextRadialOffsetExpression(0.25),
         'text-optional': true,
         'text-allow-overlap': false,
-        'symbol-sort-key': ['get', 'sortKey']
+        'symbol-sort-key': buildSortKeyExpression(-160)
       },
       paint: {
-        'text-color': '#4a5567',
-        'text-halo-color': 'rgba(246, 244, 239, 0.94)',
+        'text-color': ['coalesce', ['get', 'textColor'], '#4a5567'],
+        'text-halo-color': ['coalesce', ['get', 'haloColor'], 'rgba(246, 244, 239, 0.94)'],
         'text-halo-width': 1.35,
         'text-halo-blur': 0.5
       }
@@ -236,7 +258,15 @@ export function updateMapLabelSources(
   setGeoJsonSourceData(map, BUSINESS_LABEL_SOURCE_ID, businessLabels);
 }
 
-function toManualLabelFeature(label: MapLabel): Feature<Point, MapLabelGeoJsonProperties> {
+function toManualLabelFeature(
+  label: MapLabel,
+  schema?: MapFeatureSchema | null,
+  editingLabelId?: string | null
+): Feature<Point, MapLabelGeoJsonProperties> {
+  const hints = resolveLabelRenderProperties(schema, label, {
+    state: editingLabelId === String(label.id) ? 'editing' : 'default'
+  });
+
   return createPointFeature(
     [label.pointLongitude, label.pointLatitude],
     {
@@ -253,9 +283,21 @@ function toManualLabelFeature(label: MapLabel): Feature<Point, MapLabelGeoJsonPr
       sourceFeatureId: label.sourceFeatureId ?? null,
       sourceLayer: label.sourceLayer ?? null,
       priority: label.priority,
-      sortKey: -label.priority,
-      textColor: label.textColor ?? DEFAULT_TEXT_COLOR,
-      haloColor: label.haloColor ?? DEFAULT_HALO_COLOR,
+      sortKey: -(hints.semanticPriority ?? label.priority),
+      textColor: label.textColor?.trim() && label.textColor.trim() !== DEFAULT_TEXT_COLOR
+        ? label.textColor
+        : hints.textColor ?? DEFAULT_TEXT_COLOR,
+      haloColor: label.haloColor?.trim() && label.haloColor.trim() !== DEFAULT_HALO_COLOR
+        ? label.haloColor
+        : hints.haloColor ?? DEFAULT_HALO_COLOR,
+      textStyleKey: hints.textStyleKey ?? null,
+      textSize: hints.textSize ?? null,
+      textRadialOffset: hints.textRadialOffset ?? null,
+      textLetterSpacing: hints.textLetterSpacing ?? null,
+      semanticMinZoom: hints.semanticMinZoom ?? label.minZoom,
+      semanticMaxZoom: hints.semanticMaxZoom ?? label.maxZoom,
+      semanticPriority: hints.semanticPriority ?? label.priority,
+      isEditing: hints.isEditing ?? false,
       minZoom: label.minZoom,
       maxZoom: label.maxZoom,
       status: label.status,
@@ -266,16 +308,34 @@ function toManualLabelFeature(label: MapLabel): Feature<Point, MapLabelGeoJsonPr
   );
 }
 
-export function buildManualLabelFeatureCollection(labels: MapLabel[]): MapLabelFeatureCollection {
+export function buildManualLabelFeatureCollection(
+  labels: MapLabel[],
+  options?: {
+    schema?: MapFeatureSchema | null;
+    editingLabelId?: string | null;
+    zoom?: number;
+  }
+): MapLabelFeatureCollection {
   return {
     type: 'FeatureCollection',
     features: labels
-      .filter((label) => label.status === 1)
-      .map(toManualLabelFeature)
+      .filter((label) => {
+        if (label.status !== 1) {
+          return false;
+        }
+
+        if (typeof options?.zoom !== 'number') {
+          return true;
+        }
+
+        return options.zoom >= label.minZoom && options.zoom <= label.maxZoom;
+      })
+      .map((label) => toManualLabelFeature(label, options?.schema, options?.editingLabelId))
   };
 }
 
 interface BuildBusinessLabelOptions {
+  schema?: MapFeatureSchema | null;
   shops: ShopFeatureCollection;
   areas: AreaFeatureCollection;
   pois: PoiFeatureCollection;
@@ -288,18 +348,35 @@ interface BuildBusinessLabelOptions {
 
 function appendBusinessLabelFeature<TProperties>(
   result: Array<Feature<Point, MapLabelGeoJsonProperties>>,
+  schema: MapFeatureSchema | null | undefined,
   featureType: string,
   sourceLayer: string,
   feature: Feature<any, TProperties>,
   manualKeys: Set<string>,
   zoom: number
 ): void {
-  const minZoom = getDefaultMinZoom(featureType);
+  const properties = (feature.properties ?? {}) as Record<string, unknown>;
+  const hints = resolveFeatureRenderProperties(schema, {
+    sourceType: featureType,
+    categoryCode: typeof properties.categoryCode === 'string' ? properties.categoryCode : null,
+    typeCode: typeof properties.typeCode === 'string' ? properties.typeCode : null,
+    renderType: typeof properties.renderType === 'string' ? properties.renderType : null,
+    geometryType: typeof properties.geometryType === 'string' ? properties.geometryType : feature.geometry.type
+  });
+  const minZoom = typeof hints.semanticMinZoom === 'number' && hints.semanticMinZoom > 0
+    ? hints.semanticMinZoom
+    : getDefaultMinZoom(featureType);
+  const maxZoom = typeof hints.semanticMaxZoom === 'number' && hints.semanticMaxZoom > 0
+    ? hints.semanticMaxZoom
+    : 24;
   if (zoom < minZoom) {
     return;
   }
+  if (zoom > maxZoom) {
+    return;
+  }
 
-  const displayName = getLabelTextFromFeatureProperties((feature.properties ?? {}) as Record<string, unknown>);
+  const displayName = getLabelTextFromFeatureProperties(properties);
   if (!displayName) {
     return;
   }
@@ -309,7 +386,7 @@ function appendBusinessLabelFeature<TProperties>(
     return;
   }
 
-  const sourceFeatureId = getFeatureIdentifier((feature.properties ?? {}) as Record<string, unknown>, feature.id as string | number | undefined);
+  const sourceFeatureId = getFeatureIdentifier(properties, feature.id as string | number | undefined);
   const lookupKey = buildLabelLookupKey(featureType, sourceFeatureId, sourceLayer);
   if (lookupKey && manualKeys.has(lookupKey)) {
     return;
@@ -321,20 +398,27 @@ function appendBusinessLabelFeature<TProperties>(
       displayName,
       featureType,
       labelType: 'business',
-      categoryCode: null,
-      categoryName: null,
-      typeCode: null,
-      typeName: null,
-      renderType: 'point-label',
-      geometryType: 'point',
+      categoryCode: typeof properties.categoryCode === 'string' ? properties.categoryCode : null,
+      categoryName: typeof properties.categoryName === 'string' ? properties.categoryName : null,
+      typeCode: typeof properties.typeCode === 'string' ? properties.typeCode : null,
+      typeName: typeof properties.typeName === 'string' ? properties.typeName : null,
+      renderType: typeof properties.renderType === 'string' ? properties.renderType : hints.textStyleKey ?? 'point-label',
+      geometryType: typeof properties.geometryType === 'string' ? properties.geometryType : feature.geometry.type,
       sourceFeatureId,
       sourceLayer,
-      priority: getDefaultPriority(featureType),
-      sortKey: -getDefaultPriority(featureType),
-      textColor: null,
-      haloColor: null,
+      priority: hints.semanticPriority ?? getDefaultPriority(featureType),
+      sortKey: -(hints.semanticPriority ?? getDefaultPriority(featureType)),
+      textColor: hints.textColor ?? null,
+      haloColor: hints.haloColor ?? null,
+      textStyleKey: hints.textStyleKey ?? null,
+      textSize: hints.textSize ?? null,
+      textRadialOffset: hints.textRadialOffset ?? null,
+      textLetterSpacing: hints.textLetterSpacing ?? null,
+      semanticMinZoom: hints.semanticMinZoom ?? minZoom,
+      semanticMaxZoom: hints.semanticMaxZoom ?? maxZoom,
+      semanticPriority: hints.semanticPriority ?? getDefaultPriority(featureType),
       minZoom,
-      maxZoom: 24,
+      maxZoom,
       status: 1,
       source: 'business',
       labelOrigin: 'business'
@@ -354,35 +438,35 @@ export function buildBusinessLabelFeatureCollection(options: BuildBusinessLabelO
   if (options.visibility.shops) {
     const sourceLayer = getBusinessLabelSourceLayer('shop') || 'shops';
     for (const feature of options.shops.features) {
-      appendBusinessLabelFeature(features, 'shop', sourceLayer, feature as Feature<Point, ShopGeoJsonProperties>, manualKeys, options.zoom);
+      appendBusinessLabelFeature(features, options.schema, 'shop', sourceLayer, feature as Feature<Point, ShopGeoJsonProperties>, manualKeys, options.zoom);
     }
   }
 
   if (options.visibility.pois) {
     const sourceLayer = getBusinessLabelSourceLayer('poi') || 'pois';
     for (const feature of options.pois.features) {
-      appendBusinessLabelFeature(features, 'poi', sourceLayer, feature as Feature<Point, PoiGeoJsonProperties>, manualKeys, options.zoom);
+      appendBusinessLabelFeature(features, options.schema, 'poi', sourceLayer, feature as Feature<Point, PoiGeoJsonProperties>, manualKeys, options.zoom);
     }
   }
 
   if (options.visibility.places) {
     const sourceLayer = getBusinessLabelSourceLayer('place') || 'places';
     for (const feature of options.places.features) {
-      appendBusinessLabelFeature(features, 'place', sourceLayer, feature as Feature<any, PlaceGeoJsonProperties>, manualKeys, options.zoom);
+      appendBusinessLabelFeature(features, options.schema, 'place', sourceLayer, feature as Feature<any, PlaceGeoJsonProperties>, manualKeys, options.zoom);
     }
   }
 
   if (options.visibility.areas) {
     const sourceLayer = getBusinessLabelSourceLayer('area') || 'areas';
     for (const feature of options.areas.features) {
-      appendBusinessLabelFeature(features, 'area', sourceLayer, feature as Feature<any, AreaGeoJsonProperties>, manualKeys, options.zoom);
+      appendBusinessLabelFeature(features, options.schema, 'area', sourceLayer, feature as Feature<any, AreaGeoJsonProperties>, manualKeys, options.zoom);
     }
   }
 
   if (options.visibility.boundaries) {
     const sourceLayer = getBusinessLabelSourceLayer('boundary') || 'boundaries';
     for (const feature of options.boundaries.features) {
-      appendBusinessLabelFeature(features, 'boundary', sourceLayer, feature as Feature<any, BoundaryGeoJsonProperties>, manualKeys, options.zoom);
+      appendBusinessLabelFeature(features, options.schema, 'boundary', sourceLayer, feature as Feature<any, BoundaryGeoJsonProperties>, manualKeys, options.zoom);
     }
   }
 

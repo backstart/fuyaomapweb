@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 // Full area DTO returned by detail endpoints.
 export interface MapArea {
@@ -41,7 +42,7 @@ export interface MapAreaListItem {
 }
 
 // GeoJSON area features keep styling hints in properties, while geometry remains standard GeoJSON.
-export interface AreaGeoJsonProperties {
+export interface AreaGeoJsonProperties extends Partial<SemanticRenderProperties> {
   name: string;
   type?: string | null;
   categoryCode?: string | null;

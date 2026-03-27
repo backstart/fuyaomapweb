@@ -2,11 +2,11 @@
   <div class="map-page-view">
     <div class="map-page">
       <BaseMap
-        :shop-data="filteredShopData"
-        :area-data="filteredAreaData"
-        :poi-data="filteredPoiData"
-        :place-data="filteredPlaceData"
-        :boundary-data="filteredBoundaryData"
+        :shop-data="renderedShopData"
+        :area-data="renderedAreaData"
+        :poi-data="renderedPoiData"
+        :place-data="renderedPlaceData"
+        :boundary-data="renderedBoundaryData"
         :manual-label-data="manualLabelData"
         :business-label-data="businessLabelData"
         :drawn-building-area-data="drawnBuildingAreaData"
@@ -596,6 +596,11 @@ import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } fro
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
 import MapSearchBar from '@/components/search/MapSearchBar.vue';
+import {
+  decorateSemanticFeatureCollection,
+  getDrawnBuildingSemanticDefaults,
+  getLabelSemanticDefaults
+} from '@/map/semanticRenderConfig';
 import { buildBusinessLabelFeatureCollection, buildManualLabelFeatureCollection } from '@/composables/useMapLabelLayers';
 import {
   buildDrawnBuildingAreaFeatureCollection,
@@ -621,6 +626,9 @@ import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
 import {
   buildDrawnBuildingSavePayload,
   createDrawnBuildingDraft,
+  DEFAULT_DRAWN_BUILDING_FILL,
+  DEFAULT_DRAWN_BUILDING_LINE,
+  DEFAULT_DRAWN_BUILDING_LINE_WIDTH,
   DRAWN_BUILDING_SOURCE_TYPE,
   parseDrawnBuildingAreaFromFeature,
   parseDrawnBuildingAreaFromMapArea
@@ -786,22 +794,64 @@ const filteredBoundaryData = computed(() =>
 const filteredDrawnBuildingAreasForMap = computed(() =>
   filterDrawnBuildingAreasBySemanticType(drawnBuildingStore.areas, mapSemanticTypeCode.value)
 );
-const manualLabelData = computed(() => buildManualLabelFeatureCollection(visibleManualLabels.value));
+const renderedShopData = computed(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'shop', filteredShopData.value, {
+    selectedId: mapStore.selectedEntity?.entityType === 'shop' ? String(mapStore.selectedEntity.id) : null
+  })
+);
+const renderedAreaData = computed(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'area', filteredAreaData.value, {
+    selectedId: mapStore.selectedEntity?.entityType === 'area' ? String(mapStore.selectedEntity.id) : null
+  })
+);
+const renderedPoiData = computed(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'poi', filteredPoiData.value, {
+    selectedId: mapStore.selectedEntity?.entityType === 'poi' ? String(mapStore.selectedEntity.id) : null
+  })
+);
+const renderedPlaceData = computed(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'place', filteredPlaceData.value, {
+    selectedId: mapStore.selectedEntity?.entityType === 'place' ? String(mapStore.selectedEntity.id) : null
+  })
+);
+const renderedBoundaryData = computed(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'boundary', filteredBoundaryData.value, {
+    selectedId: mapStore.selectedEntity?.entityType === 'boundary' ? String(mapStore.selectedEntity.id) : null
+  })
+);
+const manualLabelData = computed(() =>
+  buildManualLabelFeatureCollection(visibleManualLabels.value, {
+    schema: mapFeatureSchema.value,
+    editingLabelId: editingLabelId.value ? String(editingLabelId.value) : null,
+    zoom: mapStore.viewport.zoom ?? 0
+  })
+);
 const businessLabelData = computed(() => buildBusinessLabelFeatureCollection({
-  shops: filteredShopData.value,
-  areas: filteredAreaData.value,
-  pois: filteredPoiData.value,
-  places: filteredPlaceData.value,
-  boundaries: filteredBoundaryData.value,
+  schema: mapFeatureSchema.value,
+  shops: renderedShopData.value,
+  areas: renderedAreaData.value,
+  pois: renderedPoiData.value,
+  places: renderedPlaceData.value,
+  boundaries: renderedBoundaryData.value,
   visibility: mapStore.layerVisibility,
   manualLabels: visibleManualLabels.value,
   zoom: mapStore.viewport.zoom ?? 0
 }));
 const drawnBuildingAreaData = computed(() =>
-  buildDrawnBuildingAreaFeatureCollection(filteredDrawnBuildingAreasForMap.value, drawnBuildingStore.selectedAreaId)
+  buildDrawnBuildingAreaFeatureCollection(
+    filteredDrawnBuildingAreasForMap.value,
+    mapFeatureSchema.value,
+    drawnBuildingStore.selectedAreaId,
+    drawnBuildingDraft.value ? String(drawnBuildingDraft.value.id) : null
+  )
 );
 const drawnBuildingLabelData = computed(() =>
-  buildDrawnBuildingLabelFeatureCollection(filteredDrawnBuildingAreasForMap.value, drawnBuildingStore.selectedAreaId)
+  buildDrawnBuildingLabelFeatureCollection(
+    filteredDrawnBuildingAreasForMap.value,
+    mapFeatureSchema.value,
+    drawnBuildingStore.selectedAreaId,
+    drawnBuildingDraft.value ? String(drawnBuildingDraft.value.id) : null
+  )
 );
 const filteredDrawnBuildingAreas = computed(() => {
   const keyword = drawnBuildingKeyword.value.trim().toLowerCase();
@@ -1056,6 +1106,8 @@ function applyLabelSemanticType(typeCode: string | null | undefined, options?: {
     return;
   }
 
+  const semanticDefaults = getLabelSemanticDefaults(definition);
+
   labelDraft.value = {
     ...labelDraft.value,
     categoryCode: definition.categoryCode,
@@ -1067,7 +1119,9 @@ function applyLabelSemanticType(typeCode: string | null | undefined, options?: {
     labelType: getLabelLayerTypeFromRenderType(definition.renderType),
     minZoom: options?.applyDefaults && typeof definition.defaultMinZoom === 'number' ? definition.defaultMinZoom : labelDraft.value.minZoom,
     maxZoom: options?.applyDefaults && typeof definition.defaultMaxZoom === 'number' ? definition.defaultMaxZoom : labelDraft.value.maxZoom,
-    priority: options?.applyDefaults && typeof definition.defaultPriority === 'number' ? definition.defaultPriority : labelDraft.value.priority
+    priority: options?.applyDefaults && typeof definition.defaultPriority === 'number' ? definition.defaultPriority : labelDraft.value.priority,
+    textColor: options?.applyDefaults ? semanticDefaults.textColor ?? labelDraft.value.textColor : labelDraft.value.textColor,
+    haloColor: options?.applyDefaults ? semanticDefaults.haloColor ?? labelDraft.value.haloColor : labelDraft.value.haloColor
   };
 
   if (labelEditorContext.value) {
@@ -1105,10 +1159,15 @@ function applyDrawnBuildingSemanticType(typeCode: string | null | undefined): vo
     return;
   }
 
+  const semanticDefaults = getDrawnBuildingSemanticDefaults(definition);
+
   const previousTypeName = drawnBuildingDraft.value.typeName?.trim();
   const nextDisplayType = !drawnBuildingDraft.value.buildingType.trim() || drawnBuildingDraft.value.buildingType.trim() === previousTypeName
     ? definition.typeName
     : drawnBuildingDraft.value.buildingType;
+  const shouldApplyFillDefault = !drawnBuildingDraft.value.fillColor.trim() || drawnBuildingDraft.value.fillColor.trim() === DEFAULT_DRAWN_BUILDING_FILL;
+  const shouldApplyLineDefault = !drawnBuildingDraft.value.lineColor.trim() || drawnBuildingDraft.value.lineColor.trim().toLowerCase() === DEFAULT_DRAWN_BUILDING_LINE;
+  const shouldApplyWidthDefault = Math.abs(drawnBuildingDraft.value.lineWidth - DEFAULT_DRAWN_BUILDING_LINE_WIDTH) <= 0.01;
 
   drawnBuildingDraft.value = {
     ...drawnBuildingDraft.value,
@@ -1117,7 +1176,10 @@ function applyDrawnBuildingSemanticType(typeCode: string | null | undefined): vo
     typeCode: definition.typeCode,
     typeName: definition.typeName,
     renderType: definition.renderType,
-    buildingType: nextDisplayType
+    buildingType: nextDisplayType,
+    fillColor: shouldApplyFillDefault ? semanticDefaults.fillColorHint ?? drawnBuildingDraft.value.fillColor : drawnBuildingDraft.value.fillColor,
+    lineColor: shouldApplyLineDefault ? semanticDefaults.lineColorHint ?? drawnBuildingDraft.value.lineColor : drawnBuildingDraft.value.lineColor,
+    lineWidth: shouldApplyWidthDefault ? semanticDefaults.lineWidthHint ?? drawnBuildingDraft.value.lineWidth : drawnBuildingDraft.value.lineWidth
   };
 }
 

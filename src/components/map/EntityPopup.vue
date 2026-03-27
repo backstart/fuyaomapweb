@@ -12,6 +12,10 @@
     <dl class="popup-grid">
       <template v-if="entity.entityType === 'shop'">
         <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.category || '-' }}</dd>
+        </div>
+        <div>
           <dt>分类</dt>
           <dd>{{ entity.category || '-' }}</dd>
         </div>
@@ -30,6 +34,10 @@
       </template>
 
       <template v-else-if="entity.entityType === 'poi'">
+        <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.subcategory || entity.category || '-' }}</dd>
+        </div>
         <div>
           <dt>分类</dt>
           <dd>{{ entity.category || '-' }}</dd>
@@ -58,6 +66,10 @@
 
       <template v-else-if="entity.entityType === 'area'">
         <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.type || '-' }}</dd>
+        </div>
+        <div>
           <dt>类型</dt>
           <dd>{{ entity.type || '-' }}</dd>
         </div>
@@ -72,6 +84,10 @@
       </template>
 
       <template v-else-if="entity.entityType === 'place'">
+        <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.placeType || '-' }}</dd>
+        </div>
         <div>
           <dt>类型</dt>
           <dd>{{ entity.placeType || '-' }}</dd>
@@ -106,6 +122,10 @@
       </template>
 
       <template v-else>
+        <div>
+          <dt>语义类型</dt>
+          <dd>{{ entity.typeName || entity.categoryName || entity.boundaryType || '-' }}</dd>
+        </div>
         <div>
           <dt>类型</dt>
           <dd>{{ entity.boundaryType || '-' }}</dd>

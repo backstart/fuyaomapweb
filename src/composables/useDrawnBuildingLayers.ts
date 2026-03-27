@@ -1,5 +1,10 @@
 import type { FeatureCollection, Point, Polygon } from 'geojson';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import {
+  resolveDrawnBuildingAreaRenderProperties,
+  resolveDrawnBuildingLabelRenderProperties
+} from '@/map/semanticRenderConfig';
+import type { MapFeatureSchema } from '@/types/mapFeatureType';
 import type {
   DrawnBuildingArea,
   DrawnBuildingAreaFeatureCollection,
@@ -52,6 +57,18 @@ function ensureSource(map: MapLibreMap, sourceId: string, type: 'polygon' | 'poi
   });
 }
 
+function buildDashArrayExpression(): any {
+  return [
+    'match',
+    ['get', 'lineDashKey'],
+    'boundary',
+    ['literal', [3.2, 1.8]],
+    'boundary-light',
+    ['literal', [2.2, 1.4]],
+    ['literal', [1, 0]]
+  ];
+}
+
 export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
   ensureSource(map, DRAWN_BUILDING_AREA_SOURCE_ID, 'polygon');
   ensureSource(map, DRAWN_BUILDING_LABEL_SOURCE_ID, 'point');
@@ -63,8 +80,15 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
       type: 'fill',
       source: DRAWN_BUILDING_AREA_SOURCE_ID,
       paint: {
-        'fill-color': ['coalesce', ['get', 'fillColor'], 'rgba(70, 141, 247, 0.18)'],
-        'fill-opacity': ['case', ['boolean', ['get', 'isSelected'], false], 0.26, 0.16]
+        'fill-color': ['coalesce', ['get', 'fillColorHint'], ['get', 'fillColor'], 'rgba(70, 141, 247, 0.18)'],
+        'fill-opacity': [
+          'case',
+          ['boolean', ['get', 'isEditing'], false],
+          0.28,
+          ['boolean', ['get', 'isSelected'], false],
+          0.22,
+          ['coalesce', ['get', 'fillOpacityHint'], 0.16]
+        ]
       }
     });
   }
@@ -78,9 +102,17 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': ['coalesce', ['get', 'lineColor'], '#2f7df6'],
-        'line-width': ['case', ['boolean', ['get', 'isSelected'], false], 3.2, ['coalesce', ['get', 'lineWidth'], 2.2]],
-        'line-opacity': 0.96
+        'line-color': ['coalesce', ['get', 'lineColorHint'], ['get', 'lineColor'], '#2f7df6'],
+        'line-width': [
+          'case',
+          ['boolean', ['get', 'isEditing'], false],
+          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2], 1.4],
+          ['boolean', ['get', 'isSelected'], false],
+          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2], 0.8],
+          ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2]
+        ],
+        'line-opacity': ['coalesce', ['get', 'lineOpacityHint'], 0.96],
+        'line-dasharray': buildDashArrayExpression()
       }
     });
   }
@@ -92,17 +124,18 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
       source: DRAWN_BUILDING_LABEL_SOURCE_ID,
       layout: {
         'text-field': ['get', 'labelText'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11.5, 18, 13.5],
+        'text-size': ['coalesce', ['get', 'textSize'], 12],
         'text-padding': 4,
         'text-max-width': 8,
         'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': 0.35,
+        'text-radial-offset': ['coalesce', ['get', 'textRadialOffset'], 0.35],
+        'text-letter-spacing': ['coalesce', ['get', 'textLetterSpacing'], 0.01],
         'text-optional': true,
-        'symbol-sort-key': ['case', ['boolean', ['get', 'isSelected'], false], -1, 1]
+        'symbol-sort-key': ['coalesce', ['get', 'semanticPriority'], 1]
       },
       paint: {
-        'text-color': '#304256',
-        'text-halo-color': 'rgba(255,255,255,0.98)',
+        'text-color': ['coalesce', ['get', 'textColor'], '#304256'],
+        'text-halo-color': ['coalesce', ['get', 'haloColor'], 'rgba(255,255,255,0.98)'],
         'text-halo-width': 1.6,
         'text-halo-blur': 0.4
       }
@@ -152,7 +185,9 @@ export function updateDrawnBuildingSources(
 
 export function buildDrawnBuildingAreaFeatureCollection(
   areas: DrawnBuildingArea[],
-  selectedAreaId: string | null
+  schema: MapFeatureSchema | null | undefined,
+  selectedAreaId: string | null,
+  editingAreaId: string | null
 ): DrawnBuildingAreaFeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -162,6 +197,9 @@ export function buildDrawnBuildingAreaFeatureCollection(
         if (!geometry || geometry.type !== 'Polygon') {
           return null;
         }
+
+        const state = editingAreaId === String(area.id) ? 'editing' : selectedAreaId === String(area.id) ? 'selected' : 'default';
+        const hints = resolveDrawnBuildingAreaRenderProperties(schema, area, { state });
 
         return createPolygonFeature(geometry, {
           areaId: String(area.id),
@@ -176,8 +214,15 @@ export function buildDrawnBuildingAreaFeatureCollection(
           fillColor: area.fillColor,
           lineColor: area.lineColor,
           lineWidth: area.lineWidth,
+          fillColorHint: hints.fillColorHint ?? area.fillColor,
+          fillOpacityHint: hints.fillOpacityHint ?? null,
+          lineColorHint: hints.lineColorHint ?? area.lineColor,
+          lineWidthHint: hints.lineWidthHint ?? area.lineWidth,
+          lineOpacityHint: hints.lineOpacityHint ?? null,
+          lineDashKey: hints.lineDashKey ?? null,
           status: area.status,
-          isSelected: selectedAreaId === String(area.id)
+          isSelected: selectedAreaId === String(area.id),
+          isEditing: editingAreaId === String(area.id)
         }, String(area.id));
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -186,31 +231,46 @@ export function buildDrawnBuildingAreaFeatureCollection(
 
 export function buildDrawnBuildingLabelFeatureCollection(
   areas: DrawnBuildingArea[],
-  selectedAreaId: string | null
+  schema: MapFeatureSchema | null | undefined,
+  selectedAreaId: string | null,
+  editingAreaId: string | null
 ): DrawnBuildingLabelFeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: areas.map((area) => ({
-      type: 'Feature',
-      id: String(area.id),
-      properties: {
-        areaId: String(area.id),
-        labelText: getDrawnBuildingLabelText(area),
-        name: area.name,
-        buildingType: area.buildingType ?? null,
-        categoryCode: area.categoryCode ?? null,
-        categoryName: area.categoryName ?? null,
-        typeCode: area.typeCode ?? null,
-        typeName: area.typeName ?? null,
-        renderType: area.renderType ?? null,
-        buildingCode: area.buildingCode ?? null,
-        isSelected: selectedAreaId === String(area.id)
-      },
-      geometry: {
-        type: 'Point',
-        coordinates: [area.labelLongitude, area.labelLatitude]
-      }
-    }))
+    features: areas.map((area) => {
+      const state = editingAreaId === String(area.id) ? 'editing' : selectedAreaId === String(area.id) ? 'selected' : 'default';
+      const hints = resolveDrawnBuildingLabelRenderProperties(schema, area, { state });
+
+      return {
+        type: 'Feature',
+        id: String(area.id),
+        properties: {
+          areaId: String(area.id),
+          labelText: getDrawnBuildingLabelText(area),
+          name: area.name,
+          buildingType: area.buildingType ?? null,
+          categoryCode: area.categoryCode ?? null,
+          categoryName: area.categoryName ?? null,
+          typeCode: area.typeCode ?? null,
+          typeName: area.typeName ?? null,
+          renderType: area.renderType ?? null,
+          buildingCode: area.buildingCode ?? null,
+          textStyleKey: hints.textStyleKey ?? null,
+          textColor: hints.textColor ?? null,
+          haloColor: hints.haloColor ?? null,
+          textSize: hints.textSize ?? null,
+          textRadialOffset: hints.textRadialOffset ?? null,
+          textLetterSpacing: hints.textLetterSpacing ?? null,
+          semanticPriority: hints.semanticPriority ?? null,
+          isSelected: selectedAreaId === String(area.id),
+          isEditing: editingAreaId === String(area.id)
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [area.labelLongitude, area.labelLatitude]
+        }
+      };
+    })
   };
 }
 

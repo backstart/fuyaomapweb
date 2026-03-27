@@ -1,5 +1,6 @@
 import type { FeatureCollection, Point, Polygon } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 export type BuildingDrawMode = 'rectangle' | 'polygon' | null;
 
@@ -49,7 +50,7 @@ export interface EditableDrawnBuildingDraft {
   isDraft: boolean;
 }
 
-export interface DrawnBuildingAreaProperties {
+export interface DrawnBuildingAreaProperties extends Partial<SemanticRenderProperties> {
   areaId: string;
   name: string;
   buildingType?: string | null;
@@ -66,7 +67,7 @@ export interface DrawnBuildingAreaProperties {
   isSelected: boolean;
 }
 
-export interface DrawnBuildingLabelProperties {
+export interface DrawnBuildingLabelProperties extends Partial<SemanticRenderProperties> {
   areaId: string;
   labelText: string;
   name: string;

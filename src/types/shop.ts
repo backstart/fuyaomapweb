@@ -1,5 +1,6 @@
 import type { FeatureCollection, Point } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 // Full shop DTO returned by detail endpoints.
 export interface MapShop {
@@ -42,7 +43,7 @@ export interface MapShopListItem {
 }
 
 // Properties carried by the GeoJSON shop layer. Coordinates live in the Point geometry itself.
-export interface ShopGeoJsonProperties {
+export interface ShopGeoJsonProperties extends Partial<SemanticRenderProperties> {
   name: string;
   category?: string | null;
   categoryCode?: string | null;

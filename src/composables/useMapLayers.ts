@@ -20,11 +20,13 @@ import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
 
 const SHOP_SOURCE_ID = 'business-shops';
 const SHOP_LAYER_ID = 'business-shops-circle';
+const SHOP_SYMBOL_LAYER_ID = 'business-shops-symbol';
 const AREA_SOURCE_ID = 'business-areas';
 const AREA_FILL_LAYER_ID = 'business-areas-fill';
 const AREA_LINE_LAYER_ID = 'business-areas-line';
 const POI_SOURCE_ID = 'business-pois';
 const POI_LAYER_ID = 'business-pois-circle';
+const POI_SYMBOL_LAYER_ID = 'business-pois-symbol';
 const PLACE_SOURCE_ID = 'business-places';
 const PLACE_FILL_LAYER_ID = 'business-places-fill';
 const PLACE_LINE_LAYER_ID = 'business-places-line';
@@ -81,6 +83,22 @@ function getGeometryTypeFilter(type: 'Point' | 'LineString' | 'Polygon'): Filter
 
 function getLineOrPolygonFilter(): FilterSpecification {
   return ['match', ['geometry-type'], ['LineString', 'Polygon'], true, false] as FilterSpecification;
+}
+
+function getCoalesceExpression(property: string, fallback: string | number): any {
+  return ['coalesce', ['get', property], fallback];
+}
+
+function getLineDashArrayExpression(): any {
+  return [
+    'match',
+    ['get', 'lineDashKey'],
+    'boundary',
+    ['literal', [3.2, 1.8]],
+    'boundary-light',
+    ['literal', [2.2, 1.4]],
+    ['literal', [1, 0]]
+  ];
 }
 
 function getFeatureLookupKey(id: unknown, properties?: SourceFeatureProperties | null): string | null {
@@ -322,6 +340,12 @@ function toShopTarget(feature: MapGeoJSONFeature): ShopFocusTarget | null {
     id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名店铺',
     category: properties.category,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
+    geometryType: properties.geometryType,
     remark: properties.remark,
     icon: properties.icon,
     status: typeof properties.status === 'number' ? properties.status : 0,
@@ -344,6 +368,12 @@ function toPoiTarget(feature: MapGeoJSONFeature): PoiFocusTarget | null {
     name: properties.name ?? '未命名 POI',
     category: properties.category,
     subcategory: properties.subcategory,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
+    geometryType: properties.geometryType,
     remark: properties.remark,
     icon: properties.icon,
     address: properties.address,
@@ -362,6 +392,12 @@ function toAreaTarget(map: MapLibreMap, feature: MapGeoJSONFeature): AreaFocusTa
     id: getBusinessEntityId(feature.id, properties),
     name: properties.name ?? '未命名区域',
     type: properties.type,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
+    geometryType: properties.geometryType,
     remark: properties.remark,
     styleJson: properties.styleJson,
     status: typeof properties.status === 'number' ? properties.status : 0,
@@ -378,6 +414,12 @@ function toPlaceTarget(map: MapLibreMap, feature: MapGeoJSONFeature): PlaceFocus
     name: properties.name ?? '未命名地名',
     placeType: properties.placeType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
+    geometryType: properties.geometryType,
     remark: properties.remark,
     status: typeof properties.status === 'number' ? properties.status : 0,
     geometryGeoJson: resolveGeometryGeoJson(map, PLACE_SOURCE_ID, feature, properties.geometryGeoJson),
@@ -395,6 +437,12 @@ function toBoundaryTarget(map: MapLibreMap, feature: MapGeoJSONFeature): Boundar
     name: properties.name ?? '未命名边界',
     boundaryType: properties.boundaryType,
     adminLevel: typeof properties.adminLevel === 'number' ? properties.adminLevel : undefined,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
+    geometryType: properties.geometryType,
     remark: properties.remark,
     styleJson: properties.styleJson,
     status: typeof properties.status === 'number' ? properties.status : 0,
@@ -519,8 +567,8 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: AREA_SOURCE_ID,
       filter: getGeometryTypeFilter('Polygon'),
       paint: {
-        'fill-color': '#5a8ee6',
-        'fill-opacity': 0.12
+        'fill-color': getCoalesceExpression('fillColorHint', 'rgba(90, 142, 230, 0.14)'),
+        'fill-opacity': getCoalesceExpression('fillOpacityHint', 0.12)
       }
     });
   }
@@ -535,9 +583,10 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': '#4478d6',
-        'line-opacity': 0.9,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.2, 13, 1.8, 17, 2.6]
+        'line-color': getCoalesceExpression('lineColorHint', '#4478d6'),
+        'line-opacity': getCoalesceExpression('lineOpacityHint', 0.9),
+        'line-width': getCoalesceExpression('lineWidthHint', 1.8),
+        'line-dasharray': getLineDashArrayExpression()
       }
     });
   }
@@ -549,8 +598,8 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: BOUNDARY_SOURCE_ID,
       filter: getGeometryTypeFilter('Polygon'),
       paint: {
-        'fill-color': '#8d6a4a',
-        'fill-opacity': 0.06
+        'fill-color': getCoalesceExpression('fillColorHint', 'rgba(141, 106, 74, 0.06)'),
+        'fill-opacity': getCoalesceExpression('fillOpacityHint', 0.06)
       }
     });
   }
@@ -565,10 +614,10 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': '#8d6a4a',
-        'line-opacity': 0.88,
-        'line-dasharray': [2.2, 1.6],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.1, 13, 1.8, 17, 2.4]
+        'line-color': getCoalesceExpression('lineColorHint', '#8d6a4a'),
+        'line-opacity': getCoalesceExpression('lineOpacityHint', 0.88),
+        'line-dasharray': getLineDashArrayExpression(),
+        'line-width': getCoalesceExpression('lineWidthHint', 1.8)
       }
     });
   }
@@ -580,8 +629,8 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: PLACE_SOURCE_ID,
       filter: getGeometryTypeFilter('Polygon'),
       paint: {
-        'fill-color': '#7b78d6',
-        'fill-opacity': 0.08
+        'fill-color': getCoalesceExpression('fillColorHint', 'rgba(123, 120, 214, 0.08)'),
+        'fill-opacity': getCoalesceExpression('fillOpacityHint', 0.08)
       }
     });
   }
@@ -596,9 +645,10 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': '#6f6ad2',
-        'line-opacity': 0.8,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 13, 1.6, 17, 2.2]
+        'line-color': getCoalesceExpression('lineColorHint', '#6f6ad2'),
+        'line-opacity': getCoalesceExpression('lineOpacityHint', 0.8),
+        'line-width': getCoalesceExpression('lineWidthHint', 1.6),
+        'line-dasharray': getLineDashArrayExpression()
       }
     });
   }
@@ -610,11 +660,11 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: PLACE_SOURCE_ID,
       filter: getGeometryTypeFilter('Point'),
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 5.8, 16, 8],
-        'circle-color': '#6f6ad2',
-        'circle-opacity': 0.92,
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 1.1, 16, 1.8],
-        'circle-stroke-color': '#ffffff'
+        'circle-radius': getCoalesceExpression('markerRadius', 5.4),
+        'circle-color': getCoalesceExpression('markerColor', '#6f6ad2'),
+        'circle-opacity': getCoalesceExpression('markerOpacity', 0.92),
+        'circle-stroke-width': ['case', ['boolean', ['get', 'isSelected'], false], 2.2, 1.4],
+        'circle-stroke-color': getCoalesceExpression('markerStrokeColor', '#ffffff')
       }
     });
   }
@@ -626,11 +676,30 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: SHOP_SOURCE_ID,
       filter: getGeometryTypeFilter('Point'),
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4.6, 12, 6.2, 16, 8.8],
-        'circle-color': '#3e7fe0',
-        'circle-opacity': 0.95,
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 1.3, 16, 2],
-        'circle-stroke-color': '#ffffff'
+        'circle-radius': getCoalesceExpression('markerRadius', 6.2),
+        'circle-color': getCoalesceExpression('markerColor', '#3e7fe0'),
+        'circle-opacity': getCoalesceExpression('markerOpacity', 0.95),
+        'circle-stroke-width': ['case', ['boolean', ['get', 'isSelected'], false], 2.6, 1.6],
+        'circle-stroke-color': getCoalesceExpression('markerStrokeColor', '#ffffff')
+      }
+    });
+  }
+
+  if (!map.getLayer(SHOP_SYMBOL_LAYER_ID)) {
+    map.addLayer({
+      id: SHOP_SYMBOL_LAYER_ID,
+      type: 'symbol',
+      source: SHOP_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
+      layout: {
+        'text-field': ['coalesce', ['get', 'markerGlyph'], ''],
+        'text-size': 10.5,
+        'text-font': ['Open Sans Semibold'],
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
+      },
+      paint: {
+        'text-color': getCoalesceExpression('markerGlyphColor', '#ffffff')
       }
     });
   }
@@ -642,11 +711,30 @@ export function ensureBusinessLayers(map: MapLibreMap): void {
       source: POI_SOURCE_ID,
       filter: getGeometryTypeFilter('Point'),
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4.2, 12, 5.9, 16, 8.4],
-        'circle-color': '#1d9ab0',
-        'circle-opacity': 0.94,
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 1.2, 16, 1.9],
-        'circle-stroke-color': '#ffffff'
+        'circle-radius': getCoalesceExpression('markerRadius', 5.9),
+        'circle-color': getCoalesceExpression('markerColor', '#1d9ab0'),
+        'circle-opacity': getCoalesceExpression('markerOpacity', 0.94),
+        'circle-stroke-width': ['case', ['boolean', ['get', 'isSelected'], false], 2.5, 1.5],
+        'circle-stroke-color': getCoalesceExpression('markerStrokeColor', '#ffffff')
+      }
+    });
+  }
+
+  if (!map.getLayer(POI_SYMBOL_LAYER_ID)) {
+    map.addLayer({
+      id: POI_SYMBOL_LAYER_ID,
+      type: 'symbol',
+      source: POI_SOURCE_ID,
+      filter: getGeometryTypeFilter('Point'),
+      layout: {
+        'text-field': ['coalesce', ['get', 'markerGlyph'], ''],
+        'text-size': 10.2,
+        'text-font': ['Open Sans Semibold'],
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
+      },
+      paint: {
+        'text-color': getCoalesceExpression('markerGlyphColor', '#ffffff')
       }
     });
   }
@@ -770,9 +858,11 @@ export function setBusinessLayerVisibility(map: MapLibreMap, visibility: LayerVi
   };
 
   setVisibility(SHOP_LAYER_ID, visibility.shops);
+  setVisibility(SHOP_SYMBOL_LAYER_ID, visibility.shops);
   setVisibility(AREA_FILL_LAYER_ID, visibility.areas);
   setVisibility(AREA_LINE_LAYER_ID, visibility.areas);
   setVisibility(POI_LAYER_ID, visibility.pois);
+  setVisibility(POI_SYMBOL_LAYER_ID, visibility.pois);
   setVisibility(PLACE_FILL_LAYER_ID, visibility.places);
   setVisibility(PLACE_LINE_LAYER_ID, visibility.places);
   setVisibility(PLACE_CIRCLE_LAYER_ID, visibility.places);
@@ -803,37 +893,41 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
     return true;
   };
 
-  map.on('click', SHOP_LAYER_ID, (event) => {
-    const feature = event.features?.[0];
-    if (!feature) {
-      return;
-    }
+  for (const layerId of [SHOP_LAYER_ID, SHOP_SYMBOL_LAYER_ID]) {
+    map.on('click', layerId, (event) => {
+      const feature = event.features?.[0];
+      if (!feature) {
+        return;
+      }
 
-    if (!shouldHandleInteraction(feature, event)) {
-      return;
-    }
+      if (!shouldHandleInteraction(feature, event)) {
+        return;
+      }
 
-    const target = toShopTarget(feature);
-    if (target) {
-      handlers.onShopClick?.(target, event);
-    }
-  });
+      const target = toShopTarget(feature);
+      if (target) {
+        handlers.onShopClick?.(target, event);
+      }
+    });
+  }
 
-  map.on('click', POI_LAYER_ID, (event) => {
-    const feature = event.features?.[0];
-    if (!feature) {
-      return;
-    }
+  for (const layerId of [POI_LAYER_ID, POI_SYMBOL_LAYER_ID]) {
+    map.on('click', layerId, (event) => {
+      const feature = event.features?.[0];
+      if (!feature) {
+        return;
+      }
 
-    if (!shouldHandleInteraction(feature, event)) {
-      return;
-    }
+      if (!shouldHandleInteraction(feature, event)) {
+        return;
+      }
 
-    const target = toPoiTarget(feature);
-    if (target) {
-      handlers.onPoiClick?.(target, event);
-    }
-  });
+      const target = toPoiTarget(feature);
+      if (target) {
+        handlers.onPoiClick?.(target, event);
+      }
+    });
+  }
 
   for (const layerId of [AREA_FILL_LAYER_ID, AREA_LINE_LAYER_ID]) {
     map.on('click', layerId, (event) => {
@@ -890,9 +984,11 @@ export function registerBusinessLayerEvents(map: MapLibreMap, handlers: Business
 
   for (const layerId of [
     SHOP_LAYER_ID,
+    SHOP_SYMBOL_LAYER_ID,
     AREA_FILL_LAYER_ID,
     AREA_LINE_LAYER_ID,
     POI_LAYER_ID,
+    POI_SYMBOL_LAYER_ID,
     PLACE_FILL_LAYER_ID,
     PLACE_LINE_LAYER_ID,
     PLACE_CIRCLE_LAYER_ID,

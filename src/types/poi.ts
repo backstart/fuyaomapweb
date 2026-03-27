@@ -1,5 +1,6 @@
 import type { FeatureCollection, Point } from 'geojson';
 import type { EntityId } from '@/types/entity';
+import type { SemanticRenderProperties } from '@/types/semanticRender';
 
 export interface MapPoi {
   id: EntityId;
@@ -43,7 +44,7 @@ export interface MapPoiListItem {
   updateTime: string;
 }
 
-export interface PoiGeoJsonProperties {
+export interface PoiGeoJsonProperties extends Partial<SemanticRenderProperties> {
   name: string;
   category?: string | null;
   subcategory?: string | null;

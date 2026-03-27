@@ -65,12 +65,15 @@ import { maplibreglRuntime } from '@/utils/maplibreRuntime';
 
 const INSPECTABLE_BASE_LAYER_IDS = [
   'road-label',
+  'water-label-line',
+  'water-label-surface',
   'road-major-fill',
   'road-primary-fill',
   'road-secondary-fill',
   'road-local-fill',
   'road-path',
   'building-fill',
+  'building-label',
   'poi-label',
   'place-label'
 ] as const;
