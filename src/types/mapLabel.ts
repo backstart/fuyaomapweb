@@ -12,6 +12,12 @@ export interface MapLabel {
   sourceFeatureId?: string | null;
   sourceLayer?: string | null;
   labelType: string;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType: string;
   originalName?: string | null;
   displayName: string;
   aliasNames: string[];
@@ -38,6 +44,9 @@ export interface QueryMapLabelParams {
   zoom?: number;
   types?: string;
   featureType?: string;
+  categoryCode?: string;
+  typeCode?: string;
+  renderType?: string;
   sourceFeatureId?: string;
   sourceLayer?: string;
   keyword?: string;
@@ -49,6 +58,9 @@ export interface SaveMapLabelPayload {
   sourceFeatureId?: string | null;
   sourceLayer?: string | null;
   labelType?: string | null;
+  categoryCode?: string | null;
+  typeCode?: string | null;
+  renderType?: string | null;
   originalName?: string | null;
   displayName: string;
   aliasNames: string[];
@@ -69,6 +81,12 @@ export interface MapLabelGeoJsonProperties {
   displayName: string;
   featureType: string;
   labelType: string;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   sourceFeatureId?: string | null;
   sourceLayer?: string | null;
   priority: number;
@@ -100,6 +118,12 @@ export interface EditableMapLabelContext {
   sourceKind: 'business' | 'basemap' | 'manual';
   featureType: string;
   labelType: string;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   sourceFeatureId?: string | null;
   sourceLayer?: string | null;
   originalName?: string | null;
@@ -113,4 +137,7 @@ export interface EditableMapLabelContext {
 
 export interface EditableMapLabelDraft extends SaveMapLabelPayload {
   id?: EntityId | null;
+  categoryName?: string | null;
+  typeName?: string | null;
+  geometryType?: string | null;
 }

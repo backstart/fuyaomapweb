@@ -1,6 +1,7 @@
 import type { Feature, Geometry, Polygon } from 'geojson';
 import type { AreaGeoJsonProperties, MapArea, SaveMapAreaPayload } from '@/types/area';
 import type { DrawnBuildingArea, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
+import { DEFAULT_DRAWN_BUILDING_TYPE_CODE } from '@/utils/mapFeatureTypes';
 import { getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 
 export const DEFAULT_DRAWN_BUILDING_FILL = 'rgba(70, 141, 247, 0.18)';
@@ -94,6 +95,11 @@ export function createDrawnBuildingDraft(area: DrawnBuildingArea): EditableDrawn
     id: area.id,
     name: area.name,
     buildingType: area.buildingType ?? '',
+    categoryCode: area.categoryCode ?? null,
+    categoryName: area.categoryName ?? null,
+    typeCode: area.typeCode ?? DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+    typeName: area.typeName ?? area.buildingType ?? null,
+    renderType: area.renderType ?? 'polygon-fill',
     buildingCode: area.buildingCode ?? '',
     geometryGeoJson: area.geometryGeoJson,
     labelLongitude: area.labelLongitude,
@@ -185,6 +191,11 @@ function createPersistedDrawnBuildingArea(
   area: {
     name: string;
     type?: string | null;
+    categoryCode?: string | null;
+    categoryName?: string | null;
+    typeCode?: string | null;
+    typeName?: string | null;
+    renderType?: string | null;
     remark?: string | null;
     styleJson?: string | null;
     status: number;
@@ -203,7 +214,12 @@ function createPersistedDrawnBuildingArea(
   return {
     id,
     name: area.name,
-    buildingType: area.type ?? null,
+    buildingType: area.typeName ?? area.type ?? null,
+    categoryCode: area.categoryCode ?? null,
+    categoryName: area.categoryName ?? null,
+    typeCode: area.typeCode ?? DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+    typeName: area.typeName ?? area.type ?? null,
+    renderType: area.renderType ?? 'polygon-fill',
     buildingCode: style.buildingCode ?? null,
     geometryGeoJson: area.geometryGeoJson,
     labelLongitude: style.labelLongitude ?? fallbackPoint[0],
@@ -229,6 +245,11 @@ export function parseDrawnBuildingAreaFromMapArea(area: MapArea): DrawnBuildingA
   return createPersistedDrawnBuildingArea(id, {
     name: area.name,
     type: area.type,
+    categoryCode: area.categoryCode,
+    categoryName: area.categoryName,
+    typeCode: area.typeCode,
+    typeName: area.typeName,
+    renderType: area.renderType,
     remark: area.remark,
     styleJson: area.styleJson,
     status: area.status,
@@ -250,6 +271,11 @@ export function parseDrawnBuildingAreaFromFeature(feature: Feature<Geometry, Are
   return createPersistedDrawnBuildingArea(id, {
     name: properties.name ?? '未命名建筑',
     type: properties.type,
+    categoryCode: properties.categoryCode,
+    categoryName: properties.categoryName,
+    typeCode: properties.typeCode,
+    typeName: properties.typeName,
+    renderType: properties.renderType,
     remark: properties.remark,
     styleJson: properties.styleJson,
     status: typeof properties.status === 'number' ? properties.status : 1,
@@ -259,7 +285,7 @@ export function parseDrawnBuildingAreaFromFeature(feature: Feature<Geometry, Are
 }
 
 export function buildDrawnBuildingSavePayload(
-  area: Pick<EditableDrawnBuildingDraft, 'name' | 'buildingType' | 'buildingCode' | 'geometryGeoJson' | 'labelLongitude' | 'labelLatitude' | 'fillColor' | 'lineColor' | 'lineWidth' | 'status' | 'remark' | 'shapeType'>,
+  area: Pick<EditableDrawnBuildingDraft, 'name' | 'buildingType' | 'categoryCode' | 'typeCode' | 'renderType' | 'buildingCode' | 'geometryGeoJson' | 'labelLongitude' | 'labelLatitude' | 'fillColor' | 'lineColor' | 'lineWidth' | 'status' | 'remark' | 'shapeType'>,
   options?: {
     sourceId?: string | null;
   }
@@ -267,6 +293,9 @@ export function buildDrawnBuildingSavePayload(
   return {
     name: area.name.trim(),
     type: area.buildingType.trim() || null,
+    categoryCode: area.categoryCode?.trim() || null,
+    typeCode: area.typeCode?.trim() || DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+    renderType: area.renderType?.trim() || 'polygon-fill',
     remark: area.remark.trim() || null,
     styleJson: JSON.stringify({
       schema: DRAWN_BUILDING_STYLE_SCHEMA,

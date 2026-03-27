@@ -6,6 +6,12 @@ export interface MapArea {
   id: EntityId;
   name: string;
   type?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType: string;
   remark?: string | null;
   styleJson?: string | null;
   sourceType?: string | null;
@@ -23,6 +29,12 @@ export interface MapAreaListItem {
   id: EntityId;
   name: string;
   type?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType: string;
   status: number;
   styleJson?: string | null;
   updateTime: string;
@@ -32,6 +44,12 @@ export interface MapAreaListItem {
 export interface AreaGeoJsonProperties {
   name: string;
   type?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
+  geometryType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   status: number;
@@ -48,6 +66,9 @@ export type AreaFeatureCollection = FeatureCollection<Geometry, AreaGeoJsonPrope
 export interface QueryMapAreaParams {
   keyword?: string;
   type?: string;
+  categoryCode?: string;
+  typeCode?: string;
+  renderType?: string;
   sourceType?: string;
   excludeSourceType?: string;
   status?: number;
@@ -59,6 +80,9 @@ export interface QueryMapAreaParams {
 export interface SaveMapAreaPayload {
   name: string;
   type?: string | null;
+  categoryCode?: string | null;
+  typeCode?: string | null;
+  renderType?: string | null;
   remark?: string | null;
   styleJson?: string | null;
   sourceType?: string | null;

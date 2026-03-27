@@ -8,6 +8,7 @@ import {
   DEFAULT_DRAWN_BUILDING_LINE_WIDTH,
   getGeometryLabelPoint
 } from '@/utils/drawnBuildings';
+import { DEFAULT_DRAWN_BUILDING_TYPE_CODE } from '@/utils/mapFeatureTypes';
 
 let areaSequence = 1;
 
@@ -60,6 +61,11 @@ export const useDrawnBuildingStore = defineStore('drawn-buildings', () => {
       id: createAreaId(),
       name: createDefaultName(areas.value.length + 1),
       buildingType: payload.shapeType === 'rectangle' ? '矩形建筑' : '自定义建筑',
+      categoryCode: 'building_campus',
+      categoryName: '建筑与园区',
+      typeCode: DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+      typeName: '楼栋',
+      renderType: 'polygon-fill',
       buildingCode: '',
       geometryGeoJson: payload.geometryGeoJson,
       labelLongitude: labelPoint[0],

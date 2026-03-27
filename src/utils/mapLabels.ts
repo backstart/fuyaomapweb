@@ -2,6 +2,7 @@ import type { Feature, Geometry, Point, Position } from 'geojson';
 import type { EntityId } from '@/types/entity';
 import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, SaveMapLabelPayload } from '@/types/mapLabel';
 import type { MapFocusTarget } from '@/types/map';
+import { getDefaultTypeCodeForLabelFeature } from '@/utils/mapFeatureTypes';
 import { getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 
 const EMPTY_ALIAS_NAMES: string[] = [];
@@ -111,6 +112,9 @@ export function sanitizeMapLabelPayload(draft: EditableMapLabelDraft): SaveMapLa
     sourceFeatureId: draft.sourceFeatureId?.trim() || null,
     sourceLayer: draft.sourceLayer?.trim() || null,
     labelType: draft.labelType?.trim() || getDefaultLabelType(draft.featureType),
+    categoryCode: draft.categoryCode?.trim() || null,
+    typeCode: draft.typeCode?.trim() || null,
+    renderType: draft.renderType?.trim() || null,
     originalName: draft.originalName?.trim() || null,
     displayName: draft.displayName.trim(),
     aliasNames: (draft.aliasNames || EMPTY_ALIAS_NAMES)
@@ -131,12 +135,19 @@ export function sanitizeMapLabelPayload(draft: EditableMapLabelDraft): SaveMapLa
 
 export function createDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): EditableMapLabelDraft {
   const featureType = normalizeFeatureType(existing?.featureType ?? context.featureType);
+  const typeCode = existing?.typeCode ?? context.typeCode ?? getDefaultTypeCodeForLabelFeature(featureType);
   return {
     id: existing?.id ?? null,
     featureType,
     sourceFeatureId: existing?.sourceFeatureId ?? context.sourceFeatureId ?? null,
     sourceLayer: existing?.sourceLayer ?? context.sourceLayer ?? null,
     labelType: existing?.labelType ?? context.labelType ?? getDefaultLabelType(featureType),
+    categoryCode: existing?.categoryCode ?? context.categoryCode ?? null,
+    categoryName: existing?.categoryName ?? context.categoryName ?? null,
+    typeCode,
+    typeName: existing?.typeName ?? context.typeName ?? null,
+    renderType: existing?.renderType ?? context.renderType ?? null,
+    geometryType: existing?.geometryType ?? context.geometryType ?? 'point',
     originalName: existing?.originalName ?? context.originalName ?? null,
     displayName: resolvePreferredName({
       manualDisplayName: existing?.displayName,
@@ -162,6 +173,8 @@ export function createManualPointContext(longitude: number, latitude: number): E
     sourceKind: 'manual',
     featureType: 'manual',
     labelType: 'business',
+    typeCode: getDefaultTypeCodeForLabelFeature('manual'),
+    geometryType: 'point',
     pointLongitude: longitude,
     pointLatitude: latitude,
     suggestedDisplayName: '',
@@ -176,6 +189,12 @@ export function createLabelContextFromManualLabel(label: MapLabel): EditableMapL
     sourceKind: 'manual',
     featureType: normalizeFeatureType(label.featureType),
     labelType: (label.labelType || getDefaultLabelType(label.featureType)) as MapLabelLayerType,
+    categoryCode: label.categoryCode ?? null,
+    categoryName: label.categoryName ?? null,
+    typeCode: label.typeCode ?? null,
+    typeName: label.typeName ?? null,
+    renderType: label.renderType ?? null,
+    geometryType: label.geometryType ?? 'point',
     sourceFeatureId: label.sourceFeatureId ?? null,
     sourceLayer: label.sourceLayer ?? null,
     originalName: label.originalName ?? null,
@@ -190,6 +209,8 @@ export function createLabelContextFromBasemapFeature(feature: BasemapInspectable
     sourceKind: 'basemap',
     featureType: normalizeFeatureType(feature.featureType),
     labelType: feature.labelType as MapLabelLayerType,
+    typeCode: getDefaultTypeCodeForLabelFeature(feature.featureType),
+    geometryType: 'point',
     sourceFeatureId: feature.sourceFeatureId ?? null,
     sourceLayer: feature.sourceLayer ?? null,
     originalName: feature.originalName ?? null,
@@ -209,6 +230,8 @@ export function createLabelContextFromFocusTarget(target: MapFocusTarget): Edita
     entityId: target.id,
     featureType,
     labelType: getDefaultLabelType(featureType),
+    typeCode: getDefaultTypeCodeForLabelFeature(featureType),
+    geometryType: 'point',
     sourceFeatureId: String(target.id),
     sourceLayer: getBusinessLabelSourceLayer(featureType),
     originalName: resolvePreferredName({

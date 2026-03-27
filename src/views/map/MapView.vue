@@ -285,6 +285,29 @@
                   <el-input v-model="drawnBuildingDraft.name" placeholder="请输入建筑名称" />
                 </el-form-item>
 
+                <el-form-item label="语义类型">
+                  <el-select
+                    :model-value="drawnBuildingDraft.typeCode"
+                    placeholder="选择建筑/园区语义类型"
+                    filterable
+                    clearable
+                    @update:model-value="applyDrawnBuildingSemanticType"
+                  >
+                    <el-option-group
+                      v-for="group in drawnBuildingTypeGroups"
+                      :key="group.categoryCode"
+                      :label="group.categoryName"
+                    >
+                      <el-option
+                        v-for="option in group.options"
+                        :key="option.typeCode"
+                        :label="option.typeName"
+                        :value="option.typeCode"
+                      />
+                    </el-option-group>
+                  </el-select>
+                </el-form-item>
+
                 <div class="label-form-grid">
                   <el-form-item label="建筑类型">
                     <el-input v-model="drawnBuildingDraft.buildingType" placeholder="例如：宿舍楼、办公楼" />
@@ -400,6 +423,29 @@
                   <el-input v-model="labelDraft.displayName" placeholder="请输入地图显示名称" />
                 </el-form-item>
 
+                <el-form-item label="语义类型">
+                  <el-select
+                    :model-value="labelDraft.typeCode"
+                    placeholder="选择地图语义类型"
+                    filterable
+                    clearable
+                    @update:model-value="handleLabelSemanticTypeChange"
+                  >
+                    <el-option-group
+                      v-for="group in labelSemanticTypeGroups"
+                      :key="group.categoryCode"
+                      :label="group.categoryName"
+                    >
+                      <el-option
+                        v-for="option in group.options"
+                        :key="option.typeCode"
+                        :label="option.typeName"
+                        :value="option.typeCode"
+                      />
+                    </el-option-group>
+                  </el-select>
+                </el-form-item>
+
                 <el-form-item label="别名">
                   <el-input
                     v-model="labelAliasInput"
@@ -502,6 +548,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute } from 'vue-router';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
+import { getMapFeatureSchema } from '@/api/mapFeatureTypeApi';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
@@ -522,6 +569,7 @@ import { usePoiStore } from '@/stores/poiStore';
 import { useShopStore } from '@/stores/shopStore';
 import type { BuildingDrawMode, DrawnBuildingArea, DrawnBuildingCompletePayload, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import type { EntityId } from '@/types/entity';
+import type { MapFeatureSchema, MapFeatureTypeDefinition } from '@/types/mapFeatureType';
 import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 import { boundsToBboxString } from '@/utils/bbox';
@@ -533,6 +581,13 @@ import {
   parseDrawnBuildingAreaFromFeature,
   parseDrawnBuildingAreaFromMapArea
 } from '@/utils/drawnBuildings';
+import {
+  DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+  findFeatureTypeDefinition,
+  getDefaultTypeCodeForLabelFeature,
+  getLabelLayerTypeFromRenderType,
+  groupFeatureTypes
+} from '@/utils/mapFeatureTypes';
 import {
   DEFAULT_HALO_COLOR,
   DEFAULT_MANUAL_SOURCE,
@@ -601,6 +656,7 @@ const searchPanelMessage = ref('');
 const showDrawnBuildingList = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
 const manualLabels = ref<MapLabel[]>([]);
+const mapFeatureSchema = ref<MapFeatureSchema | null>(null);
 const labelLookupLoading = ref(false);
 const labelRefreshLoading = ref(false);
 const labelSaving = ref(false);
@@ -632,6 +688,15 @@ const showSearchResultsPanel = computed(() =>
 );
 const labelFeatureTypeOptions = LABEL_FEATURE_TYPE_OPTIONS;
 const labelTypeOptions = LABEL_TYPE_OPTIONS;
+const labelSemanticTypeGroups = computed(() =>
+  groupFeatureTypes(mapFeatureSchema.value, (item) => item.sourceTypes.includes('label'))
+);
+const drawnBuildingTypeGroups = computed(() =>
+  groupFeatureTypes(
+    mapFeatureSchema.value,
+    (item) => item.geometryType === 'polygon' && (item.sourceTypes.includes('area') || item.sourceTypes.includes(DRAWN_BUILDING_SOURCE_TYPE))
+  )
+);
 const visibleManualLabels = computed(() =>
   manualLabels.value.filter((label) => isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
 );
@@ -662,8 +727,10 @@ const filteredDrawnBuildingAreas = computed(() => {
   return drawnBuildingStore.areas.filter((item) => {
     const haystack = [
       item.name,
+      item.typeName,
       item.buildingType,
       item.buildingCode,
+      item.categoryName,
       item.remark
     ]
       .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
@@ -862,7 +929,7 @@ function getDrawnBuildingShapeLabel(shapeType: Exclude<BuildingDrawMode, null>):
 
 function getDrawnBuildingItemSubtitle(area: DrawnBuildingArea): string {
   const parts = [
-    area.buildingType?.trim(),
+    area.typeName?.trim() || area.buildingType?.trim(),
     area.buildingCode?.trim(),
     area.isDraft ? '未保存' : '已保存'
   ].filter(Boolean);
@@ -870,11 +937,115 @@ function getDrawnBuildingItemSubtitle(area: DrawnBuildingArea): string {
   return parts.join(' · ');
 }
 
+function getFeatureTypeDefinition(typeCode: string | null | undefined): MapFeatureTypeDefinition | null {
+  return findFeatureTypeDefinition(mapFeatureSchema.value, typeCode);
+}
+
+function applyLabelSemanticType(typeCode: string | null | undefined, options?: { applyDefaults?: boolean }): void {
+  if (!labelDraft.value) {
+    return;
+  }
+
+  const definition = getFeatureTypeDefinition(typeCode);
+  if (!definition) {
+    labelDraft.value = {
+      ...labelDraft.value,
+      typeCode: typeCode || null,
+      categoryCode: null,
+      categoryName: null,
+      typeName: null,
+      renderType: null
+    };
+    return;
+  }
+
+  labelDraft.value = {
+    ...labelDraft.value,
+    categoryCode: definition.categoryCode,
+    categoryName: definition.categoryName,
+    typeCode: definition.typeCode,
+    typeName: definition.typeName,
+    renderType: definition.renderType,
+    geometryType: definition.geometryType,
+    labelType: getLabelLayerTypeFromRenderType(definition.renderType),
+    minZoom: options?.applyDefaults && typeof definition.defaultMinZoom === 'number' ? definition.defaultMinZoom : labelDraft.value.minZoom,
+    maxZoom: options?.applyDefaults && typeof definition.defaultMaxZoom === 'number' ? definition.defaultMaxZoom : labelDraft.value.maxZoom,
+    priority: options?.applyDefaults && typeof definition.defaultPriority === 'number' ? definition.defaultPriority : labelDraft.value.priority
+  };
+
+  if (labelEditorContext.value) {
+    labelEditorContext.value = {
+      ...labelEditorContext.value,
+      categoryCode: definition.categoryCode,
+      categoryName: definition.categoryName,
+      typeCode: definition.typeCode,
+      typeName: definition.typeName,
+      renderType: definition.renderType,
+      geometryType: definition.geometryType
+    };
+  }
+}
+
+function handleLabelSemanticTypeChange(value: string | null | undefined): void {
+  applyLabelSemanticType(value, { applyDefaults: true });
+}
+
+function applyDrawnBuildingSemanticType(typeCode: string | null | undefined): void {
+  if (!drawnBuildingDraft.value) {
+    return;
+  }
+
+  const definition = getFeatureTypeDefinition(typeCode);
+  if (!definition) {
+    drawnBuildingDraft.value = {
+      ...drawnBuildingDraft.value,
+      typeCode: typeCode || null,
+      categoryCode: null,
+      categoryName: null,
+      typeName: null,
+      renderType: null
+    };
+    return;
+  }
+
+  const previousTypeName = drawnBuildingDraft.value.typeName?.trim();
+  const nextDisplayType = !drawnBuildingDraft.value.buildingType.trim() || drawnBuildingDraft.value.buildingType.trim() === previousTypeName
+    ? definition.typeName
+    : drawnBuildingDraft.value.buildingType;
+
+  drawnBuildingDraft.value = {
+    ...drawnBuildingDraft.value,
+    categoryCode: definition.categoryCode,
+    categoryName: definition.categoryName,
+    typeCode: definition.typeCode,
+    typeName: definition.typeName,
+    renderType: definition.renderType,
+    buildingType: nextDisplayType
+  };
+}
+
+async function loadFeatureSchema(): Promise<void> {
+  try {
+    mapFeatureSchema.value = await getMapFeatureSchema();
+
+    if (labelDraft.value?.typeCode) {
+      applyLabelSemanticType(labelDraft.value.typeCode);
+    }
+
+    if (drawnBuildingDraft.value?.typeCode) {
+      applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode);
+    }
+  } catch (error) {
+    console.warn('Failed to load map feature schema.', error);
+  }
+}
+
 function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): void {
   labelEditorContext.value = context;
   labelDraft.value = createDraftFromContext(context, existing);
   labelAliasInput.value = formatAliasNamesInput(existing?.aliasNames);
   editingLabelId.value = existing?.id ?? null;
+  applyLabelSemanticType(labelDraft.value.typeCode ?? getDefaultTypeCodeForLabelFeature(labelDraft.value.featureType));
 }
 
 function resetDrawnBuildingEditorState(options?: { preserveSelection?: boolean }): void {
@@ -929,6 +1100,7 @@ function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
   drawnBuildingStore.cancelDraw();
   drawnBuildingStore.selectArea(area.id);
   drawnBuildingDraft.value = createDrawnBuildingDraft(area);
+  applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
 }
 
 function closeDrawnBuildingEditor(): void {
@@ -1008,6 +1180,7 @@ function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): voi
   const area = drawnBuildingStore.createArea(payload);
   showDrawnBuildingList.value = true;
   drawnBuildingDraft.value = createDrawnBuildingDraft(area);
+  applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
   ElMessage.success('建筑区域已创建，请完善名称和类型');
 }
 
@@ -1070,6 +1243,7 @@ async function saveDrawnBuildingArea(): Promise<void> {
     drawnBuildingStore.replaceArea(currentDraft.id, persistedArea);
     drawnBuildingStore.selectArea(persistedArea.id);
     drawnBuildingDraft.value = createDrawnBuildingDraft(persistedArea);
+    applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
 
     if (mapStore.viewport.bbox) {
       await refreshDrawnBuildingAreas(mapStore.viewport, true);
@@ -1885,13 +2059,19 @@ watch(
       return;
     }
 
+    const nextTypeCode = labelDraft.value.typeCode || getDefaultTypeCodeForLabelFeature(featureType);
     labelDraft.value = {
       ...labelDraft.value,
+      typeCode: nextTypeCode,
       labelType: labelDraft.value.labelType || getDefaultLabelType(featureType),
       minZoom: typeof labelDraft.value.minZoom === 'number' ? labelDraft.value.minZoom : getDefaultMinZoom(featureType),
       maxZoom: typeof labelDraft.value.maxZoom === 'number' ? labelDraft.value.maxZoom : getDefaultMaxZoom(featureType),
       priority: typeof labelDraft.value.priority === 'number' ? labelDraft.value.priority : getDefaultPriority(featureType)
     };
+
+    if (nextTypeCode) {
+      applyLabelSemanticType(nextTypeCode);
+    }
   }
 );
 
@@ -1906,6 +2086,7 @@ watch(
 onMounted(() => {
   mapStore.setSearchResults([]);
   searchPanelMessage.value = '';
+  void loadFeatureSchema();
 });
 
 watch(

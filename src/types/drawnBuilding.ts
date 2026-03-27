@@ -7,6 +7,11 @@ export interface DrawnBuildingArea {
   id: EntityId;
   name: string;
   buildingType?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
   buildingCode?: string | null;
   geometryGeoJson: string;
   labelLongitude: number;
@@ -26,6 +31,11 @@ export interface EditableDrawnBuildingDraft {
   id: EntityId;
   name: string;
   buildingType: string;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
   buildingCode: string;
   geometryGeoJson: string;
   labelLongitude: number;
@@ -43,6 +53,11 @@ export interface DrawnBuildingAreaProperties {
   areaId: string;
   name: string;
   buildingType?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
   buildingCode?: string | null;
   fillColor: string;
   lineColor: string;
@@ -56,6 +71,11 @@ export interface DrawnBuildingLabelProperties {
   labelText: string;
   name: string;
   buildingType?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  typeCode?: string | null;
+  typeName?: string | null;
+  renderType?: string | null;
   buildingCode?: string | null;
   isSelected: boolean;
 }
