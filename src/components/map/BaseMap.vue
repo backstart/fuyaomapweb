@@ -530,8 +530,13 @@ function toInspectableBasemapFeature(feature: MapGeoJSONFeature, fallback: [numb
 }
 
 function queryInspectableBasemapFeature(mapInstance: MapLibreMap, event: MapMouseEvent): BasemapInspectableFeature | null {
+  const inspectableLayers = INSPECTABLE_BASE_LAYER_IDS.filter((layerId) => Boolean(mapInstance.getLayer(layerId)));
+  if (!inspectableLayers.length) {
+    return null;
+  }
+
   const feature = mapInstance.queryRenderedFeatures(event.point, {
-    layers: [...INSPECTABLE_BASE_LAYER_IDS]
+    layers: [...inspectableLayers]
   }).find((item) => item.source === BASEMAP_SOURCE_ID);
 
   if (!feature) {

@@ -6,6 +6,14 @@ import { getDefaultTypeCodeForLabelFeature } from '@/utils/mapFeatureTypes';
 import { getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 
 const EMPTY_ALIAS_NAMES: string[] = [];
+const CORE_MAP_TEXT_TYPE_CODES = new Set([
+  'road_name',
+  'water_name',
+  'building_name',
+  'settlement_name',
+  'administrative_boundary',
+  'town_boundary'
+]);
 
 export const DEFAULT_TEXT_COLOR = '#314155';
 export const DEFAULT_HALO_COLOR = 'rgba(255, 255, 255, 0.96)';
@@ -83,6 +91,10 @@ export function getBusinessLabelSourceLayer(featureType: string): string | null 
     default:
       return null;
   }
+}
+
+export function isCoreMapTextTypeCode(typeCode: string | null | undefined): boolean {
+  return typeof typeCode === 'string' && CORE_MAP_TEXT_TYPE_CODES.has(typeCode.trim().toLowerCase());
 }
 
 export function buildLabelLookupKey(featureType: string, sourceFeatureId?: string | number | null, sourceLayer?: string | null): string | null {

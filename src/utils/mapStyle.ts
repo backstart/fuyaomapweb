@@ -259,6 +259,27 @@ function styleContainsPmtilesSource(style: StyleSpecification): boolean {
   });
 }
 
+function stripBasemapSymbolLayers(style: StyleSpecification): StyleSpecification {
+  const clonedStyle = cloneStyleSpecification(style);
+  clonedStyle.layers = clonedStyle.layers.filter((layer) => {
+    if (!layer || typeof layer !== 'object') {
+      return true;
+    }
+
+    if (!('type' in layer) || layer.type !== 'symbol') {
+      return true;
+    }
+
+    if (!('source' in layer) || layer.source !== BASEMAP_SOURCE_ID) {
+      return true;
+    }
+
+    return false;
+  });
+
+  return clonedStyle;
+}
+
 function ensurePmtilesArchiveRegistered(pmtilesUrl: string, reason: string): PMTiles {
   try {
     return loadArchive(pmtilesUrl);
@@ -306,7 +327,7 @@ async function tryLoadStaticStyle(styleUrl: string, pmtilesUrl: string, sourceLa
       return null;
     }
 
-    return rewrittenStyle;
+    return stripBasemapSymbolLayers(rewrittenStyle);
   } catch (error) {
     logBasemapIssue('failed to load static basemap style, fallback to runtime style builder', {
       styleUrl: normalizedStyleUrl,
@@ -348,7 +369,7 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
         return staticStyle;
       }
 
-      return buildPmtilesVectorStyle(normalizedUrl, sourceLayers);
+      return stripBasemapSymbolLayers(buildPmtilesVectorStyle(normalizedUrl, sourceLayers));
     }
 
     logBasemapIssue('PMTiles metadata did not expose vector_layers, fallback to raster style', {
@@ -362,7 +383,7 @@ export async function resolveMapStyle(baseUrl: string, options: ResolveMapStyleO
     });
   }
 
-  return buildPmtilesRasterStyle(normalizedUrl);
+  return stripBasemapSymbolLayers(buildPmtilesRasterStyle(normalizedUrl));
 }
 
 export async function getPmtilesInitialView(baseUrl: string): Promise<{ center: [number, number]; zoom: number } | null> {

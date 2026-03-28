@@ -592,6 +592,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute } from 'vue-router';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
+import { useViewportFeatures } from '@/composables/useViewportFeatures';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
@@ -621,6 +622,11 @@ import type { EntityId } from '@/types/entity';
 import type { MapFeatureTypeDefinition } from '@/types/mapFeatureType';
 import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
+import type { AreaFeatureCollection } from '@/types/area';
+import type { BoundaryFeatureCollection } from '@/types/boundary';
+import type { PlaceFeatureCollection } from '@/types/place';
+import type { PoiFeatureCollection } from '@/types/poi';
+import type { ShopFeatureCollection } from '@/types/shop';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
 import {
@@ -654,6 +660,7 @@ import {
   getDefaultMaxZoom,
   getDefaultMinZoom,
   getDefaultPriority,
+  isCoreMapTextTypeCode,
   isLabelVisibleForLayer,
   parseAliasNamesInput,
   sanitizeMapLabelPayload
@@ -676,6 +683,13 @@ const LAYER_MIN_ZOOM: Record<LayerKey, number> = {
   pois: 13,
   places: 11,
   boundaries: 8
+};
+const MAP_LAYER_TO_VIEWPORT_FEATURE_TYPE: Record<LayerKey, string> = {
+  shops: 'shop',
+  areas: 'area',
+  pois: 'poi',
+  places: 'place',
+  boundaries: 'boundary'
 };
 const MAP_SEARCH_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label'] as const;
 const MAP_FILTER_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label', DRAWN_BUILDING_SOURCE_TYPE] as const;
@@ -717,10 +731,10 @@ const searchLoading = ref(false);
 const searchPanelMessage = ref('');
 const showDrawnBuildingList = ref(false);
 const focusTarget = ref<MapFocusTarget | null>(null);
-const manualLabels = ref<MapLabel[]>([]);
+const viewportFeatureState = useViewportFeatures();
 const mapFeatureSchema = computed(() => mapFeatureCatalogStore.schema);
 const labelLookupLoading = ref(false);
-const labelRefreshLoading = ref(false);
+const labelRefreshLoading = computed(() => viewportFeatureState.loading.value);
 const labelSaving = ref(false);
 const labelPickMode = ref<MapLabelPickMode>(null);
 const labelEditorContext = ref<EditableMapLabelContext | null>(null);
@@ -732,15 +746,11 @@ const labelContextRequestId = ref(0);
 const refreshTimer = ref<number | null>(null);
 const pendingViewport = ref<MapViewportState | null>(null);
 const pendingRefreshReason = ref('idle');
-const lastRequestedViewportByLayer = ref<Record<LayerKey, MapViewportState | null>>({
-  shops: null,
-  areas: null,
-  pois: null,
-  places: null,
-  boundaries: null
-});
-const lastRequestedLabelViewport = ref<MapViewportState | null>(null);
+const lastRequestedFeatureViewport = ref<MapViewportState | null>(null);
+const lastRequestedFeatureSignature = ref('');
 const lastRequestedDrawnBuildingViewport = ref<MapViewportState | null>(null);
+const manualLabels = computed<MapLabel[]>(() => viewportFeatureState.collections.value.labels);
+const viewportFeatureCollections = computed(() => viewportFeatureState.collections.value);
 
 const searchResultCountLabel = computed(() =>
   mapStore.searchResults.length ? `共 ${mapStore.searchResults.length} 条` : ''
@@ -773,51 +783,51 @@ const drawnBuildingTypeGroups = computed(() =>
 );
 const visibleManualLabels = computed(() =>
   filterLabelsBySemanticType(manualLabels.value, mapSemanticTypeCode.value).filter((label) =>
-    isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
+    isCoreMapTextTypeCode(label.typeCode) || isLabelVisibleForLayer(label.featureType, mapStore.layerVisibility))
 );
 const selectedDrawnBuildingArea = computed(() => drawnBuildingStore.selectedArea);
-const filteredShopData = computed(() =>
-  filterFeatureCollectionBySemanticType(shopStore.geoJson, mapSemanticTypeCode.value)
+const filteredShopData = computed<ShopFeatureCollection>(() =>
+  filterFeatureCollectionBySemanticType(viewportFeatureCollections.value.shops as any, mapSemanticTypeCode.value) as ShopFeatureCollection
 );
-const filteredAreaData = computed(() =>
-  filterFeatureCollectionBySemanticType(areaStore.geoJson, mapSemanticTypeCode.value)
+const filteredAreaData = computed<AreaFeatureCollection>(() =>
+  filterFeatureCollectionBySemanticType(viewportFeatureCollections.value.areas as any, mapSemanticTypeCode.value) as AreaFeatureCollection
 );
-const filteredPoiData = computed(() =>
-  filterFeatureCollectionBySemanticType(poiStore.geoJson, mapSemanticTypeCode.value)
+const filteredPoiData = computed<PoiFeatureCollection>(() =>
+  filterFeatureCollectionBySemanticType(viewportFeatureCollections.value.pois as any, mapSemanticTypeCode.value) as PoiFeatureCollection
 );
-const filteredPlaceData = computed(() =>
-  filterFeatureCollectionBySemanticType(placeStore.geoJson, mapSemanticTypeCode.value)
+const filteredPlaceData = computed<PlaceFeatureCollection>(() =>
+  filterFeatureCollectionBySemanticType(viewportFeatureCollections.value.places as any, mapSemanticTypeCode.value) as PlaceFeatureCollection
 );
-const filteredBoundaryData = computed(() =>
-  filterFeatureCollectionBySemanticType(boundaryStore.geoJson, mapSemanticTypeCode.value)
+const filteredBoundaryData = computed<BoundaryFeatureCollection>(() =>
+  filterFeatureCollectionBySemanticType(viewportFeatureCollections.value.boundaries as any, mapSemanticTypeCode.value) as BoundaryFeatureCollection
 );
 const filteredDrawnBuildingAreasForMap = computed(() =>
   filterDrawnBuildingAreasBySemanticType(drawnBuildingStore.areas, mapSemanticTypeCode.value)
 );
-const renderedShopData = computed(() =>
-  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'shop', filteredShopData.value, {
+const renderedShopData = computed<ShopFeatureCollection>(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'shop', filteredShopData.value as any, {
     selectedId: mapStore.selectedEntity?.entityType === 'shop' ? String(mapStore.selectedEntity.id) : null
-  })
+  }) as unknown as ShopFeatureCollection
 );
-const renderedAreaData = computed(() =>
-  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'area', filteredAreaData.value, {
+const renderedAreaData = computed<AreaFeatureCollection>(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'area', filteredAreaData.value as any, {
     selectedId: mapStore.selectedEntity?.entityType === 'area' ? String(mapStore.selectedEntity.id) : null
-  })
+  }) as unknown as AreaFeatureCollection
 );
-const renderedPoiData = computed(() =>
-  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'poi', filteredPoiData.value, {
+const renderedPoiData = computed<PoiFeatureCollection>(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'poi', filteredPoiData.value as any, {
     selectedId: mapStore.selectedEntity?.entityType === 'poi' ? String(mapStore.selectedEntity.id) : null
-  })
+  }) as unknown as PoiFeatureCollection
 );
-const renderedPlaceData = computed(() =>
-  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'place', filteredPlaceData.value, {
+const renderedPlaceData = computed<PlaceFeatureCollection>(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'place', filteredPlaceData.value as any, {
     selectedId: mapStore.selectedEntity?.entityType === 'place' ? String(mapStore.selectedEntity.id) : null
-  })
+  }) as unknown as PlaceFeatureCollection
 );
-const renderedBoundaryData = computed(() =>
-  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'boundary', filteredBoundaryData.value, {
+const renderedBoundaryData = computed<BoundaryFeatureCollection>(() =>
+  decorateSemanticFeatureCollection(mapFeatureSchema.value, 'boundary', filteredBoundaryData.value as any, {
     selectedId: mapStore.selectedEntity?.entityType === 'boundary' ? String(mapStore.selectedEntity.id) : null
-  })
+  }) as unknown as BoundaryFeatureCollection
 );
 const manualLabelData = computed(() =>
   buildManualLabelFeatureCollection(visibleManualLabels.value, {
@@ -1043,6 +1053,45 @@ function getViewportZoom(viewport: MapViewportState): number {
 
 function isLayerWithinZoomRange(layer: LayerKey, viewport: MapViewportState): boolean {
   return getViewportZoom(viewport) >= LAYER_MIN_ZOOM[layer];
+}
+
+function resolveViewportFeatureLimit(viewport: MapViewportState): number {
+  const zoom = getViewportZoom(viewport);
+  if (zoom < 10) {
+    return 400;
+  }
+
+  if (zoom < 13) {
+    return 900;
+  }
+
+  return 1500;
+}
+
+function buildViewportFeatureRequest(viewport: MapViewportState): {
+  bbox: string;
+  zoom: number;
+  featureTypes: string;
+  status: number;
+  limit: number;
+} | null {
+  if (!viewport.bbox) {
+    return null;
+  }
+
+  const requestableFeatureTypes = getEnabledLayers()
+    .filter((layer) => isLayerWithinZoomRange(layer, viewport))
+    .map((layer) => MAP_LAYER_TO_VIEWPORT_FEATURE_TYPE[layer]);
+
+  const featureTypes = ['label', ...requestableFeatureTypes];
+
+  return {
+    bbox: viewport.bbox,
+    zoom: Math.round(getViewportZoom(viewport)),
+    featureTypes: [...new Set(featureTypes)].join(','),
+    status: 1,
+    limit: resolveViewportFeatureLimit(viewport)
+  };
 }
 
 function getViewportSnapshot(mapInstance: MapLibreMap): MapViewportState {
@@ -1547,32 +1596,6 @@ function updateDraftPoint(longitude: number, latitude: number): void {
   }
 }
 
-async function refreshMapLabels(viewport: MapViewportState, force = false): Promise<void> {
-  if (!viewport.bbox) {
-    manualLabels.value = [];
-    lastRequestedLabelViewport.value = null;
-    return;
-  }
-
-  if (!force && isSimilarViewport(viewport, lastRequestedLabelViewport.value)) {
-    return;
-  }
-
-  labelRefreshLoading.value = true;
-  try {
-    manualLabels.value = await queryMapLabels({
-      bbox: viewport.bbox,
-      zoom: viewport.zoom,
-      status: 1
-    });
-    lastRequestedLabelViewport.value = cloneViewport(viewport);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '标注图层加载失败');
-  } finally {
-    labelRefreshLoading.value = false;
-  }
-}
-
 async function refreshDrawnBuildingAreas(viewport: MapViewportState, force = false): Promise<void> {
   if (!viewport.bbox) {
     drawnBuildingStore.replacePersistedAreas([]);
@@ -1602,61 +1625,29 @@ async function refreshDrawnBuildingAreas(viewport: MapViewportState, force = fal
   }
 }
 
-async function refreshLayer(layer: LayerKey, viewport: MapViewportState): Promise<boolean> {
-  const bbox = viewport.bbox;
-
-  switch (layer) {
-    case 'shops':
-      return shopStore.fetchGeoJsonForMap({ bbox });
-    case 'areas':
-      return areaStore.fetchGeoJsonForMap({ bbox });
-    case 'pois':
-      return poiStore.fetchGeoJsonForMap({ bbox });
-    case 'places':
-      return placeStore.fetchGeoJsonForMap({ bbox });
-    case 'boundaries':
-      return boundaryStore.fetchGeoJsonForMap({ bbox });
+async function refreshViewportFeatures(viewport: MapViewportState, force = false): Promise<void> {
+  const request = buildViewportFeatureRequest(viewport);
+  if (!request) {
+    viewportFeatureState.clearViewportFeatures();
+    lastRequestedFeatureViewport.value = null;
+    lastRequestedFeatureSignature.value = '';
+    return;
   }
-}
 
-function cancelLayerRequest(layer: LayerKey, reason: string): void {
-  switch (layer) {
-    case 'shops':
-      shopStore.cancelMapGeoJsonRequest(reason);
-      return;
-    case 'areas':
-      areaStore.cancelMapGeoJsonRequest(reason);
-      return;
-    case 'pois':
-      poiStore.cancelMapGeoJsonRequest(reason);
-      return;
-    case 'places':
-      placeStore.cancelMapGeoJsonRequest(reason);
-      return;
-    case 'boundaries':
-      boundaryStore.cancelMapGeoJsonRequest(reason);
-      return;
+  const signature = `${request.featureTypes}|${request.limit}`;
+  if (!force &&
+    signature === lastRequestedFeatureSignature.value &&
+    isSimilarViewport(viewport, lastRequestedFeatureViewport.value)) {
+    return;
   }
-}
 
-function clearLayerData(layer: LayerKey): void {
-  switch (layer) {
-    case 'shops':
-      shopStore.clearGeoJson();
-      return;
-    case 'areas':
-      areaStore.clearGeoJson();
-      return;
-    case 'pois':
-      poiStore.clearGeoJson();
-      return;
-    case 'places':
-      placeStore.clearGeoJson();
-      return;
-    case 'boundaries':
-      boundaryStore.clearGeoJson();
-      return;
+  const completed = await viewportFeatureState.fetchViewportFeatures(request);
+  if (!completed) {
+    return;
   }
+
+  lastRequestedFeatureViewport.value = cloneViewport(viewport);
+  lastRequestedFeatureSignature.value = signature;
 }
 
 function resetScheduledRefresh(): void {
@@ -1678,20 +1669,12 @@ async function flushScheduledRefresh(force = false): Promise<void> {
   }
 
   const enabledLayers = getEnabledLayers();
-  const disabledLayers = (Object.keys(mapStore.layerVisibility) as LayerKey[]).filter((layer) => !mapStore.layerVisibility[layer]);
   const zoomFilteredLayers = enabledLayers.filter((layer) => !isLayerWithinZoomRange(layer, viewport));
-  const requestableLayers = enabledLayers.filter((layer) => isLayerWithinZoomRange(layer, viewport));
   if (!enabledLayers.length) {
     debugMapRefresh('skip business refresh because no business layer is enabled');
   }
 
   await refreshDrawnBuildingAreas(viewport, force);
-  await refreshMapLabels(viewport, force);
-
-  if (disabledLayers.length) {
-    debugMapRefresh('skip disabled layers', disabledLayers);
-  }
-
   if (zoomFilteredLayers.length) {
     debugMapRefresh('skip layers because zoom is below threshold', {
       zoom: viewport.zoom,
@@ -1700,58 +1683,17 @@ async function flushScheduledRefresh(force = false): Promise<void> {
         minZoom: LAYER_MIN_ZOOM[layer]
       }))
     });
-
-    zoomFilteredLayers.forEach((layer) => {
-      cancelLayerRequest(layer, 'below-min-zoom');
-      clearLayerData(layer);
-      lastRequestedViewportByLayer.value[layer] = null;
-    });
-  }
-
-  const requestQueue: Promise<void>[] = [];
-  const requestLayers: LayerKey[] = [];
-
-  requestableLayers.forEach((layer) => {
-    const previousViewport = lastRequestedViewportByLayer.value[layer];
-    if (!force && isSimilarViewport(viewport, previousViewport)) {
-      debugMapRefresh(`skip ${layer} because viewport change is too small`, {
-        bbox: viewport.bbox,
-        zoom: viewport.zoom
-      });
-      return;
-    }
-
-    requestLayers.push(layer);
-    requestQueue.push(
-      refreshLayer(layer, viewport).then((completed) => {
-        if (!completed) {
-          debugMapRefresh(`request ${layer} canceled or superseded`, {
-            bbox: viewport.bbox
-          });
-          return;
-        }
-
-        lastRequestedViewportByLayer.value[layer] = cloneViewport(viewport);
-      })
-    );
-  });
-
-  if (!requestQueue.length) {
-    debugMapRefresh('skip refresh because all visible layers hit viewport dedupe', {
-      reason: pendingRefreshReason.value,
-      bbox: viewport.bbox
-    });
-    return;
   }
 
   debugMapRefresh('request visible layers', {
     reason: pendingRefreshReason.value,
     bbox: viewport.bbox,
-    layers: requestLayers
+    layers: enabledLayers.filter((layer) => isLayerWithinZoomRange(layer, viewport)),
+    featureTypes: buildViewportFeatureRequest(viewport)?.featureTypes
   });
 
   try {
-    await Promise.all(requestQueue);
+    await refreshViewportFeatures(viewport, force);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '地图数据加载失败');
   }
@@ -2005,7 +1947,7 @@ async function saveLabel(): Promise<void> {
     labelEditorContext.value = createLabelContextFromManualLabel(saved);
     labelAliasInput.value = formatAliasNamesInput(saved.aliasNames);
 
-    await refreshMapLabels(mapStore.viewport, true);
+    await refreshViewportFeatures(mapStore.viewport, true);
     ElMessage.success(isUpdate ? '标注已更新' : '标注已保存');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存标注失败');
@@ -2337,9 +2279,6 @@ watch(
     changedLayers.forEach((layer) => {
       if (!next[layer]) {
         debugMapRefresh(`skip ${layer} because layer is disabled`);
-        cancelLayerRequest(layer, 'layer-disabled');
-        clearLayerData(layer);
-        lastRequestedViewportByLayer.value[layer] = null;
         return;
       }
 
@@ -2348,8 +2287,9 @@ watch(
         zoom: mapStore.viewport.zoom,
         minZoom: LAYER_MIN_ZOOM[layer]
       });
-      lastRequestedViewportByLayer.value[layer] = null;
     });
+
+    lastRequestedFeatureSignature.value = '';
 
     if (mapStore.viewport.bbox) {
       scheduleRefresh(mapStore.viewport, {
@@ -2361,9 +2301,7 @@ watch(
 
 onBeforeUnmount(() => {
   resetScheduledRefresh();
-  (['shops', 'areas', 'pois', 'places', 'boundaries'] as LayerKey[]).forEach((layer) => {
-    cancelLayerRequest(layer, 'map-view-unmount');
-  });
+  viewportFeatureState.cancelViewportFeatureRequest('map-view-unmount');
   drawnBuildingStore.cancelDraw();
   drawnBuildingStore.clearSelection();
   mapStore.setMap(null);
