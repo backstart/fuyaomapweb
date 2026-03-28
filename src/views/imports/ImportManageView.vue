@@ -12,8 +12,13 @@
       <ImportUploadPanel
         :upload-loading="uploadLoading"
         :path-loading="pathLoading"
+        :available-files="availableFiles"
+        :available-files-loading="availableFilesLoading"
+        :delete-loading="deleteFileLoading"
         @upload-submit="handleUploadSubmit"
         @path-submit="handleServerPathSubmit"
+        @refresh-existing-files="refreshAvailableFiles"
+        @delete-existing-file="handleDeleteAvailableFile"
       />
 
       <el-card shadow="never" class="filter-card">
@@ -128,6 +133,8 @@ import { ApiError } from '@/api/http';
 import {
   cancelMapImportTask,
   createMapImportTask,
+  deleteMapImportAvailableFile,
+  getMapImportAvailableFiles,
   getMapImportTask,
   getMapImportTaskLogs,
   getMapImportTasks,
@@ -137,6 +144,7 @@ import {
 import type { PaginationState } from '@/types/api';
 import type {
   CreateMapImportTaskPayload,
+  MapImportAvailableFile,
   MapImportExtractionSummary,
   MapImportTask,
   MapImportTaskLog,
@@ -149,10 +157,13 @@ import { parseImportSummary } from '@/utils/importSummary';
 const tasks = ref<MapImportTask[]>([]);
 const taskLogs = ref<MapImportTaskLog[]>([]);
 const detailTaskLogs = ref<MapImportTaskLog[]>([]);
+const availableFiles = ref<MapImportAvailableFile[]>([]);
 
 const listLoading = ref(false);
 const uploadLoading = ref(false);
 const pathLoading = ref(false);
+const availableFilesLoading = ref(false);
+const deleteFileLoading = ref(false);
 const detailLoading = ref(false);
 const logsLoading = ref(false);
 
@@ -209,6 +220,21 @@ async function fetchTasks(options?: { silent?: boolean; page?: number; pageSize?
   }
 }
 
+async function fetchAvailableFiles(options?: { silent?: boolean }): Promise<void> {
+  const silent = options?.silent ?? false;
+  if (!silent) {
+    availableFilesLoading.value = true;
+  }
+
+  try {
+    availableFiles.value = await getMapImportAvailableFiles();
+  } finally {
+    if (!silent) {
+      availableFilesLoading.value = false;
+    }
+  }
+}
+
 async function search(): Promise<void> {
   try {
     await fetchTasks({ page: 1 });
@@ -225,7 +251,10 @@ async function reset(): Promise<void> {
 
 async function refreshNow(): Promise<void> {
   try {
-    await fetchTasks();
+    await Promise.all([
+      fetchTasks(),
+      fetchAvailableFiles({ silent: true })
+    ]);
     if (selectedTask.value) {
       await refreshTaskDetail(selectedTask.value.id, true);
       await refreshDetailTaskLogs(selectedTask.value.id, true);
@@ -253,7 +282,10 @@ async function handleUploadSubmit(payload: UploadImportSubmitPayload): Promise<v
     }, payload.autoStart);
 
     ElMessage.success(`导入任务 ${task.id} 已创建`);
-    await fetchTasks({ page: 1 });
+    await Promise.all([
+      fetchTasks({ page: 1 }),
+      fetchAvailableFiles({ silent: true })
+    ]);
   } catch (error) {
     showError(error, '上传并创建导入任务失败');
   } finally {
@@ -279,6 +311,19 @@ async function handleServerPathSubmit(payload: ServerPathImportSubmitPayload): P
     showError(error, '创建导入任务失败');
   } finally {
     pathLoading.value = false;
+  }
+}
+
+async function handleDeleteAvailableFile(file: MapImportAvailableFile): Promise<void> {
+  deleteFileLoading.value = true;
+  try {
+    await deleteMapImportAvailableFile(file.filePath);
+    ElMessage.success(`文件 ${file.displayName} 已删除`);
+    await fetchAvailableFiles({ silent: true });
+  } catch (error) {
+    showError(error, '删除导入文件失败');
+  } finally {
+    deleteFileLoading.value = false;
   }
 }
 
@@ -327,6 +372,15 @@ async function openTaskDetail(id: string): Promise<void> {
     ]);
   } finally {
     detailLoading.value = false;
+  }
+}
+
+async function refreshAvailableFiles(): Promise<void> {
+  try {
+    await fetchAvailableFiles();
+    ElMessage.success('历史文件列表已刷新');
+  } catch (error) {
+    showError(error, '历史文件列表加载失败');
   }
 }
 
@@ -532,7 +586,12 @@ function showError(error: unknown, fallback: string): void {
 }
 
 onMounted(() => {
-  void fetchTasks();
+  void Promise.all([
+    fetchTasks(),
+    fetchAvailableFiles({ silent: true })
+  ]).catch((error: unknown) => {
+    showError(error, '导入页面初始化失败');
+  });
   startPolling();
 });
 

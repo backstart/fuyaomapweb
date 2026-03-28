@@ -49,6 +49,15 @@ export interface MapImportUploadedFile {
   fileSize: number;
 }
 
+export interface MapImportAvailableFile {
+  fileName: string;
+  originalFileName?: string | null;
+  displayName: string;
+  filePath: string;
+  fileSize: number;
+  lastModifiedTime: string;
+}
+
 export interface CreateMapImportTaskPayload {
   importType?: string;
   fileName?: string;

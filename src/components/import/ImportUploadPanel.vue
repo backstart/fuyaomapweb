@@ -74,6 +74,46 @@
       </template>
 
       <el-form label-position="top" @submit.prevent>
+        <el-form-item label="选择历史文件">
+          <div class="existing-file-toolbar">
+            <el-select
+              v-model="selectedAvailableFilePath"
+              class="existing-file-select"
+              filterable
+              clearable
+              :loading="availableFilesLoading"
+              placeholder="从导入目录选择 .osm.pbf 文件"
+              no-data-text="导入目录暂无可用 .osm.pbf 文件"
+            >
+              <el-option
+                v-for="file in availableFiles"
+                :key="file.filePath"
+                :label="getAvailableFileOptionLabel(file)"
+                :value="file.filePath"
+              />
+            </el-select>
+            <el-button :loading="availableFilesLoading" @click="emit('refresh-existing-files')">刷新</el-button>
+          </div>
+          <p class="field-hint">选中后会自动回填下面的服务器文件路径，也可以继续手工修改。</p>
+
+          <div v-if="selectedAvailableFile" class="existing-file-meta">
+            <span>显示名：{{ selectedAvailableFile.displayName }}</span>
+            <span>大小：{{ formatFileSize(selectedAvailableFile.fileSize) }}</span>
+            <span>更新时间：{{ formatDateTime(selectedAvailableFile.lastModifiedTime) }}</span>
+            <span class="existing-file-path">{{ selectedAvailableFile.filePath }}</span>
+            <el-popconfirm
+              title="删除后不可恢复，确认删除该文件？"
+              confirm-button-text="删除"
+              cancel-button-text="取消"
+              @confirm="requestDeleteSelectedFile"
+            >
+              <template #reference>
+                <el-button type="danger" text :loading="deleteLoading">删除该文件</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
+        </el-form-item>
+
         <el-form-item label="服务器文件路径">
           <el-input v-model="pathForm.filePath" placeholder="/data/fuyaomap/imports/guangdong-latest.osm.pbf" clearable />
         </el-form-item>
@@ -107,28 +147,43 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import type { ServerPathImportSubmitPayload, UploadImportSubmitPayload } from '@/types/import';
+import type {
+  MapImportAvailableFile,
+  ServerPathImportSubmitPayload,
+  UploadImportSubmitPayload
+} from '@/types/import';
+import { formatDateTime } from '@/utils/format';
 
 const LARGE_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   uploadLoading?: boolean;
   pathLoading?: boolean;
+  availableFiles?: MapImportAvailableFile[];
+  availableFilesLoading?: boolean;
+  deleteLoading?: boolean;
 }>(), {
   uploadLoading: false,
-  pathLoading: false
+  pathLoading: false,
+  availableFiles: () => [],
+  availableFilesLoading: false,
+  deleteLoading: false
 });
 
 const emit = defineEmits<{
   (event: 'upload-submit', payload: UploadImportSubmitPayload): void;
   (event: 'path-submit', payload: ServerPathImportSubmitPayload): void;
+  (event: 'refresh-existing-files'): void;
+  (event: 'delete-existing-file', payload: MapImportAvailableFile): void;
 }>();
 
 const fileInputRef = ref<HTMLInputElement>();
 const selectedFile = ref<File | null>(null);
+const selectedAvailableFilePath = ref('');
+const lastAutoFilledFileName = ref('');
 
 const uploadForm = ref({
   bbox: '',
@@ -151,6 +206,63 @@ const pathForm = ref({
 const selectedFileName = computed(() => selectedFile.value?.name ?? '');
 const selectedFileSizeLabel = computed(() => formatFileSize(selectedFile.value?.size));
 const isLargeSelectedFile = computed(() => (selectedFile.value?.size ?? 0) >= LARGE_FILE_BYTES);
+const availableFiles = computed(() => props.availableFiles ?? []);
+const availableFilesLoading = computed(() => props.availableFilesLoading);
+const deleteLoading = computed(() => props.deleteLoading);
+const selectedAvailableFile = computed(() =>
+  availableFiles.value.find((item) => item.filePath === selectedAvailableFilePath.value) ?? null);
+
+watch(selectedAvailableFile, (file) => {
+  if (!file) {
+    return;
+  }
+
+  pathForm.value.filePath = file.filePath;
+
+  const preferredFileName = file.originalFileName?.trim() || file.displayName.trim() || file.fileName.trim();
+  const currentFileName = pathForm.value.fileName.trim();
+  if (!currentFileName || currentFileName === lastAutoFilledFileName.value) {
+    pathForm.value.fileName = preferredFileName;
+    lastAutoFilledFileName.value = preferredFileName;
+  }
+});
+
+watch(selectedAvailableFilePath, (value, previousValue) => {
+  if (value || !previousValue) {
+    return;
+  }
+
+  if (pathForm.value.filePath.trim() === previousValue) {
+    pathForm.value.filePath = '';
+  }
+
+  if (pathForm.value.fileName.trim() === lastAutoFilledFileName.value) {
+    pathForm.value.fileName = '';
+  }
+
+  lastAutoFilledFileName.value = '';
+});
+
+watch(availableFiles, (files) => {
+  if (!selectedAvailableFilePath.value) {
+    return;
+  }
+
+  if (files.some((item) => item.filePath === selectedAvailableFilePath.value)) {
+    return;
+  }
+
+  if (pathForm.value.filePath.trim() === selectedAvailableFilePath.value) {
+    pathForm.value.filePath = '';
+  }
+
+  if (pathForm.value.fileName.trim() === lastAutoFilledFileName.value) {
+    pathForm.value.fileName = '';
+  }
+
+  selectedAvailableFilePath.value = '';
+  lastAutoFilledFileName.value = '';
+});
 
 function triggerFileSelect(): void {
   fileInputRef.value?.click();
@@ -209,6 +321,24 @@ function submitServerPath(): void {
   });
 }
 
+function requestDeleteSelectedFile(): void {
+  if (!selectedAvailableFile.value) {
+    return;
+  }
+
+  emit('delete-existing-file', selectedAvailableFile.value);
+}
+
+function getAvailableFileOptionLabel(file: MapImportAvailableFile): string {
+  const parts = [file.displayName];
+  if (file.originalFileName && file.originalFileName !== file.fileName) {
+    parts.push(`存储名 ${file.fileName}`);
+  }
+
+  parts.push(formatFileSize(file.fileSize));
+  return parts.join(' · ');
+}
+
 function formatFileSize(fileSize?: number): string {
   if (!fileSize || fileSize <= 0) {
     return '-';
@@ -259,10 +389,15 @@ function formatFileSize(fileSize?: number): string {
   font-size: 13px;
 }
 
-.file-row {
+.file-row,
+.existing-file-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
+  width: 100%;
+}
+
+.existing-file-select {
   width: 100%;
 }
 
@@ -278,7 +413,8 @@ function formatFileSize(fileSize?: number): string {
   margin-top: 4px;
 }
 
-.file-meta {
+.file-meta,
+.existing-file-meta {
   margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
@@ -286,6 +422,18 @@ function formatFileSize(fileSize?: number): string {
   align-items: center;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.existing-file-path {
+  flex: 1 1 100%;
+  word-break: break-all;
+}
+
+.field-hint {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .panel-actions {
