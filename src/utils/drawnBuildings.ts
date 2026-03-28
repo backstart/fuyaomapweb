@@ -314,3 +314,30 @@ export function buildDrawnBuildingSavePayload(
     geoJson: area.geometryGeoJson
   };
 }
+
+export function createDrawnBuildingDraftFromSavePayload(id: string, payload: SaveMapAreaPayload): EditableDrawnBuildingDraft {
+  const style = parseDrawnBuildingStyle(payload.styleJson);
+  const fallbackPoint = getGeometryLabelPoint(payload.geoJson);
+
+  return {
+    id,
+    name: payload.name?.trim() || '未命名建筑区域',
+    buildingType: payload.type?.trim() || '',
+    categoryCode: payload.categoryCode?.trim() || null,
+    categoryName: null,
+    typeCode: payload.typeCode?.trim() || DEFAULT_DRAWN_BUILDING_TYPE_CODE,
+    typeName: payload.type?.trim() || null,
+    renderType: payload.renderType?.trim() || 'polygon-fill',
+    buildingCode: style?.buildingCode?.trim() || '',
+    geometryGeoJson: payload.geoJson,
+    labelLongitude: style?.labelLongitude ?? fallbackPoint[0],
+    labelLatitude: style?.labelLatitude ?? fallbackPoint[1],
+    fillColor: style?.fillColor?.trim() || DEFAULT_DRAWN_BUILDING_FILL,
+    lineColor: style?.lineColor?.trim() || DEFAULT_DRAWN_BUILDING_LINE,
+    lineWidth: style?.lineWidth ?? DEFAULT_DRAWN_BUILDING_LINE_WIDTH,
+    status: payload.status,
+    remark: payload.remark?.trim() || '',
+    shapeType: style?.shapeType === 'rectangle' ? 'rectangle' : 'polygon',
+    isDraft: true
+  };
+}

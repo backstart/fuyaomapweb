@@ -405,10 +405,10 @@
           </el-scrollbar>
           <div v-if="drawnBuildingDraft" class="editor-footer">
             <el-button type="primary" @click="saveDrawnBuildingArea">
-              保存建筑区域
+              {{ drawnBuildingSaveButtonText }}
             </el-button>
             <el-button
-              v-if="!drawnBuildingDraft.isDraft"
+              v-if="!drawnBuildingDraft.isDraft && canManageFormalData"
               type="danger"
               plain
               @click="deleteDrawnBuildingArea(drawnBuildingDraft)"
@@ -574,7 +574,7 @@
           </el-scrollbar>
           <div v-if="labelDraft" class="editor-footer">
             <el-button type="primary" :loading="labelSaving" @click="saveLabel">
-              {{ labelDraft.id ? '更新标注' : '保存标注' }}
+              {{ labelSaveButtonText }}
             </el-button>
             <el-button :loading="labelLookupLoading" :disabled="!canResetLabelDraft" @click="reloadCurrentLabel">
               重新加载
@@ -590,10 +590,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
 import { useViewportFeatures } from '@/composables/useViewportFeatures';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
+import { createMapFeatureSubmission, getMapFeatureSubmission, updateMapFeatureSubmission } from '@/api/submissionApi';
 import BaseMap from '@/components/map/BaseMap.vue';
 import LayerSwitcher from '@/components/map/LayerSwitcher.vue';
 import MapSearchBar from '@/components/search/MapSearchBar.vue';
@@ -608,6 +609,7 @@ import {
   buildDrawnBuildingLabelFeatureCollection
 } from '@/composables/useDrawnBuildingLayers';
 import { searchMap } from '@/api/mapSearchApi';
+import { useCurrentUserRole } from '@/composables/useCurrentUserRole';
 import { useAreaStore } from '@/stores/areaStore';
 import { useBoundaryStore } from '@/stores/boundaryStore';
 import { ZHONGSHAN_DEFAULT_CENTER } from '@/map/defaultMapView';
@@ -620,22 +622,25 @@ import { useShopStore } from '@/stores/shopStore';
 import type { BuildingDrawMode, DrawnBuildingArea, DrawnBuildingCompletePayload, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import type { EntityId } from '@/types/entity';
 import type { MapFeatureTypeDefinition } from '@/types/mapFeatureType';
-import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode } from '@/types/mapLabel';
+import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode, SaveMapLabelPayload } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
-import type { AreaFeatureCollection } from '@/types/area';
+import type { AreaFeatureCollection, SaveMapAreaPayload } from '@/types/area';
 import type { BoundaryFeatureCollection } from '@/types/boundary';
 import type { PlaceFeatureCollection } from '@/types/place';
 import type { PoiFeatureCollection } from '@/types/poi';
 import type { ShopFeatureCollection } from '@/types/shop';
+import type { MapFeatureSubmission, SubmissionStatus } from '@/types/submission';
 import { boundsToBboxString } from '@/utils/bbox';
 import { getGeometryBounds, parseGeometryGeoJson } from '@/utils/geometry';
 import {
   buildDrawnBuildingSavePayload,
+  createDrawnBuildingDraftFromSavePayload,
   createDrawnBuildingDraft,
   DEFAULT_DRAWN_BUILDING_FILL,
   DEFAULT_DRAWN_BUILDING_LINE,
   DEFAULT_DRAWN_BUILDING_LINE_WIDTH,
   DRAWN_BUILDING_SOURCE_TYPE,
+  getGeometryLabelPoint,
   parseDrawnBuildingAreaFromFeature,
   parseDrawnBuildingAreaFromMapArea
 } from '@/utils/drawnBuildings';
@@ -665,6 +670,7 @@ import {
   parseAliasNamesInput,
   sanitizeMapLabelPayload
 } from '@/utils/mapLabels';
+import { canEditSubmission } from '@/utils/reviewWorkflow';
 import {
   filterDrawnBuildingAreasBySemanticType,
   filterFeatureCollectionBySemanticType,
@@ -714,6 +720,8 @@ const LABEL_TYPE_OPTIONS: Array<{ value: MapLabelLayerType; label: string }> = [
 type LayerKey = keyof LayerVisibility;
 
 const route = useRoute();
+const router = useRouter();
+const { canManageFormalData, mustUseSubmissionWorkflow } = useCurrentUserRole();
 const mapStore = useMapStore();
 const drawnBuildingStore = useDrawnBuildingStore();
 const shopStore = useShopStore();
@@ -741,6 +749,8 @@ const labelEditorContext = ref<EditableMapLabelContext | null>(null);
 const labelDraft = ref<EditableMapLabelDraft | null>(null);
 const drawnBuildingDraft = ref<EditableDrawnBuildingDraft | null>(null);
 const editingLabelId = ref<EntityId | null>(null);
+const editingLabelSubmissionId = ref<string | null>(null);
+const editingDrawnBuildingSubmissionId = ref<string | null>(null);
 const labelAliasInput = ref('');
 const labelContextRequestId = ref(0);
 const refreshTimer = ref<number | null>(null);
@@ -894,6 +904,10 @@ const labelContextBadge = computed(() => {
     return '正在加载标注';
   }
 
+  if (editingLabelSubmissionId.value) {
+    return '待审标注';
+  }
+
   return labelDraft.value?.id ? '已存在人工标注' : '';
 });
 const drawnBuildingCountLabel = computed(() =>
@@ -960,11 +974,26 @@ const labelEditorTip = computed(() => {
     return '当前正在编辑业务对象标注。保存后人工 display_name 会优先于业务名称显示。';
   }
 
+  if (mustUseSubmissionWorkflow.value) {
+    return '普通用户提交的标注会先进入待审核区，管理员审核通过后才会进入正式标注表并参与地图显示。';
+  }
+
   return '点击业务对象、进入补名模式点击底图要素，或新建手动点位后即可开始编辑。';
+});
+const labelSaveButtonText = computed(() => {
+  if (mustUseSubmissionWorkflow.value) {
+    return editingLabelSubmissionId.value ? '重新提交审核' : '提交审核';
+  }
+
+  return labelDraft.value?.id ? '更新标注' : '保存标注';
 });
 const drawnBuildingEditorBadge = computed(() => {
   if (!drawnBuildingDraft.value) {
     return '';
+  }
+
+  if (editingDrawnBuildingSubmissionId.value) {
+    return '待审建筑区域';
   }
 
   return drawnBuildingDraft.value.isDraft ? '新绘制区域' : '已选建筑区域';
@@ -978,7 +1007,18 @@ const drawnBuildingEditorTip = computed(() => {
     return '多边形绘制模式：逐点点击绘制边界，双击地图完成封闭区域。';
   }
 
+  if (mustUseSubmissionWorkflow.value) {
+    return '普通用户绘制的建筑区域会先进入待审核区，审核通过后才会写入正式区域表。';
+  }
+
   return '绘制完成后会自动生成建筑名称标注；点击已有建筑区域也可以再次进入编辑。';
+});
+const drawnBuildingSaveButtonText = computed(() => {
+  if (mustUseSubmissionWorkflow.value) {
+    return editingDrawnBuildingSubmissionId.value ? '重新提交审核' : '提交审核';
+  }
+
+  return drawnBuildingDraft.value?.isDraft ? '保存建筑区域' : '更新建筑区域';
 });
 
 function debugMapRefresh(message: string, detail?: unknown): void {
@@ -1249,6 +1289,7 @@ async function loadFeatureSchema(): Promise<void> {
 }
 
 function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: MapLabel | null): void {
+  editingLabelSubmissionId.value = null;
   labelEditorContext.value = context;
   labelDraft.value = createDraftFromContext(context, existing);
   labelAliasInput.value = formatAliasNamesInput(existing?.aliasNames);
@@ -1257,6 +1298,11 @@ function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: M
 }
 
 function resetDrawnBuildingEditorState(options?: { preserveSelection?: boolean }): void {
+  if (editingDrawnBuildingSubmissionId.value && drawnBuildingDraft.value) {
+    drawnBuildingStore.removeArea(drawnBuildingDraft.value.id);
+  }
+
+  editingDrawnBuildingSubmissionId.value = null;
   if (!options?.preserveSelection) {
     drawnBuildingStore.clearSelection();
   }
@@ -1298,6 +1344,7 @@ function closeLabelEditor(): void {
   labelDraft.value = null;
   labelAliasInput.value = '';
   editingLabelId.value = null;
+  editingLabelSubmissionId.value = null;
 }
 
 function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
@@ -1307,6 +1354,7 @@ function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
   mapStore.setSelectedEntity(null);
   drawnBuildingStore.cancelDraw();
   drawnBuildingStore.selectArea(area.id);
+  editingDrawnBuildingSubmissionId.value = null;
   drawnBuildingDraft.value = createDrawnBuildingDraft(area);
   applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
 }
@@ -1348,6 +1396,11 @@ function locateDrawnBuildingArea(area: DrawnBuildingArea): void {
 }
 
 function editDrawnBuildingArea(area: DrawnBuildingArea): void {
+  if (mustUseSubmissionWorkflow.value && !area.isDraft) {
+    ElMessage.warning('普通用户不能直接编辑正式建筑区域，请通过“我的提交”修改待审数据');
+    return;
+  }
+
   showDrawnBuildingList.value = true;
   openDrawnBuildingEditor(area);
   locateDrawnBuildingArea(area);
@@ -1365,6 +1418,11 @@ function previewDrawnBuildingArea(area: DrawnBuildingArea): void {
 
 function editSelectedDrawnBuilding(): void {
   if (!selectedDrawnBuildingArea.value) {
+    return;
+  }
+
+  if (mustUseSubmissionWorkflow.value && !selectedDrawnBuildingArea.value.isDraft) {
+    ElMessage.warning('普通用户不能直接编辑正式建筑区域，请通过“我的提交”修改待审数据');
     return;
   }
 
@@ -1395,6 +1453,11 @@ function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): voi
 async function handleDrawnBuildingClick(areaId: EntityId): Promise<void> {
   const area = drawnBuildingStore.areas.find((item) => String(item.id) === String(areaId));
   if (area) {
+    if (mustUseSubmissionWorkflow.value && !area.isDraft) {
+      ElMessage.warning('普通用户不能直接编辑正式建筑区域');
+      return;
+    }
+
     closeLabelEditor();
     clearSelectedEntity();
     drawnBuildingStore.cancelDraw();
@@ -1408,6 +1471,11 @@ async function handleDrawnBuildingClick(areaId: EntityId): Promise<void> {
     const persistedArea = parseDrawnBuildingAreaFromMapArea(detail);
     if (!persistedArea) {
       ElMessage.warning('当前区域不是建筑绘制数据');
+      return;
+    }
+
+    if (mustUseSubmissionWorkflow.value) {
+      ElMessage.warning('普通用户不能直接编辑正式建筑区域');
       return;
     }
 
@@ -1439,6 +1507,28 @@ async function saveDrawnBuildingArea(): Promise<void> {
       sourceId: currentDraft.isDraft ? String(currentDraft.id) : undefined
     });
 
+    if (mustUseSubmissionWorkflow.value) {
+      const submissionId = editingDrawnBuildingSubmissionId.value;
+      if (submissionId) {
+        await updateMapFeatureSubmission(submissionId, {
+          status: 'pending',
+          payload
+        });
+      } else {
+        await createMapFeatureSubmission({
+          featureKind: 'manual_building_area',
+          status: 'pending',
+          payload
+        });
+      }
+
+      drawnBuildingStore.removeArea(currentDraft.id);
+      closeDrawnBuildingEditor();
+      await clearSubmissionRouteQuery();
+      ElMessage.success(submissionId ? '建筑区域已重新提交审核' : '建筑区域已提交审核');
+      return;
+    }
+
     const savedArea = currentDraft.isDraft
       ? await createMapArea(payload)
       : await updateMapArea(currentDraft.id, payload);
@@ -1465,6 +1555,11 @@ async function saveDrawnBuildingArea(): Promise<void> {
 }
 
 async function deleteDrawnBuildingArea(area: Pick<DrawnBuildingArea, 'id' | 'name' | 'isDraft'>): Promise<void> {
+  if (mustUseSubmissionWorkflow.value && !area.isDraft) {
+    ElMessage.warning('普通用户不能直接删除正式建筑区域');
+    return;
+  }
+
   try {
     await ElMessageBox.confirm(
       `确认删除“${area.name}”吗？`,
@@ -1504,11 +1599,181 @@ async function deleteDrawnBuildingArea(area: Pick<DrawnBuildingArea, 'id' | 'nam
   }
 }
 
+function isObjectPayload(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+async function clearSubmissionRouteQuery(): Promise<void> {
+  if (!readQueryString(route.query.submissionId)) {
+    return;
+  }
+
+  const nextQuery = {
+    ...route.query,
+    submissionId: undefined
+  };
+
+  await router.replace({
+    path: route.path,
+    query: nextQuery
+  });
+}
+
+function normalizeLabelSubmissionPayload(submission: MapFeatureSubmission): SaveMapLabelPayload {
+  if (!isObjectPayload(submission.payload)) {
+    throw new Error('标注待审数据结构非法');
+  }
+
+  const payload = submission.payload as Partial<SaveMapLabelPayload>;
+  const featureType = typeof payload.featureType === 'string' && payload.featureType.trim()
+    ? payload.featureType.trim()
+    : 'manual';
+  const pointLongitude = typeof payload.pointLongitude === 'number' ? payload.pointLongitude : ZHONGSHAN_DEFAULT_CENTER[0];
+  const pointLatitude = typeof payload.pointLatitude === 'number' ? payload.pointLatitude : ZHONGSHAN_DEFAULT_CENTER[1];
+
+  return {
+    featureType,
+    sourceFeatureId: typeof payload.sourceFeatureId === 'string' ? payload.sourceFeatureId : null,
+    sourceLayer: typeof payload.sourceLayer === 'string' ? payload.sourceLayer : null,
+    labelType: typeof payload.labelType === 'string' && payload.labelType.trim()
+      ? payload.labelType.trim()
+      : getDefaultLabelType(featureType),
+    categoryCode: typeof payload.categoryCode === 'string' ? payload.categoryCode : null,
+    typeCode: typeof payload.typeCode === 'string' ? payload.typeCode : null,
+    renderType: typeof payload.renderType === 'string' ? payload.renderType : null,
+    originalName: typeof payload.originalName === 'string' ? payload.originalName : null,
+    displayName: typeof payload.displayName === 'string' ? payload.displayName : '',
+    aliasNames: Array.isArray(payload.aliasNames)
+      ? payload.aliasNames.filter((item): item is string => typeof item === 'string')
+      : [],
+    pointLongitude,
+    pointLatitude,
+    minZoom: typeof payload.minZoom === 'number' ? payload.minZoom : getDefaultMinZoom(featureType),
+    maxZoom: typeof payload.maxZoom === 'number' ? payload.maxZoom : getDefaultMaxZoom(featureType),
+    priority: typeof payload.priority === 'number' ? payload.priority : getDefaultPriority(featureType),
+    textColor: typeof payload.textColor === 'string' ? payload.textColor : DEFAULT_TEXT_COLOR,
+    haloColor: typeof payload.haloColor === 'string' ? payload.haloColor : DEFAULT_HALO_COLOR,
+    status: typeof payload.status === 'number' ? payload.status : 1,
+    source: typeof payload.source === 'string' ? payload.source : DEFAULT_MANUAL_SOURCE,
+    remark: typeof payload.remark === 'string' ? payload.remark : null
+  };
+}
+
+function normalizeAreaSubmissionPayload(submission: MapFeatureSubmission): SaveMapAreaPayload {
+  if (!isObjectPayload(submission.payload)) {
+    throw new Error('建筑区域待审数据结构非法');
+  }
+
+  const payload = submission.payload as Partial<SaveMapAreaPayload>;
+  if (typeof payload.name !== 'string' || !payload.name.trim() || typeof payload.geoJson !== 'string' || !payload.geoJson.trim()) {
+    throw new Error('建筑区域待审数据缺少名称或几何');
+  }
+
+  return {
+    name: payload.name.trim(),
+    type: typeof payload.type === 'string' ? payload.type : null,
+    categoryCode: typeof payload.categoryCode === 'string' ? payload.categoryCode : null,
+    typeCode: typeof payload.typeCode === 'string' ? payload.typeCode : null,
+    renderType: typeof payload.renderType === 'string' ? payload.renderType : 'polygon-fill',
+    remark: typeof payload.remark === 'string' ? payload.remark : null,
+    styleJson: typeof payload.styleJson === 'string' ? payload.styleJson : null,
+    sourceType: typeof payload.sourceType === 'string' ? payload.sourceType : DRAWN_BUILDING_SOURCE_TYPE,
+    sourceId: typeof payload.sourceId === 'string' ? payload.sourceId : undefined,
+    status: typeof payload.status === 'number' ? payload.status : 1,
+    geoJson: payload.geoJson
+  };
+}
+
+function openLabelSubmissionEditor(submission: MapFeatureSubmission): void {
+  const payload = normalizeLabelSubmissionPayload(submission);
+  const context: EditableMapLabelContext = {
+    sourceKind: 'manual',
+    featureType: payload.featureType,
+    labelType: payload.labelType || getDefaultLabelType(payload.featureType),
+    categoryCode: payload.categoryCode ?? null,
+    typeCode: payload.typeCode ?? null,
+    renderType: payload.renderType ?? null,
+    geometryType: 'point',
+    sourceFeatureId: payload.sourceFeatureId ?? null,
+    sourceLayer: payload.sourceLayer ?? null,
+    originalName: payload.originalName ?? null,
+    suggestedDisplayName: payload.displayName,
+    pointLongitude: payload.pointLongitude,
+    pointLatitude: payload.pointLatitude
+  };
+
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.cancelDraw();
+  clearSelectedEntity();
+  setLabelDraftFromContext(context, null);
+  labelDraft.value = {
+    ...labelDraft.value!,
+    ...payload,
+    aliasNames: [...payload.aliasNames]
+  };
+  labelAliasInput.value = formatAliasNamesInput(payload.aliasNames);
+  editingLabelId.value = null;
+  editingLabelSubmissionId.value = submission.id;
+  labelPickMode.value = null;
+}
+
+function openDrawnBuildingSubmissionEditor(submission: MapFeatureSubmission): void {
+  const payload = normalizeAreaSubmissionPayload(submission);
+  const draft = createDrawnBuildingDraftFromSavePayload(submission.id, payload);
+  const previewArea: DrawnBuildingArea = {
+    ...draft,
+    createTime: new Date().toISOString(),
+    updateTime: new Date().toISOString()
+  };
+
+  closeLabelEditor();
+  clearSelectedEntity();
+  drawnBuildingStore.cancelDraw();
+  resetDrawnBuildingEditorState();
+  drawnBuildingStore.replaceArea(previewArea.id, previewArea);
+  drawnBuildingDraft.value = draft;
+  editingDrawnBuildingSubmissionId.value = submission.id;
+  applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
+  showDrawnBuildingList.value = true;
+  locateDrawnBuildingArea(previewArea);
+}
+
+async function loadSubmissionEditor(submissionId: string): Promise<void> {
+  try {
+    const submission = await getMapFeatureSubmission(submissionId);
+    if (!canEditSubmission(submission.status) && mustUseSubmissionWorkflow.value) {
+      ElMessage.warning('当前提交状态不可再次编辑');
+      await clearSubmissionRouteQuery();
+      return;
+    }
+
+    if (submission.featureKind === 'label') {
+      openLabelSubmissionEditor(submission);
+      return;
+    }
+
+    if (submission.featureKind === 'manual_building_area') {
+      openDrawnBuildingSubmissionEditor(submission);
+      return;
+    }
+
+    ElMessage.warning('当前版本暂不支持在地图页编辑该类型待审数据');
+    await clearSubmissionRouteQuery();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '待审数据加载失败');
+  }
+}
+
 function getCachedManualLabel(labelId: EntityId): MapLabel | null {
   return manualLabels.value.find((label) => String(label.id) === String(labelId)) ?? null;
 }
 
 async function loadManualLabelDetail(labelId: EntityId): Promise<void> {
+  if (mustUseSubmissionWorkflow.value) {
+    ElMessage.warning('普通用户不能直接编辑正式标注，请通过“我的提交”修改待审数据');
+    return;
+  }
+
   const cached = getCachedManualLabel(labelId);
   if (cached) {
     setLabelDraftFromContext(createLabelContextFromManualLabel(cached), cached);
@@ -1559,7 +1824,7 @@ async function hydrateLabelDraft(context: EditableMapLabelContext): Promise<void
       return;
     }
 
-    setLabelDraftFromContext(context, matched[0] ?? null);
+    setLabelDraftFromContext(context, mustUseSubmissionWorkflow.value ? null : matched[0] ?? null);
   } catch (error) {
     if (currentRequestId !== labelContextRequestId.value) {
       return;
@@ -1817,6 +2082,11 @@ function resetLabelDraft(): void {
 }
 
 async function reloadCurrentLabel(): Promise<void> {
+  if (editingLabelSubmissionId.value) {
+    await loadSubmissionEditor(editingLabelSubmissionId.value);
+    return;
+  }
+
   if (editingLabelId.value !== null) {
     await loadManualLabelDetail(editingLabelId.value);
     return;
@@ -1933,6 +2203,27 @@ async function saveLabel(): Promise<void> {
   const isUpdate = Boolean(labelDraft.value.id);
   labelSaving.value = true;
   try {
+    if (mustUseSubmissionWorkflow.value) {
+      const submissionId = editingLabelSubmissionId.value;
+      if (submissionId) {
+        await updateMapFeatureSubmission(submissionId, {
+          status: 'pending',
+          payload
+        });
+      } else {
+        await createMapFeatureSubmission({
+          featureKind: 'label',
+          status: 'pending',
+          payload
+        });
+      }
+
+      closeLabelEditor();
+      await clearSubmissionRouteQuery();
+      ElMessage.success(submissionId ? '标注已重新提交审核' : '标注已提交审核');
+      return;
+    }
+
     const saved = isUpdate && labelDraft.value.id !== null && labelDraft.value.id !== undefined
       ? await updateMapLabel(labelDraft.value.id, payload)
       : await createMapLabel(payload);
@@ -2169,6 +2460,12 @@ async function locateSearchResult(item: MapSearchItem): Promise<void> {
 }
 
 async function syncRouteFocus(): Promise<void> {
+  const submissionId = readQueryString(route.query.submissionId);
+  if (submissionId) {
+    await loadSubmissionEditor(submissionId);
+    return;
+  }
+
   const entity = readQueryString(route.query.entity);
   const id = readQueryString(route.query.id);
 

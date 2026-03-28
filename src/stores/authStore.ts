@@ -1,19 +1,23 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import type { AuthUserInfo } from '@/types/auth';
+import type { AuthUserInfo, RoleCode } from '@/types/auth';
 import { getCurrentUser, login, logout } from '@/api/authApi';
 import { clearPersistedAuthSession, persistAuthSession, readPersistedAuthSession } from '@/utils/authSession';
 
 export const useAuthStore = defineStore('auth', () => {
   const persistedSession = readPersistedAuthSession();
   const token = ref(persistedSession?.token ?? '');
-  const userInfo = ref<AuthUserInfo | null>(persistedSession?.userInfo ?? null);
+  const userInfo = ref<AuthUserInfo | null>(normalizeUserInfo(persistedSession?.userInfo ?? null));
   const expiresAt = ref<number>(persistedSession?.expiresAt ?? 0);
   const rememberMe = ref<boolean>(persistedSession?.rememberMe ?? true);
   const loading = ref(false);
 
   const isAuthenticated = computed(() => Boolean(token.value) && expiresAt.value > Date.now());
   const displayName = computed(() => userInfo.value?.displayName || userInfo.value?.username || '未登录');
+  const roleCode = computed<RoleCode>(() => userInfo.value?.roleCode ?? 'user');
+  const isSuperAdmin = computed(() => roleCode.value === 'super_admin');
+  const isAdminRole = computed(() => roleCode.value === 'admin' || roleCode.value === 'super_admin');
+  const isNormalUser = computed(() => roleCode.value === 'user');
 
   function hydrate(): void {
     const session = readPersistedAuthSession();
@@ -23,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     token.value = session.token;
-    userInfo.value = session.userInfo;
+    userInfo.value = normalizeUserInfo(session.userInfo);
     expiresAt.value = session.expiresAt;
     rememberMe.value = session.rememberMe;
   }
@@ -37,13 +41,18 @@ export const useAuthStore = defineStore('auth', () => {
       });
 
       token.value = response.token;
-      userInfo.value = response.userInfo;
+      const normalizedUser = normalizeUserInfo(response.userInfo);
+      if (!normalizedUser) {
+        throw new Error('登录返回的用户信息无效');
+      }
+
+      userInfo.value = normalizedUser;
       expiresAt.value = Date.now() + response.expiresIn * 1000;
       rememberMe.value = keepSignedIn;
 
       persistAuthSession({
         token: token.value,
-        userInfo: response.userInfo,
+        userInfo: normalizedUser,
         expiresAt: expiresAt.value,
         rememberMe: keepSignedIn
       });
@@ -58,7 +67,12 @@ export const useAuthStore = defineStore('auth', () => {
       return;
     }
 
-    const currentUser = await getCurrentUser();
+    const currentUser = normalizeUserInfo(await getCurrentUser());
+    if (!currentUser) {
+      clearState();
+      return;
+    }
+
     userInfo.value = currentUser;
     persistAuthSession({
       token: token.value,
@@ -93,6 +107,10 @@ export const useAuthStore = defineStore('auth', () => {
     clearPersistedAuthSession();
   }
 
+  function hasRole(...roles: RoleCode[]): boolean {
+    return roles.includes(roleCode.value);
+  }
+
   return {
     token,
     userInfo,
@@ -100,10 +118,41 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     isAuthenticated,
     displayName,
+    roleCode,
+    isSuperAdmin,
+    isAdminRole,
+    isNormalUser,
     hydrate,
+    hasRole,
     signIn,
     refreshCurrentUser,
     signOut,
     clearState
   };
 });
+
+function normalizeUserInfo(userInfo: AuthUserInfo | null): AuthUserInfo | null {
+  if (!userInfo) {
+    return null;
+  }
+
+  const roleCode = normalizeRoleCode(userInfo.roleCode, userInfo.isAdmin);
+  return {
+    ...userInfo,
+    roleCode,
+    isAdmin: roleCode !== 'user'
+  };
+}
+
+function normalizeRoleCode(roleCode: string | undefined, isAdmin: boolean): RoleCode {
+  switch (roleCode) {
+    case 'super_admin':
+      return 'super_admin';
+    case 'admin':
+      return 'admin';
+    case 'user':
+      return 'user';
+    default:
+      return isAdmin ? 'admin' : 'user';
+  }
+}

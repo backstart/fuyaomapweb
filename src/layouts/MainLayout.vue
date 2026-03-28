@@ -22,33 +22,9 @@
         :collapse-transition="false"
         router
       >
-        <el-menu-item index="/map">
-          <el-icon><Location /></el-icon>
-          <span>地图总览</span>
-        </el-menu-item>
-        <el-menu-item index="/shops">
-          <el-icon><Shop /></el-icon>
-          <span>店铺管理</span>
-        </el-menu-item>
-        <el-menu-item index="/areas">
-          <el-icon><Connection /></el-icon>
-          <span>区域管理</span>
-        </el-menu-item>
-        <el-menu-item index="/pois">
-          <el-icon><Place /></el-icon>
-          <span>POI 管理</span>
-        </el-menu-item>
-        <el-menu-item index="/places">
-          <el-icon><Guide /></el-icon>
-          <span>地名管理</span>
-        </el-menu-item>
-        <el-menu-item index="/boundaries">
-          <el-icon><DataLine /></el-icon>
-          <span>边界管理</span>
-        </el-menu-item>
-        <el-menu-item index="/imports">
-          <el-icon><UploadFilled /></el-icon>
-          <span>导入管理</span>
+        <el-menu-item v-for="item in navigationItems" :key="item.index" :index="item.index">
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
         </el-menu-item>
       </el-menu>
 
@@ -60,7 +36,7 @@
         <div class="topbar-meta">
           <div class="user-chip">
             <span>{{ authStore.displayName }}</span>
-            <small>{{ authStore.userInfo?.isAdmin ? '管理员' : '用户' }}</small>
+            <small>{{ roleLabel }}</small>
           </div>
           <el-button round @click="handleLogout">退出登录</el-button>
         </div>
@@ -76,12 +52,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Connection, DataLine, Expand, Fold, Guide, Location, Place, Shop, UploadFilled } from '@element-plus/icons-vue';
+import { CollectionTag, Connection, DataLine, Expand, Files, Fold, Guide, Location, Place, Shop, UploadFilled, UserFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/authStore';
+import { useCurrentUserRole } from '@/composables/useCurrentUserRole';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const { canManageFormalData, canManageUsers, canReviewSubmissions, isNormalUser, roleLabel } = useCurrentUserRole();
 const SIDEBAR_STORAGE_KEY = 'fuyaomap.sidebar.collapsed';
 const isSidebarCollapsed = ref(false);
 
@@ -89,6 +67,68 @@ const isSidebarCollapsed = ref(false);
 const activeMenu = computed(() => `/${route.path.split('/')[1] ?? 'map'}`);
 const isMapRoute = computed(() => activeMenu.value === '/map');
 const pageTitle = computed(() => String(route.meta.title || '地图总览'));
+const navigationItems = computed(() => [
+  {
+    index: '/map',
+    label: '地图总览',
+    icon: Location,
+    visible: true
+  },
+  {
+    index: '/my-submissions',
+    label: '我的提交',
+    icon: Files,
+    visible: isNormalUser.value
+  },
+  {
+    index: '/review-center',
+    label: '审核中心',
+    icon: CollectionTag,
+    visible: canReviewSubmissions.value
+  },
+  {
+    index: '/shops',
+    label: '店铺管理',
+    icon: Shop,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/areas',
+    label: '区域管理',
+    icon: Connection,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/pois',
+    label: 'POI 管理',
+    icon: Place,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/places',
+    label: '地名管理',
+    icon: Guide,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/boundaries',
+    label: '边界管理',
+    icon: DataLine,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/imports',
+    label: '导入管理',
+    icon: UploadFilled,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/users',
+    label: '用户管理',
+    icon: UserFilled,
+    visible: canManageUsers.value
+  }
+].filter((item) => item.visible));
 
 onMounted(() => {
   if (typeof window === 'undefined') {

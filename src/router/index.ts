@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import type { RoleCode } from '@/types/auth';
 import MainLayout from '@/layouts/MainLayout.vue';
 import MapView from '@/views/map/MapView.vue';
 import ShopListView from '@/views/shops/ShopListView.vue';
@@ -7,10 +8,14 @@ import PoiListView from '@/views/pois/PoiListView.vue';
 import PlaceListView from '@/views/places/PlaceListView.vue';
 import BoundaryListView from '@/views/boundaries/BoundaryListView.vue';
 import ImportManageView from '@/views/imports/ImportManageView.vue';
+import UserManagementView from '@/views/users/UserManagementView.vue';
+import MySubmissionsView from '@/views/submissions/MySubmissionsView.vue';
+import ReviewCenterView from '@/views/reviews/ReviewCenterView.vue';
 import LoginView from '@/views/auth/LoginView.vue';
 import NotFoundView from '@/views/error/NotFoundView.vue';
 import { pinia } from '@/stores';
 import { useAuthStore } from '@/stores/authStore';
+import { isRoleAllowed } from '@/utils/reviewWorkflow';
 
 // 路由保持简单：一个主布局承载三类业务页，未引入额外权限或嵌套路由复杂度。
 const router = createRouter({
@@ -37,7 +42,8 @@ const router = createRouter({
           name: 'shops',
           component: ShopListView,
           meta: {
-            title: '店铺管理'
+            title: '店铺管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },
         {
@@ -45,7 +51,8 @@ const router = createRouter({
           name: 'areas',
           component: AreaListView,
           meta: {
-            title: '区域管理'
+            title: '区域管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },
         {
@@ -53,7 +60,8 @@ const router = createRouter({
           name: 'pois',
           component: PoiListView,
           meta: {
-            title: 'POI 管理'
+            title: 'POI 管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },
         {
@@ -61,7 +69,8 @@ const router = createRouter({
           name: 'places',
           component: PlaceListView,
           meta: {
-            title: '地名管理'
+            title: '地名管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },
         {
@@ -69,7 +78,8 @@ const router = createRouter({
           name: 'boundaries',
           component: BoundaryListView,
           meta: {
-            title: '边界管理'
+            title: '边界管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },
         {
@@ -77,7 +87,35 @@ const router = createRouter({
           name: 'imports',
           component: ImportManageView,
           meta: {
-            title: '导入管理'
+            title: '导入管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
+          }
+        },
+        {
+          path: 'review-center',
+          name: 'review-center',
+          component: ReviewCenterView,
+          meta: {
+            title: '审核中心',
+            roles: ['admin', 'super_admin'] as RoleCode[]
+          }
+        },
+        {
+          path: 'users',
+          name: 'users',
+          component: UserManagementView,
+          meta: {
+            title: '用户管理',
+            roles: ['super_admin'] as RoleCode[]
+          }
+        },
+        {
+          path: 'my-submissions',
+          name: 'my-submissions',
+          component: MySubmissionsView,
+          meta: {
+            title: '我的提交',
+            roles: ['user'] as RoleCode[]
           }
         }
       ]
@@ -130,6 +168,13 @@ router.beforeEach(async (to) => {
     };
   }
 
+  if (authStore.isAuthenticated) {
+    const requiredRoles = to.matched.find((record) => Array.isArray(record.meta.roles))?.meta.roles as RoleCode[] | undefined;
+    if (requiredRoles && !isRoleAllowed(authStore.roleCode, requiredRoles)) {
+      return resolveAuthorizedHome(authStore.roleCode);
+    }
+  }
+
   return true;
 });
 
@@ -140,3 +185,15 @@ router.afterEach((to) => {
 });
 
 export default router;
+
+function resolveAuthorizedHome(roleCode: RoleCode): string {
+  if (roleCode === 'super_admin') {
+    return '/users';
+  }
+
+  if (roleCode === 'admin') {
+    return '/review-center';
+  }
+
+  return '/my-submissions';
+}
