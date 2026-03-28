@@ -604,6 +604,11 @@ onBeforeUnmount(() => {
 .import-page {
   display: grid;
   gap: 18px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  align-content: start;
 }
 
 .filter-card :deep(.el-card__body) {
