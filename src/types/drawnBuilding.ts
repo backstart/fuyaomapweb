@@ -46,6 +46,7 @@ export interface EditableDrawnBuildingDraft {
   lineWidth: number;
   status: number;
   remark: string;
+  publishToBasemap: boolean;
   shapeType: Exclude<BuildingDrawMode, null>;
   isDraft: boolean;
 }

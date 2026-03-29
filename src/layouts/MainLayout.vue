@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CollectionTag, Connection, DataLine, Expand, Files, Fold, Guide, Location, Place, Shop, UploadFilled, UserFilled } from '@element-plus/icons-vue';
+import { CollectionTag, Connection, DataLine, Expand, Files, Fold, Guide, Location, Place, Promotion, Sell, Shop, UploadFilled, UserFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useCurrentUserRole } from '@/composables/useCurrentUserRole';
 
@@ -120,6 +120,18 @@ const navigationItems = computed(() => [
     index: '/imports',
     label: '导入管理',
     icon: UploadFilled,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/basemap-publish',
+    label: '底图发布',
+    icon: Promotion,
+    visible: canManageFormalData.value
+  },
+  {
+    index: '/basemap-versions',
+    label: '底图版本',
+    icon: Sell,
     visible: canManageFormalData.value
   },
   {

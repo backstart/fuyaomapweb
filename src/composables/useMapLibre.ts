@@ -1,10 +1,12 @@
 import { ref, shallowRef } from 'vue';
 import type { Map, MapOptions } from 'maplibre-gl';
 import { appConfig } from '@/config/appConfig';
+import { getCurrentBasemapVersion } from '@/api/basemapApi';
 import { resolveInitialMapView, type MapViewState, ZHONGSHAN_DEFAULT_CENTER, ZHONGSHAN_DEFAULT_ZOOM } from '@/map/defaultMapView';
 import { ensureMapLibreRuntime, maplibreglRuntime } from '@/utils/maplibreRuntime';
 import { resolveMapStyle } from '@/utils/mapStyle';
 import type { MapViewportState } from '@/types/map';
+import type { BasemapVersion } from '@/types/basemap';
 
 interface InitMapOptions extends Partial<MapOptions> {
   persistedViewport?: MapViewportState | null;
@@ -27,12 +29,14 @@ export function useMapLibre() {
   let initSequence = 0;
 
   async function initMap(container: HTMLElement, options: InitMapOptions = {}): Promise<Map> {
-    const pmtilesUrl = appConfig.pmtilesUrl;
+    const basemapVersion = await resolveRuntimeBasemapVersion();
+    const pmtilesUrl = basemapVersion?.tilesUrl?.trim() || appConfig.pmtilesUrl;
+    const staticStyleUrl = basemapVersion?.styleUrl?.trim() || appConfig.mapStyleUrl;
     const { persistedViewport, ...mapOptions } = options;
     ensureMapLibreRuntime();
     const initialViewResolution = resolveInitialMapView({ persistedViewport });
     const style = await resolveMapStyle(pmtilesUrl, {
-      staticStyleUrl: appConfig.mapStyleUrl
+      staticStyleUrl
     });
     const initToken = ++initSequence;
     const initialView = initialViewResolution.initialView;
@@ -116,4 +120,12 @@ export function useMapLibre() {
     initMap,
     destroyMap
   };
+}
+
+async function resolveRuntimeBasemapVersion(): Promise<BasemapVersion | null> {
+  try {
+    return await getCurrentBasemapVersion();
+  } catch {
+    return null;
+  }
 }

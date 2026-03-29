@@ -8,6 +8,8 @@ import PoiListView from '@/views/pois/PoiListView.vue';
 import PlaceListView from '@/views/places/PlaceListView.vue';
 import BoundaryListView from '@/views/boundaries/BoundaryListView.vue';
 import ImportManageView from '@/views/imports/ImportManageView.vue';
+import BasemapPublishView from '@/views/basemap/BasemapPublishView.vue';
+import BasemapVersionsView from '@/views/basemap/BasemapVersionsView.vue';
 import UserManagementView from '@/views/users/UserManagementView.vue';
 import MySubmissionsView from '@/views/submissions/MySubmissionsView.vue';
 import ReviewCenterView from '@/views/reviews/ReviewCenterView.vue';
@@ -88,6 +90,24 @@ const router = createRouter({
           component: ImportManageView,
           meta: {
             title: '导入管理',
+            roles: ['admin', 'super_admin'] as RoleCode[]
+          }
+        },
+        {
+          path: 'basemap-publish',
+          name: 'basemap-publish',
+          component: BasemapPublishView,
+          meta: {
+            title: '底图发布',
+            roles: ['admin', 'super_admin'] as RoleCode[]
+          }
+        },
+        {
+          path: 'basemap-versions',
+          name: 'basemap-versions',
+          component: BasemapVersionsView,
+          meta: {
+            title: '底图版本',
             roles: ['admin', 'super_admin'] as RoleCode[]
           }
         },

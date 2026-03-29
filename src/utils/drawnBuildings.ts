@@ -109,6 +109,7 @@ export function createDrawnBuildingDraft(area: DrawnBuildingArea): EditableDrawn
     lineWidth: area.lineWidth,
     status: area.status,
     remark: area.remark ?? '',
+    publishToBasemap: false,
     shapeType: area.shapeType,
     isDraft: area.isDraft
   };
@@ -289,7 +290,7 @@ export function parseDrawnBuildingAreaFromFeature(feature: Feature<Geometry, Are
 }
 
 export function buildDrawnBuildingSavePayload(
-  area: Pick<EditableDrawnBuildingDraft, 'name' | 'buildingType' | 'categoryCode' | 'typeCode' | 'renderType' | 'buildingCode' | 'geometryGeoJson' | 'labelLongitude' | 'labelLatitude' | 'fillColor' | 'lineColor' | 'lineWidth' | 'status' | 'remark' | 'shapeType'>,
+  area: Pick<EditableDrawnBuildingDraft, 'name' | 'buildingType' | 'categoryCode' | 'typeCode' | 'renderType' | 'buildingCode' | 'geometryGeoJson' | 'labelLongitude' | 'labelLatitude' | 'fillColor' | 'lineColor' | 'lineWidth' | 'status' | 'remark' | 'publishToBasemap' | 'shapeType'>,
   options?: {
     sourceId?: string | null;
   }
@@ -315,7 +316,8 @@ export function buildDrawnBuildingSavePayload(
     sourceType: DRAWN_BUILDING_SOURCE_TYPE,
     sourceId: options?.sourceId?.trim() || undefined,
     status: area.status,
-    geoJson: area.geometryGeoJson
+    geoJson: area.geometryGeoJson,
+    publishToBasemap: area.publishToBasemap
   };
 }
 
@@ -341,6 +343,7 @@ export function createDrawnBuildingDraftFromSavePayload(id: string, payload: Sav
     lineWidth: style?.lineWidth ?? DEFAULT_DRAWN_BUILDING_LINE_WIDTH,
     status: payload.status,
     remark: payload.remark?.trim() || '',
+    publishToBasemap: Boolean(payload.publishToBasemap),
     shapeType: style?.shapeType === 'rectangle' ? 'rectangle' : 'polygon',
     isDraft: true
   };

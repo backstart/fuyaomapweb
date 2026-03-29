@@ -466,6 +466,13 @@
                   </el-form-item>
                 </div>
 
+                <el-form-item label="底图发布">
+                  <el-switch v-model="drawnBuildingDraft.publishToBasemap" />
+                  <p class="form-help-text">
+                    开启后，该建筑会进入底图待发布队列；只有发布生成新底图版本后，才会真正进入底图底层。
+                  </p>
+                </el-form-item>
+
                 <el-form-item label="区域形状">
                   <el-input :model-value="getDrawnBuildingShapeLabel(drawnBuildingDraft.shapeType)" disabled />
                 </el-form-item>
@@ -742,6 +749,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute, useRouter } from 'vue-router';
+import { enqueueBasemapArea } from '@/api/basemapApi';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
 import { useMapToolbar } from '@/composables/useMapToolbar';
 import { useViewportFeatures } from '@/composables/useViewportFeatures';
@@ -1867,6 +1875,8 @@ async function saveDrawnBuildingArea(): Promise<void> {
   }
 
   try {
+    const isNewArea = currentDraft.isDraft;
+    const shouldPublishToBasemap = currentDraft.publishToBasemap;
     const payload = buildDrawnBuildingSavePayload(currentDraft, {
       sourceId: currentDraft.isDraft ? String(currentDraft.id) : undefined
     });
@@ -1889,7 +1899,11 @@ async function saveDrawnBuildingArea(): Promise<void> {
       drawnBuildingStore.removeArea(currentDraft.id);
       closeDrawnBuildingEditor();
       await clearSubmissionRouteQuery();
-      ElMessage.success(submissionId ? '建筑区域已重新提交审核' : '建筑区域已提交审核');
+      ElMessage.success(
+        shouldPublishToBasemap
+          ? (submissionId ? '建筑区域已重新提交审核，审核通过后会进入底图待发布队列' : '建筑区域已提交审核，审核通过后会进入底图待发布队列')
+          : (submissionId ? '建筑区域已重新提交审核' : '建筑区域已提交审核')
+      );
       return;
     }
 
@@ -1902,6 +1916,13 @@ async function saveDrawnBuildingArea(): Promise<void> {
       throw new Error('后端返回的区域数据无法识别为建筑区域');
     }
 
+    if (shouldPublishToBasemap) {
+      await enqueueBasemapArea(savedArea.id, {
+        actionType: isNewArea ? 'create' : 'update',
+        remark: '地图工作台建筑区域编辑后加入底图待发布队列'
+      });
+    }
+
     drawnBuildingStore.replaceArea(currentDraft.id, persistedArea);
     drawnBuildingStore.selectArea(persistedArea.id);
     drawnBuildingDraft.value = createDrawnBuildingDraft(persistedArea);
@@ -1912,7 +1933,11 @@ async function saveDrawnBuildingArea(): Promise<void> {
     }
 
     closeDrawnBuildingEditor();
-    ElMessage.success(currentDraft.isDraft ? '建筑区域已保存到后端' : '建筑区域已更新');
+    ElMessage.success(
+      shouldPublishToBasemap
+        ? (isNewArea ? '建筑区域已保存，并加入底图待发布队列' : '建筑区域已更新，并加入底图待发布队列')
+        : (isNewArea ? '建筑区域已保存到后端' : '建筑区域已更新')
+    );
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '保存建筑区域失败');
   }

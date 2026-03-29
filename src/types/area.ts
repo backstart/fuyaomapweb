@@ -90,4 +90,5 @@ export interface SaveMapAreaPayload {
   sourceId?: string | null;
   status: number;
   geoJson: string;
+  publishToBasemap?: boolean;
 }

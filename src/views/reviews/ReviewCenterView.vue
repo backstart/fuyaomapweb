@@ -257,7 +257,7 @@ async function approveCurrentSubmission(): Promise<void> {
     });
     reviews.value = await getMapFeatureSubmissionReviews(currentSubmission.value.id);
     await loadSubmissions();
-    ElMessage.success('审核已通过，正式数据已落库');
+    ElMessage.success(resolveApprovalSuccessMessage(currentSubmission.value));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '审核通过失败');
   } finally {
@@ -293,6 +293,20 @@ async function rejectCurrentSubmission(): Promise<void> {
 onMounted(() => {
   void loadSubmissions();
 });
+
+function resolveApprovalSuccessMessage(submission: MapFeatureSubmission): string {
+  if (
+    submission.featureKind === 'manual_building_area' &&
+    submission.payload &&
+    typeof submission.payload === 'object' &&
+    'publishToBasemap' in submission.payload &&
+    submission.payload.publishToBasemap === true
+  ) {
+    return '审核已通过，正式数据已落库，并进入底图待发布队列';
+  }
+
+  return '审核已通过，正式数据已落库';
+}
 </script>
 
 <style scoped>
