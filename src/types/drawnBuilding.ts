@@ -1,4 +1,4 @@
-import type { FeatureCollection, Point, Polygon } from 'geojson';
+import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson';
 import type { EntityId } from '@/types/entity';
 import type { SemanticRenderProperties } from '@/types/semanticRender';
 
@@ -85,7 +85,7 @@ export interface DrawnBuildingDraftProperties {
   mode: Exclude<BuildingDrawMode, null>;
 }
 
-export type DrawnBuildingAreaFeatureCollection = FeatureCollection<Polygon, DrawnBuildingAreaProperties>;
+export type DrawnBuildingAreaFeatureCollection = FeatureCollection<Polygon | MultiPolygon, DrawnBuildingAreaProperties>;
 export type DrawnBuildingLabelFeatureCollection = FeatureCollection<Point, DrawnBuildingLabelProperties>;
 export type DrawnBuildingDraftFeatureCollection = FeatureCollection<Polygon, DrawnBuildingDraftProperties>;
 

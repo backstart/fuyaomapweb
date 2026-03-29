@@ -81,6 +81,15 @@ const DEFAULT_POLYGON_STYLE: PolygonStyleToken = {
   lineDashKey: null
 };
 
+const DEFAULT_DRAWN_BUILDING_POLYGON_STYLE: PolygonStyleToken = {
+  fillColorHint: '#9d9085',
+  fillOpacityHint: 0.28,
+  lineColorHint: '#7b6f65',
+  lineWidthHint: 1.9,
+  lineOpacityHint: 0.92,
+  lineDashKey: null
+};
+
 const DEFAULT_LINE_STYLE: LineStyleToken = {
   lineColorHint: '#5f7a96',
   lineWidthHint: 2,
@@ -492,20 +501,25 @@ export function resolveDrawnBuildingAreaRenderProperties(
     state: options?.state
   });
 
+  const fallbackPolygonToken = applyPolygonState(DEFAULT_DRAWN_BUILDING_POLYGON_STYLE, options?.state ?? 'default');
+
   return {
     ...hints,
     fillColorHint:
       area.fillColor?.trim() && area.fillColor.trim() !== 'rgba(70, 141, 247, 0.18)'
         ? area.fillColor
-        : hints.fillColorHint,
+        : fallbackPolygonToken.fillColorHint,
+    fillOpacityHint: fallbackPolygonToken.fillOpacityHint,
     lineColorHint:
       area.lineColor?.trim() && area.lineColor.trim().toLowerCase() !== '#2f7df6'
         ? area.lineColor
-        : hints.lineColorHint,
+        : fallbackPolygonToken.lineColorHint,
     lineWidthHint:
       typeof area.lineWidth === 'number' && Math.abs(area.lineWidth - 2.2) > 0.01
         ? area.lineWidth
-        : hints.lineWidthHint
+        : fallbackPolygonToken.lineWidthHint,
+    lineOpacityHint: fallbackPolygonToken.lineOpacityHint,
+    lineDashKey: fallbackPolygonToken.lineDashKey ?? hints.lineDashKey ?? null
   };
 }
 

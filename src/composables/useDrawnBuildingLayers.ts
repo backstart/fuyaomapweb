@@ -1,4 +1,4 @@
-import type { FeatureCollection, Point, Polygon } from 'geojson';
+import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import {
   resolveDrawnBuildingAreaRenderProperties,
@@ -13,7 +13,7 @@ import type {
   DrawnBuildingLabelFeatureCollection
 } from '@/types/drawnBuilding';
 import {
-  createPolygonFeature,
+  createAreaGeometryFeature,
   getDrawnBuildingLabelText
 } from '@/utils/drawnBuildings';
 import { parseGeometryGeoJson } from '@/utils/geometry';
@@ -26,6 +26,13 @@ export const DRAWN_BUILDING_LINE_LAYER_ID = 'drawn-building-line';
 export const DRAWN_BUILDING_LABEL_LAYER_ID = 'drawn-building-label';
 const DRAWN_BUILDING_DRAFT_FILL_LAYER_ID = 'drawn-building-draft-fill';
 const DRAWN_BUILDING_DRAFT_LINE_LAYER_ID = 'drawn-building-draft-line';
+
+function createEmptyAreaCollection<TProperties>(): FeatureCollection<Polygon | MultiPolygon, TProperties> {
+  return {
+    type: 'FeatureCollection',
+    features: []
+  };
+}
 
 function createEmptyPolygonCollection<TProperties>(): FeatureCollection<Polygon, TProperties> {
   return {
@@ -53,7 +60,7 @@ function ensureSource(map: MapLibreMap, sourceId: string, type: 'polygon' | 'poi
 
   map.addSource(sourceId, {
     type: 'geojson',
-    data: type === 'point' ? createEmptyPointCollection() : createEmptyPolygonCollection()
+    data: type === 'point' ? createEmptyPointCollection() : createEmptyAreaCollection()
   });
 }
 
@@ -80,14 +87,14 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
       type: 'fill',
       source: DRAWN_BUILDING_AREA_SOURCE_ID,
       paint: {
-        'fill-color': ['coalesce', ['get', 'fillColorHint'], ['get', 'fillColor'], 'rgba(70, 141, 247, 0.18)'],
+        'fill-color': ['coalesce', ['get', 'fillColorHint'], ['get', 'fillColor'], '#9d9085'],
         'fill-opacity': [
           'case',
           ['boolean', ['get', 'isEditing'], false],
-          0.28,
+          0.42,
           ['boolean', ['get', 'isSelected'], false],
-          0.22,
-          ['coalesce', ['get', 'fillOpacityHint'], 0.16]
+          0.34,
+          ['coalesce', ['get', 'fillOpacityHint'], 0.28]
         ]
       }
     });
@@ -102,16 +109,16 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': ['coalesce', ['get', 'lineColorHint'], ['get', 'lineColor'], '#2f7df6'],
+        'line-color': ['coalesce', ['get', 'lineColorHint'], ['get', 'lineColor'], '#7b6f65'],
         'line-width': [
           'case',
           ['boolean', ['get', 'isEditing'], false],
-          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2], 1.4],
+          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 1.9], 1.2],
           ['boolean', ['get', 'isSelected'], false],
-          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2], 0.8],
-          ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 2.2]
+          ['+', ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 1.9], 0.7],
+          ['coalesce', ['get', 'lineWidthHint'], ['get', 'lineWidth'], 1.9]
         ],
-        'line-opacity': ['coalesce', ['get', 'lineOpacityHint'], 0.96],
+        'line-opacity': ['coalesce', ['get', 'lineOpacityHint'], 0.92],
         'line-dasharray': buildDashArrayExpression()
       }
     });
@@ -148,8 +155,8 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
       type: 'fill',
       source: DRAWN_BUILDING_DRAFT_SOURCE_ID,
       paint: {
-        'fill-color': '#2f7df6',
-        'fill-opacity': 0.12
+        'fill-color': '#9d9085',
+        'fill-opacity': 0.24
       }
     });
   }
@@ -163,8 +170,8 @@ export function ensureDrawnBuildingLayers(map: MapLibreMap): void {
         'line-join': 'round'
       },
       paint: {
-        'line-color': '#2f7df6',
-        'line-width': 2,
+        'line-color': '#7b6f65',
+        'line-width': 1.8,
         'line-dasharray': [2, 1.5],
         'line-opacity': 0.9
       }
@@ -194,14 +201,14 @@ export function buildDrawnBuildingAreaFeatureCollection(
     features: areas
       .map((area) => {
         const geometry = parseGeometryGeoJson(area.geometryGeoJson);
-        if (!geometry || geometry.type !== 'Polygon') {
+        if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) {
           return null;
         }
 
         const state = editingAreaId === String(area.id) ? 'editing' : selectedAreaId === String(area.id) ? 'selected' : 'default';
         const hints = resolveDrawnBuildingAreaRenderProperties(schema, area, { state });
 
-        return createPolygonFeature(geometry, {
+        return createAreaGeometryFeature(geometry, {
           areaId: String(area.id),
           name: area.name,
           buildingType: area.buildingType ?? null,
@@ -286,7 +293,7 @@ export function buildDrawnBuildingDraftFeatureCollection(
   return {
     type: 'FeatureCollection',
     features: [
-      createPolygonFeature(geometry, { mode }, `${mode}-draft`)
+      createAreaGeometryFeature(geometry, { mode }, `${mode}-draft`)
     ]
   };
 }

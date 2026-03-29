@@ -1,12 +1,12 @@
-import type { Feature, Geometry, Polygon } from 'geojson';
+import type { Feature, Geometry, MultiPolygon, Polygon } from 'geojson';
 import type { AreaGeoJsonProperties, MapArea, SaveMapAreaPayload } from '@/types/area';
 import type { DrawnBuildingArea, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import { DEFAULT_DRAWN_BUILDING_TYPE_CODE } from '@/utils/mapFeatureTypes';
 import { getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
 
-export const DEFAULT_DRAWN_BUILDING_FILL = 'rgba(70, 141, 247, 0.18)';
-export const DEFAULT_DRAWN_BUILDING_LINE = '#2f7df6';
-export const DEFAULT_DRAWN_BUILDING_LINE_WIDTH = 2.2;
+export const DEFAULT_DRAWN_BUILDING_FILL = '#9d9085';
+export const DEFAULT_DRAWN_BUILDING_LINE = '#7b6f65';
+export const DEFAULT_DRAWN_BUILDING_LINE_WIDTH = 1.9;
 export const DRAWN_BUILDING_SOURCE_TYPE = 'drawn-building';
 const DRAWN_BUILDING_STYLE_SCHEMA = 'drawn-building';
 const DRAWN_BUILDING_STYLE_VERSION = 1;
@@ -128,7 +128,11 @@ export function getDrawnBuildingLabelText(area: Pick<DrawnBuildingArea, 'name' |
   return `建筑-${String(area.id).slice(-6)}`;
 }
 
-export function createPolygonFeature<TProperties>(geometry: Polygon, properties: TProperties, id?: string): Feature<Polygon, TProperties> {
+export function createAreaGeometryFeature<TGeometry extends Polygon | MultiPolygon, TProperties>(
+  geometry: TGeometry,
+  properties: TProperties,
+  id?: string
+): Feature<TGeometry, TProperties> {
   return {
     type: 'Feature',
     id,
