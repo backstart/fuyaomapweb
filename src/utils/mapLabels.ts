@@ -4,6 +4,11 @@ import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLab
 import type { MapFocusTarget } from '@/types/map';
 import { getDefaultTypeCodeForLabelFeature } from '@/utils/mapFeatureTypes';
 import { getGeometryCenter, parseGeometryGeoJson } from '@/utils/geometry';
+import {
+  DEFAULT_LABEL_HALO_COLOR,
+  DEFAULT_LABEL_TEXT_COLOR,
+  resolveLabelEditorPreset
+} from '@/utils/labelPresetRegistry';
 
 const EMPTY_ALIAS_NAMES: string[] = [];
 const CORE_MAP_TEXT_TYPE_CODES = new Set([
@@ -15,22 +20,9 @@ const CORE_MAP_TEXT_TYPE_CODES = new Set([
   'town_boundary'
 ]);
 
-export const DEFAULT_TEXT_COLOR = '#314155';
-export const DEFAULT_HALO_COLOR = 'rgba(255, 255, 255, 0.96)';
+export const DEFAULT_TEXT_COLOR = DEFAULT_LABEL_TEXT_COLOR;
+export const DEFAULT_HALO_COLOR = DEFAULT_LABEL_HALO_COLOR;
 export const DEFAULT_MANUAL_SOURCE = 'manual';
-
-const FEATURE_TYPE_DEFAULTS: Record<string, { labelType: MapLabelLayerType; minZoom: number; maxZoom: number; priority: number }> = {
-  road: { labelType: 'road', minZoom: 10, maxZoom: 24, priority: 220 },
-  building: { labelType: 'building', minZoom: 15, maxZoom: 24, priority: 240 },
-  house: { labelType: 'building', minZoom: 16, maxZoom: 24, priority: 260 },
-  courtyard: { labelType: 'building', minZoom: 16, maxZoom: 24, priority: 250 },
-  shop: { labelType: 'business', minZoom: 13, maxZoom: 24, priority: 260 },
-  poi: { labelType: 'business', minZoom: 13, maxZoom: 24, priority: 240 },
-  place: { labelType: 'business', minZoom: 11, maxZoom: 24, priority: 180 },
-  area: { labelType: 'business', minZoom: 12, maxZoom: 24, priority: 160 },
-  boundary: { labelType: 'business', minZoom: 11, maxZoom: 24, priority: 150 },
-  manual: { labelType: 'business', minZoom: 14, maxZoom: 24, priority: 200 }
-};
 
 function normalizeFeatureType(featureType: string | null | undefined): string {
   return featureType?.trim().toLowerCase() || 'manual';
@@ -61,19 +53,19 @@ export function resolvePreferredName(options: {
 }
 
 export function getDefaultLabelType(featureType: string): MapLabelLayerType {
-  return FEATURE_TYPE_DEFAULTS[normalizeFeatureType(featureType)]?.labelType ?? 'business';
+  return resolveLabelEditorPreset({ featureType }).labelType;
 }
 
 export function getDefaultMinZoom(featureType: string): number {
-  return FEATURE_TYPE_DEFAULTS[normalizeFeatureType(featureType)]?.minZoom ?? 12;
+  return resolveLabelEditorPreset({ featureType }).minZoom;
 }
 
 export function getDefaultMaxZoom(featureType: string): number {
-  return FEATURE_TYPE_DEFAULTS[normalizeFeatureType(featureType)]?.maxZoom ?? 24;
+  return resolveLabelEditorPreset({ featureType }).maxZoom;
 }
 
 export function getDefaultPriority(featureType: string): number {
-  return FEATURE_TYPE_DEFAULTS[normalizeFeatureType(featureType)]?.priority ?? 160;
+  return resolveLabelEditorPreset({ featureType }).priority;
 }
 
 export function getBusinessLabelSourceLayer(featureType: string): string | null {

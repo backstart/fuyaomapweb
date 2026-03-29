@@ -73,7 +73,7 @@
                 type="primary"
                 @click="editSelectedEntityLabel"
               >
-                补充标注
+                给对象补名称
               </el-button>
             </div>
           </div>
@@ -194,106 +194,184 @@
       </div>
 
       <div class="map-overlay map-overlay-right">
-        <div class="map-control-stack">
-          <LayerSwitcher
-            :model-value="mapStore.layerVisibility"
-            @update:model-value="mapStore.setLayerVisibility"
-          />
+        <div class="map-workbench">
+          <div class="shell-card map-toolbar-strip">
+            <button
+              type="button"
+              :class="['map-toolbar-button', { 'map-toolbar-button--active': activeToolbarPanel === 'layers' }]"
+              @click="toggleToolbarPanel('layers')"
+            >
+              <span>图层</span>
+              <small>{{ visibleLayerCount }}/5</small>
+            </button>
+            <button
+              type="button"
+              :class="['map-toolbar-button', { 'map-toolbar-button--active': activeToolbarPanel === 'filter' }]"
+              @click="toggleToolbarPanel('filter')"
+            >
+              <span>筛选</span>
+              <small v-if="mapSemanticTypeCode">已筛选</small>
+            </button>
+            <button
+              type="button"
+              :class="['map-toolbar-button', { 'map-toolbar-button--active': activeToolbarPanel === 'label' }]"
+              @click="toggleToolbarPanel('label')"
+            >
+              <span>标注</span>
+              <small v-if="labelModeTag">{{ labelModeTag }}</small>
+            </button>
+            <button
+              type="button"
+              :class="['map-toolbar-button', { 'map-toolbar-button--active': activeToolbarPanel === 'building' }]"
+              @click="toggleToolbarPanel('building')"
+            >
+              <span>建筑</span>
+              <small v-if="toolbarPanelMeta && activeToolbarPanel === 'building'">{{ toolbarPanelMeta }}</small>
+              <small v-else-if="drawnBuildingCountLabel">{{ drawnBuildingCountLabel }}</small>
+            </button>
+          </div>
 
-          <div v-if="showToolCards" class="shell-card label-tools-card map-tools-card">
+          <div v-if="showToolbarPanel" class="shell-card map-toolbar-panel">
             <div class="card-head card-head--compact">
               <div class="card-title-row">
-                <h3>地图工具</h3>
-                <span v-if="drawnBuildingCountLabel" class="card-meta">{{ drawnBuildingCountLabel }}</span>
+                <h3>{{ toolbarPanelTitle }}</h3>
+                <span v-if="toolbarPanelMeta" class="card-meta">{{ toolbarPanelMeta }}</span>
+              </div>
+              <div class="card-head-actions">
+                <el-button text size="small" @click="closeToolbarPanel">收起</el-button>
               </div>
             </div>
-            <div class="tool-group">
-              <span class="tool-group-title">语义过滤</span>
-              <el-select
-                v-model="mapSemanticTypeCode"
-                clearable
-                filterable
-                placeholder="全部语义类型"
-                class="tool-filter-select"
-              >
-                <el-option-group
-                  v-for="group in mapSemanticTypeGroups"
-                  :key="group.categoryCode"
-                  :label="group.categoryName"
+
+            <template v-if="activeToolbarPanel === 'layers'">
+              <LayerSwitcher
+                :model-value="mapStore.layerVisibility"
+                :embedded="true"
+                :show-title="false"
+                @update:model-value="mapStore.setLayerVisibility"
+              />
+              <p class="toolbar-panel-tip">
+                这里只控制数据库驱动的业务图层与名称层，底图背景会始终保留。
+              </p>
+            </template>
+
+            <template v-else-if="activeToolbarPanel === 'filter'">
+              <div class="tool-group">
+                <span class="tool-group-title">按语义类型筛选当前视口</span>
+                <el-select
+                  v-model="mapSemanticTypeCode"
+                  clearable
+                  filterable
+                  placeholder="全部语义类型"
+                  class="tool-filter-select"
                 >
-                  <el-option
-                    v-for="option in group.options"
-                    :key="option.typeCode"
-                    :label="option.typeName"
-                    :value="option.typeCode"
-                  />
-                </el-option-group>
-              </el-select>
-            </div>
-            <div class="tool-group">
-              <span class="tool-group-title">标注</span>
-              <div class="label-editor-toolbar label-editor-toolbar--compact">
-                <el-button
-                  size="small"
-                  :type="labelPickMode === 'feature' ? 'primary' : 'default'"
+                  <el-option-group
+                    v-for="group in mapSemanticTypeGroups"
+                    :key="group.categoryCode"
+                    :label="group.categoryName"
+                  >
+                    <el-option
+                      v-for="option in group.options"
+                      :key="option.typeCode"
+                      :label="option.typeName"
+                      :value="option.typeCode"
+                    />
+                  </el-option-group>
+                </el-select>
+                <p class="toolbar-panel-tip">
+                  仅影响当前地图工作台的显示，不会修改正式数据。
+                </p>
+              </div>
+            </template>
+
+            <template v-else-if="activeToolbarPanel === 'label'">
+              <div class="toolbar-mode-grid">
+                <button
+                  type="button"
+                  :class="['toolbar-mode-card', { 'toolbar-mode-card--active': labelPickMode === 'feature' }]"
                   @click="toggleFeaturePickMode"
                 >
-                  {{ labelPickMode === 'feature' ? '退出补名' : '点击对象补名' }}
-                </el-button>
-                <el-button size="small" @click="startManualLabel">手动点位</el-button>
+                  <strong>{{ labelPickMode === 'feature' ? '退出对象补名' : '给已有对象补名称' }}</strong>
+                  <span>点击道路、建筑、边界或业务对象，把现有对象载入编辑器补充名称。</span>
+                </button>
+                <button
+                  type="button"
+                  :class="['toolbar-mode-card', { 'toolbar-mode-card--active': labelPickMode === 'point' }]"
+                  @click="togglePointPickMode"
+                >
+                  <strong>{{ labelPickMode === 'point' ? '退出手动点位' : '自定义点位标注' }}</strong>
+                  <span>不依赖现有对象，在地图任意位置落点后创建一个新的名称标注。</span>
+                </button>
               </div>
-            </div>
-            <div class="tool-group">
-              <span class="tool-group-title">建筑区域</span>
-              <div class="label-editor-toolbar label-editor-toolbar--compact">
-                <el-button
-                  size="small"
-                  :type="drawnBuildingStore.drawMode === 'rectangle' ? 'primary' : 'default'"
-                  @click="startDrawBuildingArea('rectangle')"
-                >
-                  绘制矩形
-                </el-button>
-                <el-button
-                  size="small"
-                  :type="drawnBuildingStore.drawMode === 'polygon' ? 'primary' : 'default'"
-                  @click="startDrawBuildingArea('polygon')"
-                >
-                  绘制多边形
-                </el-button>
-                <el-button
-                  v-if="drawnBuildingStore.drawMode"
-                  size="small"
-                  @click="cancelDrawBuildingArea"
-                >
-                  取消绘制
-                </el-button>
-                <el-button
-                  v-if="drawnBuildingStore.areas.length"
-                  size="small"
-                  @click="toggleDrawnBuildingListPanel"
-                >
-                  {{ showDrawnBuildingListPanel ? '收起列表' : '建筑列表' }}
+
+              <div class="toolbar-status-card">
+                <strong>{{ labelModeSummaryTitle }}</strong>
+                <p>{{ labelModeSummaryText }}</p>
+              </div>
+
+              <div v-if="mapStore.selectedEntity && mapStore.selectedEntity.entityType !== 'label'" class="tool-group-selection tool-group-selection--toolbar">
+                <strong>{{ mapStore.selectedEntity.name }}</strong>
+                <span>{{ getFocusTargetSubtitle(mapStore.selectedEntity) }}</span>
+                <el-button size="small" type="primary" @click="editSelectedEntityLabel">
+                  给当前对象补名称
                 </el-button>
               </div>
-            </div>
-            <div v-if="selectedDrawnBuildingArea" class="tool-group">
-              <span class="tool-group-title">编辑入口</span>
-              <div class="tool-group-selection">
-                <strong>{{ selectedDrawnBuildingArea.name }}</strong>
-                <span>{{ getDrawnBuildingItemSubtitle(selectedDrawnBuildingArea) }}</span>
+            </template>
+
+            <template v-else-if="activeToolbarPanel === 'building'">
+              <div class="tool-group">
+                <span class="tool-group-title">绘制建筑区域</span>
+                <div class="label-editor-toolbar label-editor-toolbar--compact">
+                  <el-button
+                    size="small"
+                    :type="drawnBuildingStore.drawMode === 'rectangle' ? 'primary' : 'default'"
+                    @click="startDrawBuildingArea('rectangle')"
+                  >
+                    绘制矩形区域
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :type="drawnBuildingStore.drawMode === 'polygon' ? 'primary' : 'default'"
+                    @click="startDrawBuildingArea('polygon')"
+                  >
+                    绘制多边形区域
+                  </el-button>
+                  <el-button
+                    v-if="drawnBuildingStore.drawMode"
+                    size="small"
+                    @click="cancelDrawBuildingArea"
+                  >
+                    取消绘制
+                  </el-button>
+                  <el-button
+                    v-if="drawnBuildingStore.areas.length"
+                    size="small"
+                    @click="toggleDrawnBuildingListPanel"
+                  >
+                    {{ showDrawnBuildingListPanel ? '收起建筑列表' : '查看建筑列表' }}
+                  </el-button>
+                </div>
               </div>
-              <div class="label-editor-toolbar label-editor-toolbar--compact">
-                <el-button size="small" type="primary" @click="editSelectedDrawnBuilding">
-                  编辑已选建筑
-                </el-button>
-                <el-button size="small" @click="clearDrawnBuildingSelection">
-                  取消选中
-                </el-button>
+
+              <div v-if="selectedDrawnBuildingArea" class="tool-group">
+                <span class="tool-group-title">当前选中建筑</span>
+                <div class="tool-group-selection tool-group-selection--toolbar">
+                  <strong>{{ selectedDrawnBuildingArea.name }}</strong>
+                  <span>{{ getDrawnBuildingItemSubtitle(selectedDrawnBuildingArea) }}</span>
+                  <div class="label-editor-toolbar label-editor-toolbar--compact">
+                    <el-button size="small" type="primary" @click="editSelectedDrawnBuilding">
+                      进入建筑编辑
+                    </el-button>
+                    <el-button size="small" @click="clearDrawnBuildingSelection">
+                      取消选中
+                    </el-button>
+                  </div>
+                </div>
               </div>
-            </div>
-            <p class="label-editor-tip label-editor-tip--compact">
-              {{ drawnBuildingEditorTip }}
-            </p>
+
+              <p class="toolbar-panel-tip">
+                {{ drawnBuildingEditorTip }}
+              </p>
+            </template>
           </div>
         </div>
 
@@ -422,153 +500,226 @@
         <div v-if="showLabelEditorPanel" class="shell-card label-editor-card label-editor-card--drawer">
           <div class="card-head">
             <div class="card-title-row">
-              <h3>标注编辑</h3>
+              <h3>名称标注</h3>
               <span v-if="labelContextBadge" class="card-meta">{{ labelContextBadge }}</span>
             </div>
             <div class="card-head-actions">
-              <el-button text size="small" @click="startManualLabel">手动点位</el-button>
               <el-button text size="small" @click="closeLabelEditor">收起</el-button>
             </div>
           </div>
 
           <el-scrollbar class="editor-scrollbar">
             <div class="label-editor-body">
-              <div class="label-editor-toolbar">
-                <el-button
-                  size="small"
-                  :type="labelPickMode === 'feature' ? 'primary' : 'default'"
-                  @click="toggleFeaturePickMode"
-                >
-                  {{ labelPickMode === 'feature' ? '退出补名模式' : '点击对象补名' }}
-                </el-button>
-                <el-button
-                  size="small"
-                  :type="labelPickMode === 'point' ? 'primary' : 'default'"
-                  @click="togglePointPickMode"
-                >
-                  {{ labelPickMode === 'point' ? '等待地图落点' : '拾取标注点' }}
-                </el-button>
-                <el-button size="small" @click="resetLabelDraft" :disabled="!canResetLabelDraft">
-                  重置
-                </el-button>
-              </div>
+              <section class="editor-section">
+                <div class="editor-section-head">
+                  <div>
+                    <span class="editor-section-eyebrow">模式入口</span>
+                    <h4>选择标注方式</h4>
+                  </div>
+                  <span v-if="labelModeTag" class="editor-section-meta">{{ labelModeTag }}</span>
+                </div>
+                <div class="toolbar-mode-grid toolbar-mode-grid--editor">
+                  <button
+                    type="button"
+                    :class="['toolbar-mode-card', { 'toolbar-mode-card--active': labelPickMode === 'feature' }]"
+                    @click="toggleFeaturePickMode"
+                  >
+                    <strong>{{ labelPickMode === 'feature' ? '退出对象补名' : '给已有对象补名称' }}</strong>
+                    <span>选中道路、建筑、区域或业务对象，为已有对象补充名称。</span>
+                  </button>
+                  <button
+                    type="button"
+                    :class="['toolbar-mode-card', { 'toolbar-mode-card--active': labelPickMode === 'point' }]"
+                    @click="togglePointPickMode"
+                  >
+                    <strong>{{ labelPickMode === 'point' ? '退出手动点位' : '自定义点位标注' }}</strong>
+                    <span>不依赖现有对象，在地图任意位置创建自定义点位名称。</span>
+                  </button>
+                </div>
+                <p class="section-help-text">
+                  {{ labelModeSummaryText }}
+                </p>
+              </section>
 
-              <p class="label-editor-tip">
-                {{ labelEditorTip }}
-              </p>
-
-              <div v-if="labelEditorContext" class="label-context-summary">
-                <strong>{{ labelContextTitle }}</strong>
-                <p>{{ labelContextSubtitle }}</p>
-              </div>
+              <section v-if="labelEditorContext" class="editor-section">
+                <div class="editor-section-head">
+                  <div>
+                    <span class="editor-section-eyebrow">当前对象</span>
+                    <h4>这条名称正在标注谁</h4>
+                  </div>
+                </div>
+                <div class="label-context-summary label-context-summary--rich">
+                  <strong>{{ labelContextTitle }}</strong>
+                  <p>{{ labelContextSubtitle }}</p>
+                  <div class="context-chip-row">
+                    <span class="context-chip">{{ getLabelFeatureTypeLabel(labelEditorContext.featureType) }}</span>
+                    <span class="context-chip">{{ labelContextSourceLabel }}</span>
+                    <span v-if="labelDraft?.typeName" class="context-chip">{{ labelDraft.typeName }}</span>
+                  </div>
+                  <p v-if="labelContextOriginalName" class="label-context-note">
+                    原始名称：{{ labelContextOriginalName }}
+                  </p>
+                </div>
+              </section>
 
               <el-form v-if="labelDraft" label-position="top" class="label-editor-form" @submit.prevent>
-                <el-form-item label="显示名称" required>
-                  <el-input v-model="labelDraft.displayName" placeholder="请输入地图显示名称" />
-                </el-form-item>
+                <section class="editor-section">
+                  <div class="editor-section-head">
+                    <div>
+                      <span class="editor-section-eyebrow">基础信息</span>
+                      <h4>名称内容</h4>
+                    </div>
+                  </div>
 
-                <el-form-item label="语义类型">
-                  <el-select
-                    :model-value="labelDraft.typeCode"
-                    placeholder="选择地图语义类型"
-                    filterable
-                    clearable
-                    @update:model-value="handleLabelSemanticTypeChange"
-                  >
-                    <el-option-group
-                      v-for="group in labelSemanticTypeGroups"
-                      :key="group.categoryCode"
-                      :label="group.categoryName"
+                  <el-form-item label="地图显示名称" required>
+                    <el-input v-model="labelDraft.displayName" placeholder="请输入地图上显示的名称" />
+                  </el-form-item>
+
+                  <el-form-item label="名称归类">
+                    <el-select
+                      :model-value="labelDraft.typeCode"
+                      placeholder="选择这条名称属于哪一类"
+                      filterable
+                      clearable
+                      @update:model-value="handleLabelSemanticTypeChange"
                     >
-                      <el-option
-                        v-for="option in group.options"
-                        :key="option.typeCode"
-                        :label="option.typeName"
-                        :value="option.typeCode"
-                      />
-                    </el-option-group>
-                  </el-select>
-                </el-form-item>
-
-                <el-form-item label="别名">
-                  <el-input
-                    v-model="labelAliasInput"
-                    type="textarea"
-                    :autosize="{ minRows: 2, maxRows: 4 }"
-                    placeholder="多个别名用逗号、顿号或换行分隔"
-                  />
-                </el-form-item>
-
-                <div class="label-form-grid">
-                  <el-form-item label="要素类型">
-                    <el-select v-model="labelDraft.featureType">
-                      <el-option v-for="option in labelFeatureTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                      <el-option-group
+                        v-for="group in labelSemanticTypeGroups"
+                        :key="group.categoryCode"
+                        :label="group.categoryName"
+                      >
+                        <el-option
+                          v-for="option in group.options"
+                          :key="option.typeCode"
+                          :label="option.typeName"
+                          :value="option.typeCode"
+                        />
+                      </el-option-group>
                     </el-select>
                   </el-form-item>
-                  <el-form-item label="标注类型">
-                    <el-select v-model="labelDraft.labelType">
-                      <el-option v-for="option in labelTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
-                    </el-select>
-                  </el-form-item>
-                </div>
 
-                <div class="label-form-grid">
-                  <el-form-item label="经度">
-                    <el-input-number v-model="labelDraft.pointLongitude" :step="0.0001" :precision="6" :min="-180" :max="180" controls-position="right" />
-                  </el-form-item>
-                  <el-form-item label="纬度">
-                    <el-input-number v-model="labelDraft.pointLatitude" :step="0.0001" :precision="6" :min="-90" :max="90" controls-position="right" />
-                  </el-form-item>
-                </div>
+                  <p class="section-help-text">
+                    选择“这条名称属于哪一类”。系统会按归类自动带出推荐的显示层级、优先级和文字样式。
+                  </p>
 
-                <div class="label-form-grid">
-                  <el-form-item label="最小缩放">
-                    <el-input-number v-model="labelDraft.minZoom" :min="0" :max="24" controls-position="right" />
+                  <el-form-item label="别名">
+                    <el-input
+                      v-model="labelAliasInput"
+                      type="textarea"
+                      :autosize="{ minRows: 2, maxRows: 4 }"
+                      placeholder="多个别名用逗号、顿号或换行分隔"
+                    />
                   </el-form-item>
-                  <el-form-item label="最大缩放">
-                    <el-input-number v-model="labelDraft.maxZoom" :min="0" :max="24" controls-position="right" />
-                  </el-form-item>
-                </div>
+                </section>
 
-                <div class="label-form-grid">
-                  <el-form-item label="优先级">
-                    <el-input-number v-model="labelDraft.priority" :min="0" :max="100000" controls-position="right" />
-                  </el-form-item>
-                  <el-form-item label="启用状态">
-                    <el-switch v-model="labelDraft.status" :active-value="1" :inactive-value="0" />
-                  </el-form-item>
-                </div>
+                <section class="editor-section">
+                  <div class="editor-section-head">
+                    <div>
+                      <span class="editor-section-eyebrow">显示策略</span>
+                      <h4>对象、用途与显示层级</h4>
+                    </div>
+                  </div>
 
-                <div class="label-form-grid">
-                  <el-form-item label="文字颜色">
-                    <el-input v-model="labelDraft.textColor" placeholder="#314155" />
+                  <div class="label-form-grid">
+                    <el-form-item label="标注对象">
+                      <el-select v-model="labelDraft.featureType">
+                        <el-option v-for="option in labelFeatureTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item label="显示用途">
+                      <el-select v-model="labelDraft.labelType">
+                        <el-option v-for="option in labelTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+                      </el-select>
+                    </el-form-item>
+                  </div>
+
+                  <p class="field-pair-help">
+                    “标注对象”表示这条名称属于谁；“显示用途”表示地图按通用名称、道路名称还是建筑名称的规则来显示。
+                  </p>
+
+                  <div class="label-help-grid">
+                    <div class="field-help-card">
+                      <strong>{{ labelObjectOption?.label || getLabelFeatureTypeLabel(labelDraft.featureType) }}</strong>
+                      <p>{{ labelObjectOption?.description || getLabelFeatureTypeDescription(labelDraft.featureType) }}</p>
+                    </div>
+                    <div class="field-help-card">
+                      <strong>{{ labelPurposeOption?.label || getLabelPurposeLabel(labelDraft.labelType) }}</strong>
+                      <p>{{ labelPurposeOption?.description || getLabelPurposeDescription(labelDraft.labelType) }}</p>
+                    </div>
+                  </div>
+
+                  <div class="label-form-grid">
+                    <el-form-item label="经度">
+                      <el-input-number v-model="labelDraft.pointLongitude" :step="0.0001" :precision="6" :min="-180" :max="180" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item label="纬度">
+                      <el-input-number v-model="labelDraft.pointLatitude" :step="0.0001" :precision="6" :min="-90" :max="90" controls-position="right" />
+                    </el-form-item>
+                  </div>
+
+                  <div class="strategy-summary">
+                    <strong>推荐显示策略</strong>
+                    <span>{{ labelEditorTip }}</span>
+                  </div>
+
+                  <div class="label-form-grid">
+                    <el-form-item label="最小缩放">
+                      <el-input-number v-model="labelDraft.minZoom" :min="0" :max="24" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item label="最大缩放">
+                      <el-input-number v-model="labelDraft.maxZoom" :min="0" :max="24" controls-position="right" />
+                    </el-form-item>
+                  </div>
+
+                  <div class="label-form-grid">
+                    <el-form-item label="优先级">
+                      <el-input-number v-model="labelDraft.priority" :min="0" :max="100000" controls-position="right" />
+                    </el-form-item>
+                    <el-form-item label="启用状态">
+                      <el-switch v-model="labelDraft.status" :active-value="1" :inactive-value="0" />
+                    </el-form-item>
+                  </div>
+
+                  <div class="label-form-grid">
+                    <el-form-item label="文字颜色">
+                      <el-input v-model="labelDraft.textColor" placeholder="#314155" />
+                    </el-form-item>
+                    <el-form-item label="描边颜色">
+                      <el-input v-model="labelDraft.haloColor" placeholder="rgba(255,255,255,0.96)" />
+                    </el-form-item>
+                  </div>
+                </section>
+
+                <section class="editor-section">
+                  <div class="editor-section-head">
+                    <div>
+                      <span class="editor-section-eyebrow">来源与备注</span>
+                      <h4>原始信息</h4>
+                    </div>
+                  </div>
+
+                  <el-form-item label="原始名称">
+                    <el-input :model-value="labelDraft.originalName || '-'" disabled />
                   </el-form-item>
-                  <el-form-item label="描边颜色">
-                    <el-input v-model="labelDraft.haloColor" placeholder="rgba(255,255,255,0.96)" />
+
+                  <el-form-item label="来源标识">
+                    <el-input :model-value="labelSourceSummary" disabled />
                   </el-form-item>
-                </div>
 
-                <el-form-item label="原始名称">
-                  <el-input :model-value="labelDraft.originalName || '-'" disabled />
-                </el-form-item>
-
-                <el-form-item label="来源标识">
-                  <el-input :model-value="labelSourceSummary" disabled />
-                </el-form-item>
-
-                <el-form-item label="备注">
-                  <el-input
-                    v-model="labelDraft.remark"
-                    type="textarea"
-                    :autosize="{ minRows: 2, maxRows: 4 }"
-                    placeholder="可填写标注说明或纠偏原因"
-                  />
-                </el-form-item>
+                  <el-form-item label="备注">
+                    <el-input
+                      v-model="labelDraft.remark"
+                      type="textarea"
+                      :autosize="{ minRows: 2, maxRows: 4 }"
+                      placeholder="可填写名称来源、纠偏原因或补充说明"
+                    />
+                  </el-form-item>
+                </section>
 
               </el-form>
 
               <p v-else class="label-editor-empty-tip">
-                点击业务对象、道路、建筑或已有人工标注后即可进入编辑。
+                从右上角“标注”里选择一种方式，或先选中一个地图对象，再开始编辑名称标注。
               </p>
             </div>
           </el-scrollbar>
@@ -577,7 +728,7 @@
               {{ labelSaveButtonText }}
             </el-button>
             <el-button :loading="labelLookupLoading" :disabled="!canResetLabelDraft" @click="reloadCurrentLabel">
-              重新加载
+              {{ labelReloadButtonText }}
             </el-button>
           </div>
         </div>
@@ -592,6 +743,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useRoute, useRouter } from 'vue-router';
 import { createMapArea, deleteMapArea, getMapAreaById, getMapAreasGeoJson, updateMapArea } from '@/api/mapAreaApi';
+import { useMapToolbar } from '@/composables/useMapToolbar';
 import { useViewportFeatures } from '@/composables/useViewportFeatures';
 import { createMapLabel, getMapLabelDetail, queryMapLabels, updateMapLabel } from '@/api/mapLabelApi';
 import { createMapFeatureSubmission, getMapFeatureSubmission, updateMapFeatureSubmission } from '@/api/submissionApi';
@@ -622,7 +774,7 @@ import { useShopStore } from '@/stores/shopStore';
 import type { BuildingDrawMode, DrawnBuildingArea, DrawnBuildingCompletePayload, EditableDrawnBuildingDraft } from '@/types/drawnBuilding';
 import type { EntityId } from '@/types/entity';
 import type { MapFeatureTypeDefinition } from '@/types/mapFeatureType';
-import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelFeatureType, MapLabelLayerType, MapLabelPickMode, SaveMapLabelPayload } from '@/types/mapLabel';
+import type { BasemapInspectableFeature, EditableMapLabelContext, EditableMapLabelDraft, MapLabel, MapLabelPickMode, SaveMapLabelPayload } from '@/types/mapLabel';
 import type { EntityType, LayerVisibility, MapFocusTarget, MapSearchItem, MapViewportState } from '@/types/map';
 import type { AreaFeatureCollection, SaveMapAreaPayload } from '@/types/area';
 import type { BoundaryFeatureCollection } from '@/types/boundary';
@@ -648,7 +800,6 @@ import {
   DEFAULT_DRAWN_BUILDING_TYPE_CODE,
   findFeatureTypeDefinition,
   getDefaultTypeCodeForLabelFeature,
-  getLabelLayerTypeFromRenderType,
   groupFeatureTypes
 } from '@/utils/mapFeatureTypes';
 import {
@@ -670,6 +821,16 @@ import {
   parseAliasNamesInput,
   sanitizeMapLabelPayload
 } from '@/utils/mapLabels';
+import {
+  applyLabelEditorPreset,
+  getLabelFeatureTypeDescription,
+  getLabelFeatureTypeLabel,
+  getLabelFeatureTypeOptions,
+  getLabelPurposeDescription,
+  getLabelPurposeLabel,
+  getLabelPurposeOptions,
+  resolveLabelEditorPreset
+} from '@/utils/labelPresetRegistry';
 import { canEditSubmission } from '@/utils/reviewWorkflow';
 import {
   filterDrawnBuildingAreasBySemanticType,
@@ -699,29 +860,18 @@ const MAP_LAYER_TO_VIEWPORT_FEATURE_TYPE: Record<LayerKey, string> = {
 };
 const MAP_SEARCH_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label'] as const;
 const MAP_FILTER_SOURCE_TYPES = ['shop', 'area', 'poi', 'place', 'boundary', 'label', DRAWN_BUILDING_SOURCE_TYPE] as const;
-const LABEL_FEATURE_TYPE_OPTIONS: Array<{ value: MapLabelFeatureType; label: string }> = [
-  { value: 'shop', label: '店铺' },
-  { value: 'poi', label: 'POI' },
-  { value: 'place', label: '地名/聚落' },
-  { value: 'area', label: '区域' },
-  { value: 'boundary', label: '边界' },
-  { value: 'road', label: '道路/街巷' },
-  { value: 'building', label: '建筑' },
-  { value: 'house', label: '房屋' },
-  { value: 'courtyard', label: '院落' },
-  { value: 'manual', label: '手动点位' }
-];
-const LABEL_TYPE_OPTIONS: Array<{ value: MapLabelLayerType; label: string }> = [
-  { value: 'business', label: '业务标注' },
-  { value: 'road', label: '道路标注' },
-  { value: 'building', label: '建筑标注' }
-];
 
 type LayerKey = keyof LayerVisibility;
 
 const route = useRoute();
 const router = useRouter();
 const { canManageFormalData, mustUseSubmissionWorkflow } = useCurrentUserRole();
+const {
+  activePanel: activeToolbarPanel,
+  isPanelOpen: showToolbarPanel,
+  togglePanel: toggleToolbarPanel,
+  closePanel: closeToolbarPanel
+} = useMapToolbar();
 const mapStore = useMapStore();
 const drawnBuildingStore = useDrawnBuildingStore();
 const shopStore = useShopStore();
@@ -752,6 +902,7 @@ const editingLabelId = ref<EntityId | null>(null);
 const editingLabelSubmissionId = ref<string | null>(null);
 const editingDrawnBuildingSubmissionId = ref<string | null>(null);
 const labelAliasInput = ref('');
+const lastAppliedLabelPreset = ref<ReturnType<typeof resolveLabelEditorPreset> | null>(null);
 const labelContextRequestId = ref(0);
 const refreshTimer = ref<number | null>(null);
 const pendingViewport = ref<MapViewportState | null>(null);
@@ -780,8 +931,8 @@ const mapSemanticTypeGroups = computed(() =>
     (item) => item.sourceTypes.some((sourceType) => MAP_FILTER_SOURCE_TYPES.includes(sourceType as typeof MAP_FILTER_SOURCE_TYPES[number]))
   )
 );
-const labelFeatureTypeOptions = LABEL_FEATURE_TYPE_OPTIONS;
-const labelTypeOptions = LABEL_TYPE_OPTIONS;
+const labelFeatureTypeOptions = getLabelFeatureTypeOptions();
+const labelTypeOptions = getLabelPurposeOptions();
 const labelSemanticTypeGroups = computed(() =>
   groupFeatureTypes(mapFeatureSchema.value, (item) => item.sourceTypes.includes('label'))
 );
@@ -901,14 +1052,22 @@ const labelContextBadge = computed(() => {
   }
 
   if (labelLookupLoading.value) {
-    return '正在加载标注';
+    return '正在加载';
   }
 
   if (editingLabelSubmissionId.value) {
     return '待审标注';
   }
 
-  return labelDraft.value?.id ? '已存在人工标注' : '';
+  if (labelDraft.value?.id) {
+    return '正式标注';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'manual') {
+    return '自定义点位';
+  }
+
+  return '';
 });
 const drawnBuildingCountLabel = computed(() =>
   drawnBuildingStore.areas.length ? `已绘制 ${drawnBuildingStore.areas.length} 个` : ''
@@ -923,12 +1082,116 @@ const showLabelEditorPanel = computed(() =>
   Boolean(labelDraft.value || labelEditorContext.value || labelLookupLoading.value || labelSaving.value || labelPickMode.value)
 );
 const showDrawnBuildingEditorPanel = computed(() => Boolean(drawnBuildingDraft.value));
-const showToolCards = computed(() => !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
 const showInspectorPanel = computed(() => Boolean(mapStore.selectedEntity) && !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value);
 const showSelectedDrawnBuildingPanel = computed(() =>
   Boolean(selectedDrawnBuildingArea.value) && !showLabelEditorPanel.value && !showDrawnBuildingEditorPanel.value
 );
 const canResetLabelDraft = computed(() => Boolean(labelDraft.value || labelEditorContext.value || editingLabelId.value !== null));
+const labelObjectOption = computed(() =>
+  labelFeatureTypeOptions.find((option) => option.value === labelDraft.value?.featureType) ?? null
+);
+const labelPurposeOption = computed(() =>
+  labelTypeOptions.find((option) => option.value === labelDraft.value?.labelType) ?? null
+);
+const labelRecommendedPreset = computed(() => {
+  if (!labelDraft.value) {
+    return null;
+  }
+
+  return resolveLabelEditorPreset({
+    featureType: labelDraft.value.featureType,
+    typeCode: labelDraft.value.typeCode,
+    definition: getFeatureTypeDefinition(labelDraft.value.typeCode)
+  });
+});
+const visibleLayerCount = computed(() =>
+  Object.values(mapStore.layerVisibility).filter(Boolean).length
+);
+const isLabelStrategyCustomized = computed(() => {
+  if (!labelDraft.value || !labelRecommendedPreset.value) {
+    return false;
+  }
+
+  return labelDraft.value.labelType !== labelRecommendedPreset.value.labelType ||
+    labelDraft.value.minZoom !== labelRecommendedPreset.value.minZoom ||
+    labelDraft.value.maxZoom !== labelRecommendedPreset.value.maxZoom ||
+    labelDraft.value.priority !== labelRecommendedPreset.value.priority ||
+    (labelDraft.value.textColor || DEFAULT_TEXT_COLOR) !== labelRecommendedPreset.value.textColor ||
+    (labelDraft.value.haloColor || DEFAULT_HALO_COLOR) !== labelRecommendedPreset.value.haloColor;
+});
+const toolbarPanelTitle = computed(() => {
+  switch (activeToolbarPanel.value) {
+    case 'layers':
+      return '图层';
+    case 'filter':
+      return '筛选';
+    case 'label':
+      return '标注';
+    case 'building':
+      return '建筑区域';
+    default:
+      return '';
+  }
+});
+const toolbarPanelMeta = computed(() => {
+  switch (activeToolbarPanel.value) {
+    case 'layers':
+      return `${visibleLayerCount.value}/5 已显示`;
+    case 'filter':
+      return mapSemanticTypeCode.value
+        ? getFeatureTypeDefinition(mapSemanticTypeCode.value)?.typeName || '已应用筛选'
+        : '全部语义类型';
+    case 'label':
+      if (labelPickMode.value === 'feature') {
+        return '对象补名中';
+      }
+
+      if (labelPickMode.value === 'point') {
+        return '点位选择中';
+      }
+
+      if (showLabelEditorPanel.value) {
+        return '正在编辑';
+      }
+
+      return '';
+    case 'building':
+      if (drawnBuildingStore.drawMode === 'rectangle') {
+        return '矩形绘制中';
+      }
+
+      if (drawnBuildingStore.drawMode === 'polygon') {
+        return '多边形绘制中';
+      }
+
+      return drawnBuildingCountLabel.value;
+    default:
+      return '';
+  }
+});
+const labelModeTag = computed(() => {
+  if (labelPickMode.value === 'feature') {
+    return '对象补名模式';
+  }
+
+  if (labelPickMode.value === 'point') {
+    return '自定义点位模式';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'manual') {
+    return '自定义点位';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'basemap') {
+    return '地图对象补名';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'business') {
+    return '业务对象补名';
+  }
+
+  return '';
+});
 const labelContextTitle = computed(() => {
   if (!labelEditorContext.value) {
     return '';
@@ -936,16 +1199,34 @@ const labelContextTitle = computed(() => {
 
   return labelDraft.value?.displayName?.trim() || labelEditorContext.value.suggestedDisplayName || '未命名标注';
 });
+const labelContextSourceLabel = computed(() => {
+  if (!labelEditorContext.value) {
+    return '';
+  }
+
+  switch (labelEditorContext.value.sourceKind) {
+    case 'basemap':
+      return '地图已有对象';
+    case 'business':
+      return '数据库对象';
+    case 'manual':
+      return '自定义点位';
+    default:
+      return '标注对象';
+  }
+});
+const labelContextOriginalName = computed(() => labelEditorContext.value?.originalName?.trim() || '');
 const labelContextSubtitle = computed(() => {
   if (!labelEditorContext.value) {
     return '';
   }
 
   const parts = [
-    `类型：${labelEditorContext.value.featureType}`,
-    labelEditorContext.value.sourceLayer ? `图层：${labelEditorContext.value.sourceLayer}` : '',
-    labelEditorContext.value.sourceFeatureId ? `来源ID：${labelEditorContext.value.sourceFeatureId}` : '',
-    labelEditorContext.value.originalName ? `原名：${labelEditorContext.value.originalName}` : ''
+    `来源：${labelContextSourceLabel.value}`,
+    `标注对象：${getLabelFeatureTypeLabel(labelEditorContext.value.featureType)}`,
+    labelDraft.value?.labelType ? `显示用途：${getLabelPurposeLabel(labelDraft.value.labelType)}` : '',
+    labelEditorContext.value.sourceLayer ? `来源图层：${labelEditorContext.value.sourceLayer}` : '',
+    labelEditorContext.value.sourceFeatureId ? `来源ID：${labelEditorContext.value.sourceFeatureId}` : ''
   ].filter(Boolean);
 
   return parts.join(' · ');
@@ -957,35 +1238,76 @@ const labelSourceSummary = computed(() => {
 
   return [labelDraft.value.featureType, labelDraft.value.sourceLayer || '-', labelDraft.value.sourceFeatureId || '-'].join(' / ');
 });
-const labelEditorTip = computed(() => {
+const labelModeSummaryTitle = computed(() => {
   if (labelPickMode.value === 'feature') {
-    return '补名模式已开启：点击道路、建筑、院落或业务对象即可把当前对象载入编辑器。';
+    return '给已有对象补名称';
   }
 
   if (labelPickMode.value === 'point') {
-    return '正在等待地图点击：下一次点击会把标注点移动到新位置。';
+    return '自定义点位标注';
   }
 
   if (labelEditorContext.value?.sourceKind === 'basemap') {
-    return '当前正在编辑底图要素标注。没有稳定 sourceFeatureId 的道路/建筑也可以保存为人工点位标注。';
+    return '当前正在编辑地图已有对象';
   }
 
   if (labelEditorContext.value?.sourceKind === 'business') {
-    return '当前正在编辑业务对象标注。保存后人工 display_name 会优先于业务名称显示。';
+    return '当前正在编辑数据库对象';
   }
 
   if (mustUseSubmissionWorkflow.value) {
-    return '普通用户提交的标注会先进入待审核区，管理员审核通过后才会进入正式标注表并参与地图显示。';
+    return '提交后进入审核流程';
   }
 
-  return '点击业务对象、进入补名模式点击底图要素，或新建手动点位后即可开始编辑。';
+  return '选择一种标注方式';
+});
+const labelModeSummaryText = computed(() => {
+  if (labelPickMode.value === 'feature') {
+    return '下一次点击道路、建筑、边界、区域或业务对象时，会把该对象载入编辑面板，用于补充名称或修正名称。';
+  }
+
+  if (labelPickMode.value === 'point') {
+    return '下一次点击地图时，会更新当前标注的位置。适合没有现成对象、只需要在地图上自定义点位名称的场景。';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'basemap') {
+    return '当前对象来自地图底层要素。适合给道路、建筑、水系等已有对象补充名称；如果没有稳定来源，也可以保存成自定义点位标注。';
+  }
+
+  if (labelEditorContext.value?.sourceKind === 'business') {
+    return '当前对象来自数据库业务要素。保存后，人工填写的地图显示名称会优先于原始业务名称参与地图渲染。';
+  }
+
+  if (mustUseSubmissionWorkflow.value) {
+    return '普通用户提交的标注会先进入待审核区；管理员审核通过后，名称才会进入正式标注表并参与地图显示。';
+  }
+
+  return '你可以给已有对象补名称，也可以在地图任意位置创建自定义点位标注。';
+});
+const labelEditorTip = computed(() => {
+  if (!labelRecommendedPreset.value) {
+    return labelModeSummaryText.value;
+  }
+
+  if (isLabelStrategyCustomized.value) {
+    return `当前已保留手动调整。推荐显示为 ${labelRecommendedPreset.value.minZoom}-${labelRecommendedPreset.value.maxZoom} 级，优先级 ${labelRecommendedPreset.value.priority}；切换名称归类时，只有仍使用推荐值的字段才会自动更新。`;
+  }
+
+  return `当前会按推荐策略显示：${labelRecommendedPreset.value.minZoom}-${labelRecommendedPreset.value.maxZoom} 级可见，优先级 ${labelRecommendedPreset.value.priority}。如有需要，你仍可手动微调。`;
 });
 const labelSaveButtonText = computed(() => {
   if (mustUseSubmissionWorkflow.value) {
     return editingLabelSubmissionId.value ? '重新提交审核' : '提交审核';
   }
 
-  return labelDraft.value?.id ? '更新标注' : '保存标注';
+  return labelDraft.value?.id ? '更新名称标注' : '保存名称标注';
+});
+const labelReloadButtonText = computed(() => {
+  if (editingLabelSubmissionId.value || editingLabelId.value !== null) {
+    return '重新加载';
+  }
+
+  return '恢复初始值';
 });
 const drawnBuildingEditorBadge = computed(() => {
   if (!drawnBuildingDraft.value) {
@@ -1183,8 +1505,14 @@ function applyLabelSemanticType(typeCode: string | null | undefined, options?: {
   }
 
   const definition = getFeatureTypeDefinition(typeCode);
+  const recommendedPreset = resolveLabelEditorPreset({
+    featureType: labelDraft.value.featureType,
+    typeCode: typeCode || null,
+    definition
+  });
+
   if (!definition) {
-    labelDraft.value = {
+    const nextDraft = {
       ...labelDraft.value,
       typeCode: typeCode || null,
       categoryCode: null,
@@ -1192,12 +1520,22 @@ function applyLabelSemanticType(typeCode: string | null | undefined, options?: {
       typeName: null,
       renderType: null
     };
+    labelDraft.value = options?.applyDefaults
+      ? applyLabelEditorPreset(nextDraft, recommendedPreset, {
+          previousPreset: lastAppliedLabelPreset.value
+        })
+      : {
+          ...nextDraft,
+          labelType: nextDraft.labelType || recommendedPreset.labelType,
+          textColor: nextDraft.textColor || recommendedPreset.textColor,
+          haloColor: nextDraft.haloColor || recommendedPreset.haloColor
+        };
+    lastAppliedLabelPreset.value = recommendedPreset;
     return;
   }
 
   const semanticDefaults = getLabelSemanticDefaults(definition);
-
-  labelDraft.value = {
+  const nextDraft = {
     ...labelDraft.value,
     categoryCode: definition.categoryCode,
     categoryName: definition.categoryName,
@@ -1205,13 +1543,23 @@ function applyLabelSemanticType(typeCode: string | null | undefined, options?: {
     typeName: definition.typeName,
     renderType: definition.renderType,
     geometryType: definition.geometryType,
-    labelType: getLabelLayerTypeFromRenderType(definition.renderType),
-    minZoom: options?.applyDefaults && typeof definition.defaultMinZoom === 'number' ? definition.defaultMinZoom : labelDraft.value.minZoom,
-    maxZoom: options?.applyDefaults && typeof definition.defaultMaxZoom === 'number' ? definition.defaultMaxZoom : labelDraft.value.maxZoom,
-    priority: options?.applyDefaults && typeof definition.defaultPriority === 'number' ? definition.defaultPriority : labelDraft.value.priority,
-    textColor: options?.applyDefaults ? semanticDefaults.textColor ?? labelDraft.value.textColor : labelDraft.value.textColor,
-    haloColor: options?.applyDefaults ? semanticDefaults.haloColor ?? labelDraft.value.haloColor : labelDraft.value.haloColor
+    labelType: options?.applyDefaults
+      ? recommendedPreset.labelType
+      : labelDraft.value.labelType || recommendedPreset.labelType,
+    textColor: options?.applyDefaults
+      ? semanticDefaults.textColor ?? recommendedPreset.textColor
+      : labelDraft.value.textColor || semanticDefaults.textColor || recommendedPreset.textColor,
+    haloColor: options?.applyDefaults
+      ? semanticDefaults.haloColor ?? recommendedPreset.haloColor
+      : labelDraft.value.haloColor || semanticDefaults.haloColor || recommendedPreset.haloColor
   };
+
+  labelDraft.value = options?.applyDefaults
+    ? applyLabelEditorPreset(nextDraft, recommendedPreset, {
+        previousPreset: lastAppliedLabelPreset.value
+      })
+    : nextDraft;
+  lastAppliedLabelPreset.value = recommendedPreset;
 
   if (labelEditorContext.value) {
     labelEditorContext.value = {
@@ -1294,7 +1642,18 @@ function setLabelDraftFromContext(context: EditableMapLabelContext, existing?: M
   labelDraft.value = createDraftFromContext(context, existing);
   labelAliasInput.value = formatAliasNamesInput(existing?.aliasNames);
   editingLabelId.value = existing?.id ?? null;
-  applyLabelSemanticType(labelDraft.value.typeCode ?? getDefaultTypeCodeForLabelFeature(labelDraft.value.featureType));
+  lastAppliedLabelPreset.value = existing
+    ? resolveLabelEditorPreset({
+        featureType: labelDraft.value.featureType,
+        typeCode: labelDraft.value.typeCode,
+        definition: getFeatureTypeDefinition(labelDraft.value.typeCode)
+      })
+    : resolveLabelEditorPreset({
+        featureType: labelDraft.value.featureType
+      });
+  applyLabelSemanticType(labelDraft.value.typeCode ?? getDefaultTypeCodeForLabelFeature(labelDraft.value.featureType), {
+    applyDefaults: !existing
+  });
 }
 
 function resetDrawnBuildingEditorState(options?: { preserveSelection?: boolean }): void {
@@ -1332,6 +1691,7 @@ function editSelectedEntityLabel(): void {
     return;
   }
 
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   labelPickMode.value = null;
@@ -1343,11 +1703,13 @@ function closeLabelEditor(): void {
   labelEditorContext.value = null;
   labelDraft.value = null;
   labelAliasInput.value = '';
+  lastAppliedLabelPreset.value = null;
   editingLabelId.value = null;
   editingLabelSubmissionId.value = null;
 }
 
 function openDrawnBuildingEditor(area: DrawnBuildingArea): void {
+  closeToolbarPanel();
   closeLabelEditor();
   labelPickMode.value = null;
   focusTarget.value = null;
@@ -1430,6 +1792,7 @@ function editSelectedDrawnBuilding(): void {
 }
 
 function startDrawBuildingArea(mode: Exclude<BuildingDrawMode, null>): void {
+  closeToolbarPanel();
   closeLabelEditor();
   clearSelectedEntity();
   resetDrawnBuildingEditorState();
@@ -1444,6 +1807,7 @@ function cancelDrawBuildingArea(): void {
 
 function handleDrawnBuildingComplete(payload: DrawnBuildingCompletePayload): void {
   const area = drawnBuildingStore.createArea(payload);
+  closeToolbarPanel();
   showDrawnBuildingList.value = true;
   drawnBuildingDraft.value = createDrawnBuildingDraft(area);
   applyDrawnBuildingSemanticType(drawnBuildingDraft.value.typeCode || DEFAULT_DRAWN_BUILDING_TYPE_CODE);
@@ -1685,6 +2049,7 @@ function normalizeAreaSubmissionPayload(submission: MapFeatureSubmission): SaveM
 }
 
 function openLabelSubmissionEditor(submission: MapFeatureSubmission): void {
+  closeToolbarPanel();
   const payload = normalizeLabelSubmissionPayload(submission);
   const context: EditableMapLabelContext = {
     sourceKind: 'manual',
@@ -1711,6 +2076,11 @@ function openLabelSubmissionEditor(submission: MapFeatureSubmission): void {
     ...payload,
     aliasNames: [...payload.aliasNames]
   };
+  lastAppliedLabelPreset.value = resolveLabelEditorPreset({
+    featureType: labelDraft.value.featureType,
+    typeCode: labelDraft.value.typeCode,
+    definition: getFeatureTypeDefinition(labelDraft.value.typeCode)
+  });
   labelAliasInput.value = formatAliasNamesInput(payload.aliasNames);
   editingLabelId.value = null;
   editingLabelSubmissionId.value = submission.id;
@@ -1718,6 +2088,7 @@ function openLabelSubmissionEditor(submission: MapFeatureSubmission): void {
 }
 
 function openDrawnBuildingSubmissionEditor(submission: MapFeatureSubmission): void {
+  closeToolbarPanel();
   const payload = normalizeAreaSubmissionPayload(submission);
   const draft = createDrawnBuildingDraftFromSavePayload(submission.id, payload);
   const previewArea: DrawnBuildingArea = {
@@ -2035,6 +2406,7 @@ function handleMapClick(payload: { longitude: number; latitude: number }): void 
 }
 
 function handleBasemapFeatureClick(feature: BasemapInspectableFeature): void {
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   focusTarget.value = null;
@@ -2044,6 +2416,7 @@ function handleBasemapFeatureClick(feature: BasemapInspectableFeature): void {
 }
 
 function handleManualLabelClick(labelId: EntityId): void {
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   clearSelectedEntity();
@@ -2052,12 +2425,14 @@ function handleManualLabelClick(labelId: EntityId): void {
 }
 
 function toggleFeaturePickMode(): void {
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   labelPickMode.value = labelPickMode.value === 'feature' ? null : 'feature';
 }
 
 function togglePointPickMode(): void {
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   if (!labelDraft.value) {
@@ -2069,16 +2444,13 @@ function togglePointPickMode(): void {
 }
 
 function startManualLabel(): void {
+  closeToolbarPanel();
   resetDrawnBuildingEditorState();
   drawnBuildingStore.cancelDraw();
   const [longitude, latitude] = getLabelFallbackCenter();
   clearSelectedEntity();
   setLabelDraftFromContext(createManualPointContext(longitude, latitude), null);
   labelPickMode.value = null;
-}
-
-function resetLabelDraft(): void {
-  void reloadCurrentLabel();
 }
 
 async function reloadCurrentLabel(): Promise<void> {
@@ -2234,6 +2606,11 @@ async function saveLabel(): Promise<void> {
       id: saved.id,
       aliasNames: saved.aliasNames
     };
+    lastAppliedLabelPreset.value = resolveLabelEditorPreset({
+      featureType: labelDraft.value.featureType,
+      typeCode: labelDraft.value.typeCode,
+      definition: getFeatureTypeDefinition(labelDraft.value.typeCode)
+    });
     editingLabelId.value = saved.id;
     labelEditorContext.value = createLabelContextFromManualLabel(saved);
     labelAliasInput.value = formatAliasNamesInput(saved.aliasNames);
@@ -2529,24 +2906,36 @@ function getInspectorRemark(target: MapFocusTarget): string {
 
 watch(
   () => labelDraft.value?.featureType,
-  (featureType) => {
+  (featureType, previousFeatureType) => {
     if (!labelDraft.value || !featureType) {
       return;
     }
 
-    const nextTypeCode = labelDraft.value.typeCode || getDefaultTypeCodeForLabelFeature(featureType);
-    labelDraft.value = {
-      ...labelDraft.value,
-      typeCode: nextTypeCode,
-      labelType: labelDraft.value.labelType || getDefaultLabelType(featureType),
-      minZoom: typeof labelDraft.value.minZoom === 'number' ? labelDraft.value.minZoom : getDefaultMinZoom(featureType),
-      maxZoom: typeof labelDraft.value.maxZoom === 'number' ? labelDraft.value.maxZoom : getDefaultMaxZoom(featureType),
-      priority: typeof labelDraft.value.priority === 'number' ? labelDraft.value.priority : getDefaultPriority(featureType)
-    };
+    const previousDefaultTypeCode = previousFeatureType
+      ? getDefaultTypeCodeForLabelFeature(previousFeatureType)
+      : null;
+    const currentTypeCode = labelDraft.value.typeCode;
+    const nextTypeCode = !currentTypeCode || currentTypeCode === previousDefaultTypeCode
+      ? getDefaultTypeCodeForLabelFeature(featureType)
+      : currentTypeCode;
 
     if (nextTypeCode) {
-      applyLabelSemanticType(nextTypeCode);
+      labelDraft.value = {
+        ...labelDraft.value,
+        typeCode: nextTypeCode
+      };
+      applyLabelSemanticType(nextTypeCode, { applyDefaults: true });
+      return;
     }
+
+    const nextPreset = resolveLabelEditorPreset({
+      featureType,
+      labelType: labelDraft.value.labelType
+    });
+    labelDraft.value = applyLabelEditorPreset(labelDraft.value, nextPreset, {
+      previousPreset: lastAppliedLabelPreset.value
+    });
+    lastAppliedLabelPreset.value = nextPreset;
   }
 );
 
@@ -2647,15 +3036,64 @@ onBeforeUnmount(() => {
   align-content: start;
 }
 
-.map-control-stack {
+.map-workbench {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   justify-items: end;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.map-toolbar-strip {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.map-toolbar-button {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.82);
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.map-toolbar-button:hover {
+  background: rgba(239, 246, 255, 0.98);
+  color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.map-toolbar-button--active {
+  background: rgba(239, 246, 255, 0.98);
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.map-toolbar-button span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.map-toolbar-button small {
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.map-toolbar-panel {
+  width: 100%;
+  padding: 12px;
 }
 
 .search-results-card,
 .inspector-card,
-.label-tools-card,
 .label-editor-card {
   border-radius: 22px;
   padding: 14px;
@@ -2670,25 +3108,13 @@ onBeforeUnmount(() => {
   width: min(360px, calc(100vw - 32px));
 }
 
-.label-tools-card {
-  width: 212px;
-}
-
-.label-tools-card {
-  padding: 11px;
-}
-
-.map-tools-card {
-  width: 232px;
-}
-
 .label-editor-card {
   max-height: calc(100vh - 112px);
   overflow: hidden;
 }
 
 .label-editor-card--drawer {
-  width: min(390px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   height: min(calc(100vh - 112px), 100%);
@@ -2699,7 +3125,7 @@ onBeforeUnmount(() => {
 
 .label-editor-body {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   padding-right: 4px;
   padding-bottom: 4px;
 }
@@ -2974,6 +3400,108 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+.tool-group-selection {
+  display: grid;
+  gap: 6px;
+  padding: 12px 13px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.tool-group-selection strong {
+  font-size: 14px;
+}
+
+.tool-group-selection span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.toolbar-panel-tip,
+.section-help-text,
+.field-pair-help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.toolbar-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.toolbar-mode-grid--editor {
+  grid-template-columns: 1fr;
+}
+
+.toolbar-mode-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 13px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.toolbar-mode-card:hover {
+  border-color: rgba(59, 130, 246, 0.22);
+  box-shadow: 0 10px 18px rgba(59, 130, 246, 0.08);
+  transform: translateY(-1px);
+}
+
+.toolbar-mode-card--active {
+  border-color: rgba(37, 99, 235, 0.26);
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 10px 18px rgba(59, 130, 246, 0.08);
+}
+
+.toolbar-mode-card strong {
+  font-size: 14px;
+}
+
+.toolbar-mode-card span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.toolbar-status-card,
+.strategy-summary,
+.field-help-card {
+  padding: 12px 13px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.toolbar-status-card {
+  display: grid;
+  gap: 4px;
+}
+
+.toolbar-status-card strong,
+.strategy-summary strong,
+.field-help-card strong {
+  font-size: 13px;
+}
+
+.toolbar-status-card p,
+.strategy-summary span,
+.field-help-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .label-editor-tip {
   margin: 0 0 12px;
   color: var(--text-secondary);
@@ -3005,15 +3533,90 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
+.label-context-summary--rich {
+  margin-bottom: 0;
+}
+
+.context-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #475569;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.label-context-note {
+  margin-top: 10px !important;
+}
+
 .label-editor-form {
   display: grid;
-  gap: 4px;
+  gap: 0;
 }
 
 .label-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.label-help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tool-group-selection--toolbar {
+  margin-top: 6px;
+}
+
+.editor-section {
+  display: grid;
+  gap: 12px;
+}
+
+.editor-section + .editor-section {
+  padding-top: 4px;
+}
+
+.editor-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.editor-section-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.editor-section-head h4 {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.editor-section-meta {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .editor-footer {
@@ -3056,14 +3659,19 @@ onBeforeUnmount(() => {
     justify-items: stretch;
   }
 
-  .map-control-stack {
+  .map-workbench {
     justify-items: stretch;
+    width: 100%;
   }
 
   .search-results-card,
   .inspector-card,
-  .label-tools-card,
   .label-editor-card {
+    width: 100%;
+  }
+
+  .map-toolbar-strip,
+  .map-toolbar-panel {
     width: 100%;
   }
 
@@ -3079,6 +3687,11 @@ onBeforeUnmount(() => {
   .label-form-grid {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+
+  .toolbar-mode-grid,
+  .label-help-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

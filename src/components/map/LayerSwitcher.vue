@@ -1,6 +1,6 @@
 <template>
-  <div class="shell-card switcher-card">
-    <div class="switcher-title">
+  <div :class="['switcher-card', { 'shell-card': !embedded, 'switcher-card--embedded': embedded }]">
+    <div v-if="showTitle" class="switcher-title">
       <h3>图层控制</h3>
     </div>
     <div class="switcher-list">
@@ -33,11 +33,16 @@ import type { LayerVisibility } from '@/types/map';
 
 const props = defineProps<{
   modelValue: LayerVisibility;
+  embedded?: boolean;
+  showTitle?: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: LayerVisibility];
 }>();
+
+const embedded = props.embedded ?? false;
+const showTitle = props.showTitle ?? true;
 
 // Emits a fresh object so parent watchers can react predictably to layer visibility changes.
 function emitChange(key: keyof LayerVisibility, value: string | number | boolean): void {
@@ -80,6 +85,15 @@ function onBoundariesChange(value: string | number | boolean): void {
   backdrop-filter: blur(14px);
 }
 
+.switcher-card--embedded {
+  width: 100%;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
 .switcher-title h3 {
   margin: 0;
   font-size: 15px;
@@ -92,6 +106,11 @@ function onBoundariesChange(value: string | number | boolean): void {
   gap: 5px;
 }
 
+.switcher-card--embedded .switcher-list {
+  margin-top: 0;
+  gap: 10px;
+}
+
 .switcher-item {
   display: flex;
   align-items: center;
@@ -100,6 +119,11 @@ function onBoundariesChange(value: string | number | boolean): void {
   font-size: 12px;
   line-height: 1.3;
   padding: 3px 0;
+}
+
+.switcher-card--embedded .switcher-item {
+  padding: 0;
+  font-size: 13px;
 }
 
 .switcher-item :deep(.el-switch) {
